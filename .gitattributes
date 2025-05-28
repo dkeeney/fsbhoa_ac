@@ -1,0 +1,19 @@
+# Set default behavior for all files to let Git decide (text files will be normalized)
+* text=auto
+
+# Explicitly normalize common text file types to LF line endings in the repository
+# These will be checked out with LF on Linux/macOS, and with CRLF on Windows if core.autocrlf=true
+*.php text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.xml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Ensure specific binary files are not converted
+# *.png binary
+# *.jpg binary
