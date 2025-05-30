@@ -37,11 +37,11 @@ class Fsbhoa_Admin_Menu {
      * @since    0.1.0
      */
     public function __construct() {
-        $this->plugin_name = 'fsbhoa-ac'; // Or derive from main plugin file defines
+        $this->plugin_name = 'fsbhoa-ac';
         if (defined('FSBHOA_AC_VERSION')) {
             $this->version = FSBHOA_AC_VERSION;
         } else {
-            $this->version = '0.1.0'; // Fallback version
+            $this->version = '0.1.1'; // Updated version for new fields
         }
     }
 
@@ -51,28 +51,24 @@ class Fsbhoa_Admin_Menu {
      * @since    0.1.0
      */
     public function add_admin_menu_pages() {
-        // Add a top-level menu page
         add_menu_page(
-            __( 'FSBHOA Access Control', 'fsbhoa-ac' ), // Page title
-            __( 'FSBHOA Access', 'fsbhoa-ac' ),        // Menu title
-            'manage_options',                           // Capability required
-            'fsbhoa_ac_main_menu',                      // Menu slug
-            array( $this, 'display_main_admin_page' ), // Function to display the page
-            'dashicons-id-alt',                         // Icon URL or dashicon class
-            26                                          // Position
+            __( 'FSBHOA Access Control', 'fsbhoa-ac' ),
+            __( 'FSBHOA Access', 'fsbhoa-ac' ),
+            'manage_options',
+            'fsbhoa_ac_main_menu',
+            array( $this, 'display_main_admin_page' ),
+            'dashicons-id-alt',
+            26
         );
 
-        // Add a submenu page for Cardholders
         add_submenu_page(
-            'fsbhoa_ac_main_menu',                      // Parent slug
-            __( 'Cardholders', 'fsbhoa-ac' ),           // Page title
-            __( 'Cardholders', 'fsbhoa-ac' ),           // Menu title
-            'manage_options',                           // Capability
-            'fsbhoa_ac_cardholders',                    // Menu slug
-            array( $this, 'display_cardholders_page' )  // Function to display the page
+            'fsbhoa_ac_main_menu',
+            __( 'Cardholders', 'fsbhoa-ac' ),
+            __( 'Cardholders', 'fsbhoa-ac' ),
+            'manage_options',
+            'fsbhoa_ac_cardholders',
+            array( $this, 'display_cardholders_page' )
         );
-        
-        // TODO: Add more submenu pages here (Print Queue, Settings, Logs, Controller Mgmt)
     }
 
     /**
@@ -81,7 +77,6 @@ class Fsbhoa_Admin_Menu {
      * @since    0.1.0
      */
     public function display_main_admin_page() {
-        // For now, just a placeholder
         echo '<div class="wrap">';
         echo '<h1>' . esc_html__( 'FSBHOA Access Control - Main Page', 'fsbhoa-ac' ) . '</h1>';
         echo '<p>' . esc_html__( 'Welcome to the main settings page. Manage cardholders, access logs, and controller settings from here.', 'fsbhoa-ac' ) . '</p>';
@@ -90,15 +85,12 @@ class Fsbhoa_Admin_Menu {
 
     /**
      * Callback function to display the cardholders page content.
-     * Handles routing to the add new form or the list table.
      *
      * @since    0.1.0
      */
     public function display_cardholders_page() {
-        // Check if the 'action' GET parameter is set
         $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
-
-        if ('add' === $action || 'edit' === $action) { // We can add 'edit' later
+        if ('add' === $action || 'edit' === $action) {
             $this->render_add_new_cardholder_form($action);
         } else {
             $this->render_cardholders_list_page();
@@ -107,7 +99,6 @@ class Fsbhoa_Admin_Menu {
 
     /**
      * Renders the list of cardholders.
-     * (Currently a placeholder, will later integrate WP_List_Table)
      *
      * @since 0.1.1
      */
@@ -115,45 +106,47 @@ class Fsbhoa_Admin_Menu {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html__( 'Cardholder Management', 'fsbhoa-ac' ); ?></h1>
-
             <a href="?page=fsbhoa_ac_cardholders&action=add" class="page-title-action">
                 <?php echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' ); ?>
             </a>
-
-            <p>
-                <?php esc_html_e( 'This area will display a list of all cardholders. You will be able to edit, view, and manage access credentials from here.', 'fsbhoa-ac' ); ?>
-            </p>
-
-            <form method="post">
-                <?php
-                // TODO: WordPress List Table will go here
-                ?>
-            </form>
+            <p><?php esc_html_e( 'This area will display a list of all cardholders. You will be able to edit, view, and manage access credentials from here.', 'fsbhoa-ac' ); ?></p>
+            <form method="post"><?php // TODO: WordPress List Table will go here ?></form>
             <p><em><?php esc_html_e( '(Cardholder list table functionality to be implemented.)', 'fsbhoa-ac' ); ?></em></p>
         </div>
         <?php
     }
-
-    /**
+/**
      * Renders the form for adding or editing a cardholder.
      *
-     * @since 0.1.1
+     * @since 0.1.2
      * @param string $action Current action ('add' or 'edit')
      */
     public function render_add_new_cardholder_form($action = 'add') {
-        $form_data = array( // Initialize $form_data
-            'first_name' => '',
-            'last_name'  => '',
-            // Add other fields here as they are added to the form
+        $form_data = array(
+            'first_name'    => '',
+            'last_name'     => '',
+            'email'         => '',
+            'phone'         => '',
+            'phone_type'    => '',
+            'resident_type' => '',
         );
-        $errors = array(); // Initialize $errors
+        $errors = array();
+
+        // Define allowed types for dropdowns
+        $allowed_phone_types = array('', 'Mobile', 'Home', 'Work', 'Other');
+        // Updated resident types as per your request
+        $allowed_resident_types = array('', 'Resident Owner', 'Non-resident Owner', 'Tenant', 'Staff', 'Contractor', 'Other');
+
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_add_cardholder'])) {
             if (isset($_POST['fsbhoa_add_cardholder_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['fsbhoa_add_cardholder_nonce'])), 'fsbhoa_add_cardholder_action')) {
                 
-                // Sanitize and collect form data into $form_data
-                $form_data['first_name'] = isset($_POST['first_name']) ? sanitize_text_field(wp_unslash($_POST['first_name'])) : '';
-                $form_data['last_name']  = isset($_POST['last_name']) ? sanitize_text_field(wp_unslash($_POST['last_name'])) : '';
+                $form_data['first_name']    = isset($_POST['first_name']) ? trim(sanitize_text_field(wp_unslash($_POST['first_name']))) : '';
+                $form_data['last_name']     = isset($_POST['last_name']) ? trim(sanitize_text_field(wp_unslash($_POST['last_name']))) : '';
+                $form_data['email']         = isset($_POST['email']) ? trim(sanitize_email(wp_unslash($_POST['email']))) : '';
+                $form_data['phone']         = isset($_POST['phone']) ? trim(sanitize_text_field(wp_unslash($_POST['phone']))) : '';
+                $form_data['phone_type']    = isset($_POST['phone_type']) ? sanitize_text_field(wp_unslash($_POST['phone_type'])) : '';
+                $form_data['resident_type'] = isset($_POST['resident_type']) ? sanitize_text_field(wp_unslash($_POST['resident_type'])) : '';
 
                 // Validate First Name
                 if (empty($form_data['first_name'])) {
@@ -169,49 +162,70 @@ class Fsbhoa_Admin_Menu {
                     $errors['last_name'] = __( 'Last Name is too long (max 100 characters).', 'fsbhoa-ac' );
                 }
 
+                // Validate Email
+                if (!empty($form_data['email']) && !is_email($form_data['email'])) {
+                    $errors['email'] = __( 'Please enter a valid email address.', 'fsbhoa-ac' );
+                } elseif (strlen($form_data['email']) > 255) {
+                    $errors['email'] = __( 'Email is too long (max 255 characters).', 'fsbhoa-ac' );
+                }
+
+                // Validate Phone (more specific format)
+                if (!empty($form_data['phone'])) {
+                    // Regex to allow: 10 digits, or (xxx) xxx xxxx, or xxx.xxx.xxxx, or xxx-xxx-xxxx (added hyphen)
+                    // And allows optional leading 1 and optional spaces/hyphens/dots between groups
+                    $phone_regex = '/^(?:1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}$/';
+                    if (!preg_match($phone_regex, $form_data['phone'])) {
+                        $errors['phone'] = __( 'Please enter a valid phone number format (e.g., 1234567890, (123) 456 7890, 123.456.7890).', 'fsbhoa-ac' );
+                    } elseif (strlen($form_data['phone']) > 30) { // Still keep a general max length
+                        $errors['phone'] = __( 'Phone number is too long (max 30 characters).', 'fsbhoa-ac' );
+                    }
+                }
+                
+                // Validate Phone Type
+                if (!in_array($form_data['phone_type'], $allowed_phone_types)) {
+                    $errors['phone_type'] = __('Invalid phone type selected.', 'fsbhoa-ac');
+                } elseif (!empty($form_data['phone']) && empty($form_data['phone_type'])) {
+                    $errors['phone_type'] = __('Please select a phone type if a phone number is entered.', 'fsbhoa-ac');
+                }
+
+                // Validate Resident Type
+                if (!in_array($form_data['resident_type'], $allowed_resident_types)) {
+                    $errors['resident_type'] = __('Invalid resident type selected.', 'fsbhoa-ac');
+                }
+                // If resident_type becomes mandatory, uncomment:
+                // elseif (empty($form_data['resident_type'])) {
+                //     $errors['resident_type'] = __('Resident type is required.', 'fsbhoa-ac');
+                // }
+
+
                 if (empty($errors)) {
-                    // ** START DATABASE INSERTION LOGIC **
-                    global $wpdb; 
-                    // IMPORTANT: Confirm your actual table name.
-                    // If your WordPress prefix (e.g., 'wp_') is DIFFERENT from '_ac'
-                    // AND your table is literally named 'ac_cardholders', then use:
-                    // $table_name = 'ac_cardholders'; 
-                    // If your WordPress prefix IS '_ac', then use:
-                    // $table_name = $wpdb->prefix . 'cardholders';
-                    // For this paste, I am assuming the table name is literally 'ac_cardholders'
-                    // and it does not use the standard WP prefix if that prefix is different.
-                    // PLEASE VERIFY THIS FOR YOUR SETUP.
-                    $table_name = 'ac_cardholders'; // <--- VERIFY THIS TABLE NAME
+                    global $wpdb;
+                    $table_name = 'ac_cardholders';
 
                     $data_to_insert = array(
-                        'first_name' => $form_data['first_name'],
-                        'last_name'  => $form_data['last_name'],
-                        // 'rfid_id' will be NULL by default in the DB if you've set it to allow NULLs
-                        // 'created_at' => current_time('mysql', 1), // Example if not auto-timestamped
+                        'first_name'    => $form_data['first_name'],
+                        'last_name'     => $form_data['last_name'],
+                        'email'         => $form_data['email'],
+                        'phone'         => $form_data['phone'], // Store the phone as entered, or you could strip formatting here
+                        'phone_type'    => $form_data['phone_type'],
+                        'resident_type' => $form_data['resident_type'],
                     );
 
-                    $data_formats = array(
-                        '%s', // first_name
-                        '%s'  // last_name
-                    );
+                    $data_formats = array('%s', '%s', '%s', '%s', '%s', '%s');
 
                     $result = $wpdb->insert($table_name, $data_to_insert, $data_formats);
 
                     if ($result === false) {
                         echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Error saving cardholder data. Please try again or contact an administrator.', 'fsbhoa-ac') . '</p>';
-                        // For debugging, you could log $wpdb->last_error but don't display it publicly.
-                        // error_log('FSBHOA Cardholder Insert Error: ' . $wpdb->last_error);
                     } else {
                         echo '<div id="message" class="updated notice is-dismissible"><p>' . sprintf(
                             esc_html__('Cardholder %1$s %2$s added successfully! Record ID: %3$d', 'fsbhoa-ac'),
                             esc_html($form_data['first_name']),
                             esc_html($form_data['last_name']),
-                            $wpdb->insert_id // Get the ID of the newly inserted row
+                            $wpdb->insert_id
                         ) . '</p></div>';
-                        
                         $form_data = array_fill_keys(array_keys($form_data), ''); 
                     }
-                    // ** END DATABASE INSERTION LOGIC **
                 } else {
                     echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Please correct the errors below and try again.', 'fsbhoa-ac') . '</p>';
                     foreach ($errors as $field => $error_message) {
@@ -225,37 +239,55 @@ class Fsbhoa_Admin_Menu {
         }
         ?>
         <div class="wrap">
-            <h1>
-                <?php
-                // TODO: Add logic for 'edit' mode title later
-                echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' );
-                ?>
-            </h1>
-
+            <h1><?php echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' ); ?></h1>
             <form method="POST" action="?page=fsbhoa_ac_cardholders&action=add">
                 <?php wp_nonce_field( 'fsbhoa_add_cardholder_action', 'fsbhoa_add_cardholder_nonce' ); ?>
-
                 <table class="form-table">
                     <tbody>
                         <tr>
-                            <th scope="row">
-                                <label for="first_name"><?php esc_html_e( 'First Name', 'fsbhoa-ac' ); ?></label>
-                            </th>
+                            <th scope="row"><label for="first_name"><?php esc_html_e( 'First Name', 'fsbhoa-ac' ); ?></label></th>
+                            <td><input type="text" name="first_name" id="first_name" class="regular-text" value="<?php echo esc_attr($form_data['first_name']); ?>" required></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="last_name"><?php esc_html_e( 'Last Name', 'fsbhoa-ac' ); ?></label></th>
+                            <td><input type="text" name="last_name" id="last_name" class="regular-text" value="<?php echo esc_attr($form_data['last_name']); ?>" required></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="email"><?php esc_html_e( 'Email', 'fsbhoa-ac' ); ?></label></th>
                             <td>
-                                <input type="text" name="first_name" id="first_name" class="regular-text" 
-                                       value="<?php echo esc_attr($form_data['first_name']); ?>" required>
+                                <input type="email" name="email" id="email" class="regular-text" value="<?php echo esc_attr($form_data['email']); ?>">
+                                <p class="description"><?php esc_html_e( 'Optional. Will be used for communications if provided.', 'fsbhoa-ac' ); ?></p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row">
-                                <label for="last_name"><?php esc_html_e( 'Last Name', 'fsbhoa-ac' ); ?></label>
-                            </th>
+                            <th scope="row"><label for="phone"><?php esc_html_e( 'Phone Number', 'fsbhoa-ac' ); ?></label></th>
                             <td>
-                                <input type="text" name="last_name" id="last_name" class="regular-text" 
-                                       value="<?php echo esc_attr($form_data['last_name']); ?>" required>
+                                <input type="tel" name="phone" id="phone" class="regular-text" style="width: 15em; margin-right: 1em;" value="<?php echo esc_attr($form_data['phone']); ?>">
+                                <select name="phone_type" id="phone_type" style="vertical-align: baseline;">
+                                    <option value="" <?php selected($form_data['phone_type'], ''); ?>><?php esc_html_e( '-- Select Type --', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Mobile" <?php selected($form_data['phone_type'], 'Mobile'); ?>><?php esc_html_e( 'Mobile', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Home" <?php selected($form_data['phone_type'], 'Home'); ?>><?php esc_html_e( 'Home', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Work" <?php selected($form_data['phone_type'], 'Work'); ?>><?php esc_html_e( 'Work', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Other" <?php selected($form_data['phone_type'], 'Other'); ?>><?php esc_html_e( 'Other', 'fsbhoa-ac' ); ?></option>
+                                </select>
+                                <p class="description"><?php esc_html_e( 'Enter phone number and select its type.', 'fsbhoa-ac' ); ?></p>
                             </td>
                         </tr>
-                        </tbody>
+                        <tr>
+                            <th scope="row"><label for="resident_type"><?php esc_html_e( 'Resident Type', 'fsbhoa-ac' ); ?></label></th>
+                            <td>
+                                <select name="resident_type" id="resident_type">
+                                    <option value="" <?php selected($form_data['resident_type'], ''); ?>><?php esc_html_e( '-- Select Type --', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Resident Owner" <?php selected($form_data['resident_type'], 'Resident Owner'); ?>><?php esc_html_e( 'Resident Owner', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Non-resident Owner" <?php selected($form_data['resident_type'], 'Non-resident Owner'); ?>><?php esc_html_e( 'Non-resident Owner', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Tenant" <?php selected($form_data['resident_type'], 'Tenant'); ?>><?php esc_html_e( 'Tenant', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Staff" <?php selected($form_data['resident_type'], 'Staff'); ?>><?php esc_html_e( 'Staff', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Contractor" <?php selected($form_data['resident_type'], 'Contractor'); ?>><?php esc_html_e( 'Contractor', 'fsbhoa-ac' ); ?></option>
+                                    <option value="Other" <?php selected($form_data['resident_type'], 'Other'); ?>><?php esc_html_e( 'Other', 'fsbhoa-ac' ); ?></option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
                 </table>
                 <?php submit_button( __( 'Save Basic Info & Proceed to Photo', 'fsbhoa-ac' ), 'primary', 'submit_add_cardholder' ); ?>
             </form>
@@ -263,11 +295,5 @@ class Fsbhoa_Admin_Menu {
         </div>
         <?php
     }
-
-    // We can add methods here later for enqueueing admin scripts and styles
-    // public function enqueue_styles() { ... }
-    // public function enqueue_scripts() { ... }
-
 } // end class Fsbhoa_Admin_Menu
 ?>
-
