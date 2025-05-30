@@ -85,17 +85,37 @@ class Fsbhoa_Admin_Menu {
         echo '<p>' . esc_html__( 'Welcome to the main settings page.', 'fsbhoa-ac' ) . '</p>';
     }
 
-    /**
+/**
      * Callback function to display the cardholders page content.
      *
      * @since    0.1.0
      */
     public function display_cardholders_page() {
-        // We will build this out later
-        echo '<h1>' . esc_html__( 'Cardholder Management', 'fsbhoa-ac' ) . '</h1>';
-        // Placeholder for where the cardholder list table and "Add New" button will go
-    }
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html__( 'Cardholder Management', 'fsbhoa-ac' ); ?></h1>
 
+            <a href="#" class="page-title-action">
+                <?php echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' ); ?>
+            </a>
+
+            <p>
+                <?php esc_html_e( 'This area will display a list of all cardholders. You will be able to edit, view, and manage access credentials from here.', 'fsbhoa-ac' ); ?>
+            </p>
+
+            <form method="post">
+                <?php
+                // For WP_List_Table, if we were to use one directly here.
+                // $list_table = new Your_Cardholders_List_Table();
+                // $list_table->prepare_items();
+                // $list_table->display();
+                ?>
+            </form>
+            <p><em><?php esc_html_e( '(Cardholder list table functionality to be implemented.)', 'fsbhoa-ac' ); ?></em></p>
+
+        </div>
+        <?php
+    }
     // We can add methods here later for enqueueing admin scripts and styles
     // public function enqueue_styles() { ... }
     // public function enqueue_scripts() { ... }
