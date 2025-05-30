@@ -23,6 +23,10 @@ if ( ! defined( 'WPINC' ) ) {
 define( 'FSBHOA_AC_VERSION', '0.1.0' );
 define( 'FSBHOA_AC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FSBHOA_AC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+// Define FSBHOA_AC_PLUGIN_VERSION if not already defined elsewhere, e.g., in this file
+if ( ! defined( 'FSBHOA_AC_PLUGIN_VERSION' ) ) {
+    define( 'FSBHOA_AC_PLUGIN_VERSION', '0.1.3' ); // Keep this in sync
+}
 
 // Activation / Deactivation Hooks
 function fsbhoa_ac_activate() {
@@ -39,25 +43,28 @@ function fsbhoa_ac_deactivate() {
 }
 register_deactivation_hook( __FILE__, 'fsbhoa_ac_deactivate' );
 
-/**
- * Load core plugin class for admin area.
- */
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-admin-menu.php';
 
 /**
- * Begins execution of the plugin.
- *
- * Since everything within the plugin is registered via hooks,
- * then kicking off the plugin from this point in the file does
- * not affect the page life cycle.
+ * Load core plugin classes for admin area.
+ */
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-admin-menu.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php';
+
+/**
+ * Begins execution of the plugin's admin parts.
  *
  * @since    0.1.0
  */
 function run_fsbhoa_access_control_admin() {
-    $plugin_admin = new Fsbhoa_Admin_Menu(); // Assuming your class is named Fsbhoa_Admin_Menu
-    // Add WordPress action hooks here that call methods on $plugin_admin
-    // For example, to add the admin menu:
-    add_action( 'admin_menu', array( $plugin_admin, 'add_admin_menu_pages' ) );
+    if (class_exists('Fsbhoa_Admin_Menu')) { // Check if class exists before new-ing
+        $plugin_admin_menu = new Fsbhoa_Admin_Menu();
+        add_action( 'admin_menu', array( $plugin_admin_menu, 'add_admin_menu_pages' ) );
+    } else {
+        // Optionally, add an admin notice if the class isn't found
+        add_action('admin_notices', function() {
+            echo '<div class="error"><p>FSBHOA Access Control: Admin Menu Class not found.</p></div>';
+        });
+    }
 }
 
 // Only run this if in the admin area
