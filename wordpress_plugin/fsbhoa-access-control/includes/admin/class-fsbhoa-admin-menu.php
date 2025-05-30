@@ -2,9 +2,6 @@
 /**
  * The admin-specific functionality of the plugin.
  *
- * Defines the plugin name, version, and two examples hooks for
- * enqueueing the admin-specific stylesheet and JavaScript.
- *
  * @package    Fsbhoa_Ac
  * @subpackage Fsbhoa_Ac/admin
  * @author     FSBHOA IT Committee
@@ -41,7 +38,11 @@ class Fsbhoa_Admin_Menu {
      */
     public function __construct() {
         $this->plugin_name = 'fsbhoa-ac'; // Or derive from main plugin file defines
-        $this->version = FSBHOA_AC_VERSION; // Assumes FSBHOA_AC_VERSION is defined in main file
+        if (defined('FSBHOA_AC_VERSION')) {
+            $this->version = FSBHOA_AC_VERSION;
+        } else {
+            $this->version = '0.1.0'; // Fallback version
+        }
     }
 
     /**
@@ -61,7 +62,7 @@ class Fsbhoa_Admin_Menu {
             26                                          // Position
         );
 
-        // Add a submenu page for Cardholders (example)
+        // Add a submenu page for Cardholders
         add_submenu_page(
             'fsbhoa_ac_main_menu',                      // Parent slug
             __( 'Cardholders', 'fsbhoa-ac' ),           // Page title
@@ -71,7 +72,7 @@ class Fsbhoa_Admin_Menu {
             array( $this, 'display_cardholders_page' )  // Function to display the page
         );
         
-        // Add more submenu pages here (Print Queue, Settings, Logs, Controller Mgmt)
+        // TODO: Add more submenu pages here (Print Queue, Settings, Logs, Controller Mgmt)
     }
 
     /**
@@ -81,15 +82,12 @@ class Fsbhoa_Admin_Menu {
      */
     public function display_main_admin_page() {
         // For now, just a placeholder
+        echo '<div class="wrap">';
         echo '<h1>' . esc_html__( 'FSBHOA Access Control - Main Page', 'fsbhoa-ac' ) . '</h1>';
-        echo '<p>' . esc_html__( 'Welcome to the main settings page.', 'fsbhoa-ac' ) . '</p>';
+        echo '<p>' . esc_html__( 'Welcome to the main settings page. Manage cardholders, access logs, and controller settings from here.', 'fsbhoa-ac' ) . '</p>';
+        echo '</div>';
     }
 
-/**
-     * Callback function to display the cardholders page content.
-     *
-     * @since    0.1.0
-     */
     /**
      * Callback function to display the cardholders page content.
      * Handles routing to the add new form or the list table.
@@ -101,10 +99,8 @@ class Fsbhoa_Admin_Menu {
         $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
 
         if ('add' === $action || 'edit' === $action) { // We can add 'edit' later
-            // Call a method to display the add/edit form
-            $this->render_add_new_cardholder_form($action); // Pass action for context if needed
+            $this->render_add_new_cardholder_form($action);
         } else {
-            // Display the list of cardholders (current placeholder)
             $this->render_cardholders_list_page();
         }
     }
@@ -130,31 +126,22 @@ class Fsbhoa_Admin_Menu {
 
             <form method="post">
                 <?php
-                // For WP_List_Table, if we were to use one directly here.
-                // $list_table = new Your_Cardholders_List_Table();
-                // $list_table->prepare_items();
-                // $list_table->display();
+                // TODO: WordPress List Table will go here
                 ?>
             </form>
             <p><em><?php esc_html_e( '(Cardholder list table functionality to be implemented.)', 'fsbhoa-ac' ); ?></em></p>
-
         </div>
         <?php
     }
+
     /**
-     * Renders the form for adding a new cardholder.
+     * Renders the form for adding or editing a cardholder.
      *
      * @since 0.1.1
      * @param string $action Current action ('add' or 'edit')
      */
-    // We can add methods here later for enqueueing admin scripts and styles
-    // public function enqueue_styles() { ... }
-    // public function enqueue_scripts() { ... }
-
-
     public function render_add_new_cardholder_form($action = 'add') {
         $form_data = array( // Initialize $form_data
-            // 'rfid_id'    => '', // REMOVE THIS LINE
             'first_name' => '',
             'last_name'  => '',
             // Add other fields here as they are added to the form
@@ -165,22 +152,8 @@ class Fsbhoa_Admin_Menu {
             if (isset($_POST['fsbhoa_add_cardholder_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['fsbhoa_add_cardholder_nonce'])), 'fsbhoa_add_cardholder_action')) {
                 
                 // Sanitize and collect form data into $form_data
-                // $form_data['rfid_id']    = isset($_POST['rfid_id']) ? sanitize_text_field(wp_unslash($_POST['rfid_id'])) : ''; // REMOVE THIS LINE
                 $form_data['first_name'] = isset($_POST['first_name']) ? sanitize_text_field(wp_unslash($_POST['first_name'])) : '';
                 $form_data['last_name']  = isset($_POST['last_name']) ? sanitize_text_field(wp_unslash($_POST['last_name'])) : '';
-
-                // ** START VALIDATION LOGIC **
-                $errors = array(); // Re-initialize errors for this submission
-
-                // Validate RFID ID // ENTIRE BLOCK TO BE REMOVED
-                // if (empty($form_data['rfid_id'])) {
-                //     $errors['rfid_id'] = __( 'RFID ID is required.', 'fsbhoa-ac' );
-                // } elseif (!ctype_digit($form_data['rfid_id'])) { 
-                //     $errors['rfid_id'] = __( 'RFID ID must be numeric.', 'fsbhoa-ac' );
-                // } elseif (strlen($form_data['rfid_id']) !== 8) { 
-                //     $errors['rfid_id'] = __( 'RFID ID must be 8 digits.', 'fsbhoa-ac' );
-                // }
-                // END RFID VALIDATION BLOCK REMOVAL
 
                 // Validate First Name
                 if (empty($form_data['first_name'])) {
@@ -197,10 +170,48 @@ class Fsbhoa_Admin_Menu {
                 }
 
                 if (empty($errors)) {
-                    echo '<div id="message" class="updated notice is-dismissible"><p>' . esc_html__('Validation successful! Data ready for saving (not yet implemented).', 'fsbhoa-ac') . '</p><pre>';
-                    print_r($form_data); // Display sanitized data
-                    echo '</pre></div>';
-                    $form_data = array_fill_keys(array_keys($form_data), ''); 
+                    // ** START DATABASE INSERTION LOGIC **
+                    global $wpdb; 
+                    // IMPORTANT: Confirm your actual table name.
+                    // If your WordPress prefix (e.g., 'wp_') is DIFFERENT from '_ac'
+                    // AND your table is literally named 'ac_cardholders', then use:
+                    // $table_name = 'ac_cardholders'; 
+                    // If your WordPress prefix IS '_ac', then use:
+                    // $table_name = $wpdb->prefix . 'cardholders';
+                    // For this paste, I am assuming the table name is literally 'ac_cardholders'
+                    // and it does not use the standard WP prefix if that prefix is different.
+                    // PLEASE VERIFY THIS FOR YOUR SETUP.
+                    $table_name = 'ac_cardholders'; // <--- VERIFY THIS TABLE NAME
+
+                    $data_to_insert = array(
+                        'first_name' => $form_data['first_name'],
+                        'last_name'  => $form_data['last_name'],
+                        // 'rfid_id' will be NULL by default in the DB if you've set it to allow NULLs
+                        // 'created_at' => current_time('mysql', 1), // Example if not auto-timestamped
+                    );
+
+                    $data_formats = array(
+                        '%s', // first_name
+                        '%s'  // last_name
+                    );
+
+                    $result = $wpdb->insert($table_name, $data_to_insert, $data_formats);
+
+                    if ($result === false) {
+                        echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Error saving cardholder data. Please try again or contact an administrator.', 'fsbhoa-ac') . '</p>';
+                        // For debugging, you could log $wpdb->last_error but don't display it publicly.
+                        // error_log('FSBHOA Cardholder Insert Error: ' . $wpdb->last_error);
+                    } else {
+                        echo '<div id="message" class="updated notice is-dismissible"><p>' . sprintf(
+                            esc_html__('Cardholder %1$s %2$s added successfully! Record ID: %3$d', 'fsbhoa-ac'),
+                            esc_html($form_data['first_name']),
+                            esc_html($form_data['last_name']),
+                            $wpdb->insert_id // Get the ID of the newly inserted row
+                        ) . '</p></div>';
+                        
+                        $form_data = array_fill_keys(array_keys($form_data), ''); 
+                    }
+                    // ** END DATABASE INSERTION LOGIC **
                 } else {
                     echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Please correct the errors below and try again.', 'fsbhoa-ac') . '</p>';
                     foreach ($errors as $field => $error_message) {
@@ -214,7 +225,12 @@ class Fsbhoa_Admin_Menu {
         }
         ?>
         <div class="wrap">
-            <h1><?php echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' ); ?></h1>
+            <h1>
+                <?php
+                // TODO: Add logic for 'edit' mode title later
+                echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' );
+                ?>
+            </h1>
 
             <form method="POST" action="?page=fsbhoa_ac_cardholders&action=add">
                 <?php wp_nonce_field( 'fsbhoa_add_cardholder_action', 'fsbhoa_add_cardholder_nonce' ); ?>
@@ -241,12 +257,17 @@ class Fsbhoa_Admin_Menu {
                         </tr>
                         </tbody>
                 </table>
-                <?php submit_button( __( 'Save Basic Info & Proceed to Photo', 'fsbhoa-ac' ), 'primary', 'submit_add_cardholder' ); // Changed button text ?>
+                <?php submit_button( __( 'Save Basic Info & Proceed to Photo', 'fsbhoa-ac' ), 'primary', 'submit_add_cardholder' ); ?>
             </form>
             <p><a href="?page=fsbhoa_ac_cardholders"><?php esc_html_e( '&larr; Back to Cardholders List', 'fsbhoa-ac' ); ?></a></p>
         </div>
         <?php
-    }  // end function
-} // end class
+    }
 
+    // We can add methods here later for enqueueing admin scripts and styles
+    // public function enqueue_styles() { ... }
+    // public function enqueue_scripts() { ... }
+
+} // end class Fsbhoa_Admin_Menu
 ?>
+
