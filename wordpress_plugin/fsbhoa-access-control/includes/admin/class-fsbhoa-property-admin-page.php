@@ -29,24 +29,38 @@ class Fsbhoa_Property_Admin_Page {
     }
 
     /**
-     * Renders the list of properties.
-     * (Currently a placeholder, will later integrate WP_List_Table)
+     * Renders the list of properties using WP_List_Table.
      *
-     * @since 0.1.4
+     * @since 0.1.4 (Updated in 0.1.5 to use WP_List_Table)
      */
     public function render_property_list_page() {
+        // Create an instance of our package class...
+        $property_list_table = new Fsbhoa_Property_List_Table();
+        // Fetch, prepare, sort, and filter our data...
+        $property_list_table->prepare_items();
         ?>
         <div class="wrap">
             <h1><?php echo esc_html__( 'Property Management', 'fsbhoa-ac' ); ?></h1>
+
             <a href="?page=fsbhoa_ac_properties&action=add" class="page-title-action">
                 <?php echo esc_html__( 'Add New Property', 'fsbhoa-ac' ); ?>
             </a>
-            <p><?php esc_html_e( 'This area will display a list of all properties.', 'fsbhoa-ac' ); ?></p>
-            <form method="post"><?php // TODO: WordPress List Table for properties will go here ?></form>
-            <p><em><?php esc_html_e( '(Property list table functionality to be implemented.)', 'fsbhoa-ac' ); ?></em></p>
+
+            <?php // If we have any messages to display (e.g. after a delete action, though not implemented yet) ?>
+            <?php // settings_errors(); // Example for settings pages, might need custom handling here ?>
+
+            <form method="post">
+                <?php // For plugins, we also need to ensure that the form posts back to our current page ?>
+                <input type="hidden" name="page" value="<?php echo esc_attr( sanitize_text_field(wp_unslash($_REQUEST['page'])) ); ?>" />
+                <?php
+                // Now we can render the completed list table
+                $property_list_table->display();
+                ?>
+            </form>
         </div>
         <?php
     }
+
 
     /**
      * Renders the form for adding or editing a property.
