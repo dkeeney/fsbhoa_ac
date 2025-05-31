@@ -88,51 +88,61 @@ class Fsbhoa_Admin_Menu {
         }
     }
 
-    /**
+/**
      * Enqueue scripts and styles for the admin area.
      *
      * @since 0.1.5
      * @param string $hook_suffix The current admin page.
      */
     public function enqueue_admin_scripts($hook_suffix) {
-        // We need to find the $hook_suffix for our specific admin pages.
-        // One way is to print it out when on the page to find it:
-        // error_log("Current admin page hook: " . $hook_suffix);
-        // Or use get_current_screen()
-
         $screen = get_current_screen();
+        
+        // Define an array of your plugin's admin page screen IDs
+        // You'll need to confirm/add the screen ID for the Properties page
+        // The screen ID for 'fsbhoa_ac_properties' is likely 'fsbhoa-access_page_fsbhoa_ac_properties'
+        // or 'toplevel_page_fsbhoa_ac_main_menu_fsbhoa_ac_properties'
+        $plugin_screen_ids = array(
+            'fsbhoa-access_page_fsbhoa_ac_cardholders', // From previous setup
+            'toplevel_page_fsbhoa_ac_main_menu_fsbhoa_ac_cardholders', // Fallback for cardholders
+            // Add Property page screen ID here - VERIFY THIS by temporary error_log($screen->id) on that page
+            // Example: (likely one of these, adjust fsbhoa_ac_main_menu if your top level hook is different)
+             'fsbhoa-access_page_fsbhoa_ac_properties', 
+             'toplevel_page_fsbhoa_ac_main_menu_fsbhoa_ac_properties'
+        );
 
-        // Only load this script on our cardholder add/edit page
-        // The $hook_suffix for a top-level page is 'toplevel_page_fsbhoa_ac_main_menu'
-        // For submenu page 'fsbhoa_ac_cardholders', it might be 'fsbhoa-access_page_fsbhoa_ac_cardholders'
-        // Or more reliably using $screen->id
-        if ($screen && ($screen->id === 'fsbhoa-access_page_fsbhoa_ac_cardholders' || $screen->id === 'toplevel_page_fsbhoa_ac_main_menu_page_fsbhoa_ac_cardholders')) { // Adjust if needed
-
-            // Enqueue jQuery UI Autocomplete (WordPress bundles jQuery and jQuery UI)
+        if ($screen && in_array($screen->id, $plugin_screen_ids)) {
+            // Enqueue jQuery UI Autocomplete
             wp_enqueue_script('jquery-ui-autocomplete');
+            
+            // Enqueue our custom JS for cardholder form (if on cardholder page)
+            if ($screen->id === 'fsbhoa-access_page_fsbhoa_ac_cardholders' || $screen->id === 'toplevel_page_fsbhoa_ac_main_menu_fsbhoa_ac_cardholders') {
+                wp_enqueue_script(
+                    'fsbhoa-cardholder-admin-script',
+                    FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js',
+                    array('jquery', 'jquery-ui-autocomplete'),
+                    defined('FSBHOA_AC_PLUGIN_VERSION') ? FSBHOA_AC_PLUGIN_VERSION : '0.1.5',
+                    true 
+                );
+                wp_localize_script(
+                    'fsbhoa-cardholder-admin-script',
+                    'fsbhoa_cardholder_ajax_obj',
+                    array(
+                        'ajax_url' => admin_url('admin-ajax.php'),
+                        'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'),
+                        'property_search_action' => 'fsbhoa_search_properties'
+                    )
+                );
+            }
 
-            // Enqueue our custom script
-            wp_enqueue_script(
-                'fsbhoa-cardholder-admin-script',
-                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', // Assumes FSBHOA_AC_PLUGIN_URL is defined in main plugin file
-                array('jquery', 'jquery-ui-autocomplete'), // Dependencies
-                defined('FSBHOA_AC_PLUGIN_VERSION') ? FSBHOA_AC_PLUGIN_VERSION : '0.1.5', // Version
-                true // Load in footer
-            );
-
-            // Pass data to our script (AJAX URL and nonce)
-            wp_localize_script(
-                'fsbhoa-cardholder-admin-script', // Handle of the script to attach data to
-                'fsbhoa_cardholder_ajax_obj',     // Object name to access data in JavaScript
-                array(
-                    'ajax_url' => admin_url('admin-ajax.php'),
-                    'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'), // Matches check_ajax_referer
-                    'property_search_action' => 'fsbhoa_search_properties' // Our AJAX action name
-                )
+            // ** Enqueue our custom admin CSS for all our plugin pages **
+            wp_enqueue_style(
+                'fsbhoa-admin-styles', // Handle
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-admin-styles.css', // Path to CSS file
+                array(), // Dependencies
+                defined('FSBHOA_AC_PLUGIN_VERSION') ? FSBHOA_AC_PLUGIN_VERSION : '0.1.5' // Version
             );
         }
     }
-
 } // end class Fsbhoa_Admin_Menu
 ?>
 

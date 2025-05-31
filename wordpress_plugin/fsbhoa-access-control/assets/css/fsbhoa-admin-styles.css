@@ -1,0 +1,9 @@
+/* FSBHOA Admin Styles */
+
+.wp-list-table th.column-actions,
+.wp-list-table td.column-actions {
+    width: 10%; /* Adjust this pixel value as needed */
+    /* You could also try a percentage like: width: 10%; */
+    /* For icon alignment, you might also like: */
+    text-align: center;
+}
