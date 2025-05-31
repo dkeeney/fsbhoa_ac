@@ -25,7 +25,7 @@ define( 'FSBHOA_AC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FSBHOA_AC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 // Define FSBHOA_AC_PLUGIN_VERSION if not already defined elsewhere, e.g., in this file
 if ( ! defined( 'FSBHOA_AC_PLUGIN_VERSION' ) ) {
-    define( 'FSBHOA_AC_PLUGIN_VERSION', '0.1.3' ); // Keep this in sync
+    define( 'FSBHOA_AC_PLUGIN_VERSION', '0.1.4' ); // Keep this in sync
 }
 
 // Activation / Deactivation Hooks
@@ -49,6 +49,7 @@ register_deactivation_hook( __FILE__, 'fsbhoa_ac_deactivate' );
  */
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-admin-menu.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-page.php';
 
 /**
  * Begins execution of the plugin's admin parts.
@@ -65,6 +66,18 @@ function run_fsbhoa_access_control_admin() {
             echo '<div class="error"><p>FSBHOA Access Control: Admin Menu Class not found.</p></div>';
         });
     }
+
+    // ** Register AJAX handlers related to Cardholders **
+    if (class_exists('Fsbhoa_Cardholder_Admin_Page')) {
+        // We need an instance to hook a non-static method
+        $cardholder_page_handler_for_ajax = new Fsbhoa_Cardholder_Admin_Page(); 
+        add_action('wp_ajax_fsbhoa_search_properties', array($cardholder_page_handler_for_ajax, 'ajax_search_properties_callback'));
+    } else {
+         add_action('admin_notices', function() {
+            echo '<div class="error"><p>FSBHOA Access Control: Cardholder Admin Page Class not found (for AJAX).</p></div>';
+        });
+    }
+
 }
 
 // Only run this if in the admin area
