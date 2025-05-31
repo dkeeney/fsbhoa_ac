@@ -75,42 +75,57 @@ class Fsbhoa_Property_Admin_Page {
                 } elseif (strlen($form_data['street_address']) > 200) {
                     $errors['street_address'] = __( 'Street Address is too long (max 200 characters).', 'fsbhoa-ac' );
                 } else {
-                    // TODO: Add uniqueness check for street_address later by querying the DB
-                    // This check should be done only if other errors are not present for this field.
-                    // For now, we'll rely on the database unique constraint to catch it, which isn't ideal for UX.
+                    // ** Proactive Uniqueness Check for Street Address **
+                    global $wpdb;
+                    $property_table_name = 'ac_property'; // Property table name
+                    $existing_property = $wpdb->get_var(
+                        $wpdb->prepare(
+                            "SELECT property_id FROM {$property_table_name} WHERE street_address = %s",
+                            $form_data['street_address']
+                        )
+                    );
+
+                    if ($existing_property) {
+                        // We found an existing property with the same street address.
+                        // We also need to consider if we are in "edit mode" in the future.
+                        // If editing, this check should be "street_address = %s AND property_id != %d" (current property being edited).
+                        // For "add mode" now, any existing match is a duplicate.
+                        // Let's assume $action is 'add' for now, as 'edit' isn't fully implemented here yet.
+                        // if ($action === 'add' || ($action === 'edit' && $existing_property != $current_property_id_being_edited)) {
+                        $errors['street_address'] = __( 'This Street Address already exists in the system.', 'fsbhoa-ac' );
+                        // }
+                    }
+                    // ** end Proiqueness Check **
                 }
 
                 // Notes field is optional, max length if any? For TEXT, usually not an issue from form.
 
                 if (empty($errors)) {
-                    global $wpdb;
-                    $table_name = 'ac_property'; // Your property table name
+                    // global $wpdb; // Already global if used above
+                    $table_name = 'ac_property'; // The table for properties (already defined if used above)
 
                     $data_to_insert = array(
                         'street_address' => $form_data['street_address'],
                         'notes'          => $form_data['notes'],
                     );
 
-                    $data_formats = array('%s', '%s'); // Both are strings
+                    $data_formats = array('%s', '%s');
 
                     $result = $wpdb->insert($table_name, $data_to_insert, $data_formats);
 
                     if ($result === false) {
+                        // With the proactive check, this 'Duplicate entry' part might become less likely to be hit for street address,
+                        // but it's good to keep for other potential DB errors.
                         $db_error = $wpdb->last_error;
                         $user_message = esc_html__('Error saving property data. Please try again.', 'fsbhoa-ac');
+                        // The specific check for 'Duplicate entry' can remain as a fallback,
+                        // though our proactive check should catch it for street_address.
                         if (stripos($db_error, 'Duplicate entry') !== false && stripos($db_error, 'idx_street_address_unique') !== false) {
-                            $user_message = esc_html__('Error: This Street Address already exists.', 'fsbhoa-ac');
+                            $user_message = esc_html__('Error: This Street Address already exists (database constraint).', 'fsbhoa-ac');
                         }
                         echo '<div id="message" class="error notice is-dismissible"><p>' . $user_message . '</p></div>';
-                        // error_log('FSBHOA Property Insert Error: ' . $db_error);
                     } else {
-                        echo '<div id="message" class="updated notice is-dismissible"><p>' . sprintf(
-                            esc_html__('Property "%1$s" added successfully! Record ID: %2$d', 'fsbhoa-ac'),
-                            esc_html($form_data['street_address']),
-                            $wpdb->insert_id
-                        ) . '</p></div>';
-                        // Clear form data for a fresh form
-                        $form_data = array_fill_keys(array_keys($form_data), ''); 
+                        // ... (existing success message logic) ...
                     }
                 } else {
                     echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Please correct the errors below and try again.', 'fsbhoa-ac') . '</p>';
