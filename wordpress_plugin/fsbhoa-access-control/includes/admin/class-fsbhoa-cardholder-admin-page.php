@@ -126,6 +126,30 @@ class Fsbhoa_Cardholder_Admin_Page {
                 // $errors['resident_type'] = __('Resident type is required.', 'fsbhoa-ac');
                 // }
 
+                // ** NEW: Duplicate Check (if no other errors so far from field validations) **
+                if (empty($errors)) { // Only check for duplicates if other field validations passed
+                    global $wpdb;
+                    $table_name = 'ac_cardholders'; // Your table name
+                    $existing_cardholder = $wpdb->get_row(
+                        $wpdb->prepare(
+                            "SELECT id FROM $table_name WHERE first_name = %s AND last_name = %s",
+                            $form_data['first_name'],
+                            $form_data['last_name']
+                        )
+                    );
+
+                    if ($existing_cardholder) {
+                        $errors['duplicate'] = sprintf(
+                            __( 'A cardholder named %1$s %2$s already exists (ID: %3$d). Please verify before adding a duplicate.', 'fsbhoa-ac' ),
+                            esc_html($form_data['first_name']),
+                            esc_html($form_data['last_name']),
+                            $existing_cardholder->id
+                        );
+                    }
+                }
+                // ** END NEW: Duplicate Check **
+                
+
                 if (empty($errors)) {
                     global $wpdb;
                     $table_name = 'ac_cardholders';
