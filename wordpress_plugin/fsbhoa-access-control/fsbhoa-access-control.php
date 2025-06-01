@@ -25,7 +25,7 @@ define( 'FSBHOA_AC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FSBHOA_AC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 // Define FSBHOA_AC_PLUGIN_VERSION if not already defined elsewhere, e.g., in this file
 if ( ! defined( 'FSBHOA_AC_PLUGIN_VERSION' ) ) {
-    define( 'FSBHOA_AC_PLUGIN_VERSION', '0.1.5' ); // Keep this in sync
+    define( 'FSBHOA_AC_PLUGIN_VERSION', '0.1.6' ); // Keep this in sync
 }
 
 // Activation / Deactivation Hooks
@@ -51,6 +51,8 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-admin-menu.php'
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-property-list-table.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
+
 
 /**
  * Begins execution of the plugin's admin parts.

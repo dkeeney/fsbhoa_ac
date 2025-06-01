@@ -68,26 +68,47 @@ class Fsbhoa_Cardholder_Admin_Page {
     }
 
     /**
-     * Renders the list of cardholders.
-     * (Currently a placeholder, will later integrate WP_List_Table)
+     * Renders the list of cardholders using WP_List_Table.
      *
-     * @since 0.1.1 (Copied from Fsbhoa_Admin_Menu)
+     * @since 0.1.3 (Updated in 0.1.6 to use WP_List_Table)
      */
     public function render_cardholders_list_page() {
+        // Create an instance of our package class...
+        $cardholder_list_table = new Fsbhoa_Cardholder_List_Table();
+        // Fetch, prepare, sort, and filter our data...
+        $cardholder_list_table->prepare_items();
         ?>
         <div class="wrap">
             <h1><?php echo esc_html__( 'Cardholder Management', 'fsbhoa-ac' ); ?></h1>
+            
             <a href="?page=fsbhoa_ac_cardholders&action=add" class="page-title-action">
                 <?php echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' ); ?>
             </a>
-            <p><?php esc_html_e( 'This area will display a list of all cardholders. You will be able to edit, view, and manage access credentials from here.', 'fsbhoa-ac' ); ?></p>
-            <form method="post"><?php // TODO: WordPress List Table will go here ?></form>
-            <p><em><?php esc_html_e( '(Cardholder list table functionality to be implemented.)', 'fsbhoa-ac' ); ?></em></p>
+
+            <?php // For displaying messages (e.g., after delete, though delete handler is not yet for cardholders) ?>
+            <?php 
+            // Example message display (can be refined later for cardholder specific messages)
+            if (isset($_GET['message'])) {
+                $message_code = sanitize_key($_GET['message']);
+                // You would have a switch here similar to the properties page if you add actions that redirect here
+                // For now, this is just a placeholder if a generic 'message' GET param is ever used.
+                // echo '<div id="message" class="updated notice is-dismissible"><p>' . esc_html__( 'Action processed: ', 'fsbhoa-ac' ) . esc_html($message_code) . '</p></div>';
+            }
+            ?>
+
+            <form method="post">
+                <?php // For plugins, we also need to ensure that the form posts back to our current page for bulk actions ?>
+                <input type="hidden" name="page" value="<?php echo esc_attr( isset($_REQUEST['page']) ? sanitize_text_field(wp_unslash($_REQUEST['page'])) : '' ); ?>" />
+                <?php
+                // Now we can render the completed list table
+                $cardholder_list_table->display();
+                ?>
+            </form>
         </div>
         <?php
     }
 
-/**
+    /**
      * Renders the form for adding or editing a cardholder.
      * Includes validation and database insertion logic.
      *
