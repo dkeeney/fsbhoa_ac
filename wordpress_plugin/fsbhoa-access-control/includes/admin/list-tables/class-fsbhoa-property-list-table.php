@@ -145,5 +145,5 @@ class Fsbhoa_Property_List_Table extends WP_List_Table {
     public function get_primary_column_name() {
         return 'street_address'; 
     }
-} // End class Fsbhoa_Property_List_Table
-// NO closing ?> tag here, which is correct.
+   // NOTE: The next line is the end of the file. 
+}

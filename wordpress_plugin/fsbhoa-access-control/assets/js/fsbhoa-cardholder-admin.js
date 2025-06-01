@@ -1,108 +1,120 @@
 jQuery(document).ready(function($) {
     var propertySearchInput = $('#fsbhoa_property_search_input');
     var propertyIdHiddenInput = $('#fsbhoa_property_id_hidden');
-    var selectedPropertyDisplay = $('#fsbhoa_selected_property_display'); // For displaying selected address
+    var selectedPropertyDisplay = $('#fsbhoa_selected_property_display'); 
     var clearSelectionButton = $('#fsbhoa_property_clear_selection');
+    
+    // Create a dedicated element for "no results" message if it doesn't exist,
+    // or you can reuse selectedPropertyDisplay. Let's create one for clarity.
+    // Ensure this div is added in your PHP form HTML, near the property input.
+    // Example in PHP (render_add_new_cardholder_form, near property input's description):
+    // <div id="fsbhoa_property_search_no_results" style="color: #dc3232; margin-top: 5px;"></div>
+    var noResultsDisplay = $('#fsbhoa_property_search_no_results'); 
+    // If you prefer to use selectedPropertyDisplay for this message:
+    // var noResultsDisplay = selectedPropertyDisplay;
 
-    // Function to update display and hidden field
+
     function selectProperty(property) {
+        noResultsDisplay.empty().hide(); // Clear "no results" message on selection
         if (property && property.id && property.label) {
-            propertySearchInput.val(property.label); // Display selected address in text box
-            propertyIdHiddenInput.val(property.id).trigger('change'); // Set hidden ID field and trigger change
-            selectedPropertyDisplay.text('Selected: ' + property.label + ' (ID: ' + property.id + ')');
+            propertySearchInput.val(property.label); 
+            propertyIdHiddenInput.val(property.id).trigger('change'); 
+            selectedPropertyDisplay.text('Selected: ' + property.label + ' (ID: ' + property.id + ')').show();
             clearSelectionButton.show();
         } else {
-            // Clear if no valid property is selected (e.g., user clears text input)
             propertyIdHiddenInput.val('').trigger('change');
-            selectedPropertyDisplay.text('');
+            selectedPropertyDisplay.empty().hide();
             clearSelectionButton.hide();
         }
     }
     
-    // Initialize the text input with the address if property_id is already set (e.g. sticky form with error)
-    // This part is a bit trickier as we don't have the address string readily available here without another AJAX call.
-    // For a simpler sticky experience initially, if propertyIdHiddenInput has a value on page load,
-    // we might just leave the text box blank and expect the user to re-search if they want to change it,
-    // or we could make an AJAX call to get the address for that ID.
-    // Let's keep it simple for now: if propertyIdHiddenInput has a value, the JS won't pre-fill the text input on load,
-    // but the hidden ID will still be submitted. The user would re-search if they want to change it.
-
     propertySearchInput.autocomplete({
         source: function(request, response) {
+            noResultsDisplay.empty().hide(); // Clear "no results" message on new search
+            selectedPropertyDisplay.empty().hide(); // Clear previous selection display
+            // Do not clear propertyIdHiddenInput here, only on explicit clear or new selection
+            
             $.ajax({
                 url: fsbhoa_cardholder_ajax_obj.ajax_url,
                 dataType: "json",
                 data: {
                     action: fsbhoa_cardholder_ajax_obj.property_search_action,
                     term: request.term,
-                    security: fsbhoa_cardholder_ajax_obj.property_search_nonce // Nonce
+                    security: fsbhoa_cardholder_ajax_obj.property_search_nonce
                 },
                 success: function(data) {
                     if (data.success) {
-                        response(data.data); // Pass the array of property objects to autocomplete
+                        response(data.data); 
                     } else {
-                        response([]); // No results or error
+                        response([]); 
                     }
                 },
                 error: function() {
-                    response([]); // Handle AJAX error
+                    response([]); 
+                    noResultsDisplay.text('Error during search. Please try again.').show(); // Optional: Error message
                 }
             });
         },
-        minLength: 1, // Start searching from 1 character
+        minLength: 1, 
         select: function(event, ui) {
-            event.preventDefault(); // Prevent default action (like value in input changing before we want)
-            selectProperty(ui.item); // ui.item is the selected object from our AJAX response
-            return false; // Prevent value from being inserted into input by autocomplete itself if we manually set it
+            event.preventDefault(); 
+            selectProperty(ui.item); 
+            return false; 
         },
         focus: function(event, ui) {
-            // Optional: prevent value inserted on focus
             event.preventDefault();
-            // $(this).val(ui.item.label); // Could show label on focus
         },
-        // If the user types and then clicks away or hits enter without selecting
-        // we might want to clear the hidden ID if the text doesn't match a valid selection.
         change: function(event, ui) {
-            if (!ui.item) { // If no item was selected from the suggestions
-                // Check if the current text input value matches a known label (this is harder without keeping state)
-                // For simplicity now, if they change the text and don't select, clear the ID.
-                // A more robust solution would re-validate or ensure a selection is made.
+            if (!ui.item) { 
                 var currentText = $(this).val();
-                if (propertyIdHiddenInput.val() !== '' && currentText === '') { // If they cleared the text box
-                     selectProperty(null); // Clear selection
-                } else if (propertyIdHiddenInput.val() !== '' && selectedPropertyDisplay.text().indexOf(currentText) === -1) {
-                    // If text changed and doesn't match what was selected, clear previous ID.
-                    // This logic might need refinement.
-                    // selectProperty(null); // Potentially too aggressive
+                // If the text field is cleared, or if the text doesn't match the selected property's label
+                // (more complex to check perfectly without storing selected label), clear the selection.
+                // Simple check: if currentText is empty and hidden ID was set, clear.
+                if (currentText === '' && propertyIdHiddenInput.val() !== '') {
+                     selectProperty(null); 
                 }
+                // If text exists but no item selected, it means it was a manual entry or failed search.
+                // We don't clear the hidden ID here unless we are sure the text doesn't correspond to it.
+                // User might be typing then tabbing out.
+            }
+            if ($(this).val() === '') { // If input is cleared manually by user
+                 selectProperty(null);
+            }
+        },
+        // NEW: response event handler
+        response: function(event, ui) {
+            if (ui.content && ui.content.length === 0) {
+                // No items were returned by the source
+                noResultsDisplay.text('No properties found matching your search.').show();
+                // We already cleared selectedPropertyDisplay and hidden ID in selectProperty(null) if applicable
+                // or if text was cleared. If text remains but no match, don't clear selection yet.
+            } else {
+                // Items were found, or it's an error (handled by source's error)
+                noResultsDisplay.empty().hide();
             }
         }
     });
 
-    // Clear selection button
     clearSelectionButton.on('click', function(e) {
         e.preventDefault();
-        propertySearchInput.val(''); // Clear the visible input
-        selectProperty(null);      // Clear hidden field and display
+        propertySearchInput.val(''); 
+        selectProperty(null);      
+        noResultsDisplay.empty().hide(); // Also clear "no results" message
         propertySearchInput.focus();
     });
 
-    // If there's already a property ID on page load (e.g. sticky form after error), show clear button
-    if (propertyIdHiddenInput.val() !== '') {
-        // We don't have the address here to display in propertySearchInput or selectedPropertyDisplay
-        // without another AJAX call. For now, just show the clear button if an ID exists.
-        // Ideally, the PHP would also pass the address for the current property_id if set.
-        // For now, we can at least enable clearing it.
-        // Let's try to pre-fill if ID exists, but this is a placeholder for a better solution
-        if (propertyIdHiddenInput.val()) {
-             // To make this fully work, we'd need the street_address for this ID.
-             // The PHP side `render_add_new_cardholder_form` should pass this if property_id is set in $form_data.
-             // For now, let's assume if $form_data['property_id'] is set, we might need to also set a $form_data['property_address_display']
-             // For a quick fix here, if property_id_hidden has value, we show the clear button.
-             // The visual consistency of the text input field would be handled by the PHP setting its value attribute if we had it.
-            clearSelectionButton.show();
-            // If you also stored the selected address in another hidden field or data attribute from PHP, you could populate it here.
+    // Initial state for clear button and selected display
+    if (propertyIdHiddenInput.val() === '' || propertyIdHiddenInput.val() === '0') {
+        clearSelectionButton.hide();
+        selectedPropertyDisplay.empty().hide();
+    } else {
+        // If an ID is pre-filled (edit mode with existing selection), show clear button.
+        // The actual text for propertySearchInput and selectedPropertyDisplay is pre-filled by PHP.
+        clearSelectionButton.show();
+        // If property_address_display was pre-filled by PHP for edit mode:
+        if (propertySearchInput.val() !== '' && propertyIdHiddenInput.val() !== '' && propertyIdHiddenInput.val() !== '0') {
+             selectedPropertyDisplay.text('Selected: ' + propertySearchInput.val() + ' (ID: ' + propertyIdHiddenInput.val() + ')').show();
         }
     }
-
 });
+
