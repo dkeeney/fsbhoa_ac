@@ -13,75 +13,52 @@ if ( ! defined( 'WPINC' ) ) {
 
 class Fsbhoa_Property_Admin_Page {
 
-   // Constructor to hook actions
-    public function __construct() {
-        // Hook for handling the delete property action
-        add_action('admin_post_fsbhoa_delete_property', array($this, 'handle_delete_property_action'));
-    }
-
-public function handle_delete_property_action() {
-
-        if (!isset($_GET['property_id']) || !is_numeric($_GET['property_id'])) {
-            // ... (error handling for invalid property_id) ...
-            wp_die(esc_html__('Invalid property ID for deletion.', 'fsbhoa-ac'), esc_html__('Error', 'fsbhoa-ac'), array('response' => 400, 'back_link' => true));
-        }
-        $item_id_to_delete = absint($_GET['property_id']);
-
-        $nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
-        if (!wp_verify_nonce($nonce, 'fsbhoa_delete_property_nonce_' . $item_id_to_delete)) {
-            // ... (error handling for nonce failure) ...
-            wp_die(esc_html__('Security check failed. Could not delete property.', 'fsbhoa-ac'), esc_html__('Error', 'fsbhoa-ac'), array('response' => 403, 'back_link' => true));
-        }
-
-        global $wpdb;
-        $table_name = 'ac_property';
-        $result = $wpdb->delete( $table_name, array('property_id' => $item_id_to_delete), array('%d') );
-
-        // --- Construct base redirect URL ---
-        $base_redirect_url = admin_url('admin.php');
-        $base_redirect_url = add_query_arg(array('page' => 'fsbhoa_ac_properties'), $base_redirect_url);
-
-        $final_redirect_url = ''; 
-
-        if ($result === false) {
-            $final_redirect_url = add_query_arg(array('message' => 'delete_error'), $base_redirect_url);
-        } elseif ($result === 0) {
-            $final_redirect_url = add_query_arg(array('message' => 'delete_not_found'), $base_redirect_url);
-        } else { 
-            $final_redirect_url = add_query_arg(array('message' => 'deleted_successfully', 'deleted_id' => $item_id_to_delete), $base_redirect_url);
-        }
-        
-        
-        if (empty($final_redirect_url) || !is_string($final_redirect_url)) { // Added !is_string check
-            $final_redirect_url = admin_url('admin.php?page=fsbhoa_ac_properties'); // More robust fallback
-        }
-
-        // Use esc_url_raw for wp_redirect for safety, though add_query_arg usually handles encoding.
-        wp_redirect(esc_url_raw($final_redirect_url));
-        exit;
-    }
-
-
     /**
-     * Handles the display of the property admin page (list, add, edit forms).
-     * Delete logic has been moved to handle_delete_property_action().
+     * Handles the display of the property admin page, routing to list or form.
+     * Also handles delete action.
      *
-     * @since 0.1.6 
+     * @since 0.1.5 
      */
     public function render_page() {
-        // The delete logic is now GONE from here.
+        // Handle Delete Action FIRST, as it involves a redirect.
+        if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['property_id']) && isset($_GET['_wpnonce'])) {
+            $item_id_to_delete = absint($_GET['property_id']);
+            $nonce = sanitize_text_field(wp_unslash($_GET['_wpnonce']));
 
-        error_log('FSBHOA DEBUG: render_page() called. $_GET array: ' . print_r($_GET, true));
+            if (wp_verify_nonce($nonce, 'fsbhoa_delete_property_' . $item_id_to_delete)) {
+                // Nonce is valid, proceed with deletion
+                global $wpdb;
+                $table_name = 'ac_property';
+                $result = $wpdb->delete(
+                    $table_name,
+                    array('property_id' => $item_id_to_delete),
+                    array('%d') 
+                );
 
+                $redirect_url = menu_page_url('fsbhoa_ac_properties', false);
+
+                if ($result === false) {
+                    $redirect_url = add_query_arg(array('message' => 'delete_error'), $redirect_url);
+                } elseif ($result === 0) {
+                    $redirect_url = add_query_arg(array('message' => 'delete_not_found'), $redirect_url);
+                } else {
+                    $redirect_url = add_query_arg(array('message' => 'deleted_successfully', 'deleted_id' => $item_id_to_delete), $redirect_url);
+                }
+                wp_redirect($redirect_url);
+                exit;
+            } else {
+                // Nonce check failed
+                wp_die(esc_html__('Security check failed. Could not delete property.', 'fsbhoa-ac'), esc_html__('Error', 'fsbhoa-ac'), array('response' => 403, 'back_link' => true));
+            }
+        }
+
+        // Determine the action for displaying list/add/edit form based on GET.
         $action_for_view = isset($_GET['action']) ? sanitize_key($_GET['action']) : ''; 
         
-        // Display messages on the list page (after redirect from delete, or other actions)
-        if (empty($action_for_view) && isset($_GET['message'])) {
+        // Display messages on the list page (after redirect from delete, or other actions later)
+        // This needs to be before the actual page content starts if we are on the list page.
+        if (empty($action_for_view) && isset($_GET['message'])) { // Only show on list view
             $message_code = sanitize_key($_GET['message']);
-
-            // for DEBUGGING
-            error_log('FSBHOA DEBUG: Message code received on property list page: "' . $message_code . '"'); 
-
             $deleted_id = isset($_GET['deleted_id']) ? absint($_GET['deleted_id']) : 0;
             $message_text = '';
 
@@ -98,11 +75,8 @@ public function handle_delete_property_action() {
                     $message_text = esc_html__('Property not found or already deleted.', 'fsbhoa-ac');
                     echo '<div id="message" class="notice notice-warning is-dismissible"><p>' . $message_text . '</p></div>';
                     break;
-                // You can add other message codes here if needed from other actions
             }
         }
-        else
-            error_log('FSBHOA DEBUG: render_page() called: in else block ' . print_r($_GET, true));
         
         if ('add' === $action_for_view || 'edit' === $action_for_view) {
             $this->render_add_new_property_form($action_for_view);

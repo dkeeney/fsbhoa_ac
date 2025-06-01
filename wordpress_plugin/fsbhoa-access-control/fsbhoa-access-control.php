@@ -58,28 +58,36 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-pro
  * @since    0.1.0
  */
 function run_fsbhoa_access_control_admin() {
-    if (class_exists('Fsbhoa_Admin_Menu')) { // Check if class exists before new-ing
+    // Setup Admin Menu
+    if (class_exists('Fsbhoa_Admin_Menu')) {
         $plugin_admin_menu = new Fsbhoa_Admin_Menu();
         add_action( 'admin_menu', array( $plugin_admin_menu, 'add_admin_menu_pages' ) );
+        // The enqueue_admin_scripts hook is now in Fsbhoa_Admin_Menu constructor
     } else {
-        // Optionally, add an admin notice if the class isn't found
-        add_action('admin_notices', function() {
-            echo '<div class="error"><p>FSBHOA Access Control: Admin Menu Class not found.</p></div>';
-        });
+        // ... (error notice) ...
     }
 
-    // ** Register AJAX handlers related to Cardholders **
+    // Register AJAX handlers related to Cardholders
     if (class_exists('Fsbhoa_Cardholder_Admin_Page')) {
-        // We need an instance to hook a non-static method
         $cardholder_page_handler_for_ajax = new Fsbhoa_Cardholder_Admin_Page(); 
-        add_action('wp_ajax_fsbhoa_search_properties', array($cardholder_page_handler_for_ajax, 'ajax_search_properties_callback'));
+        // The AJAX hook 'wp_ajax_fsbhoa_search_properties' is in the constructor of Fsbhoa_Cardholder_Admin_Page
+        // So, instantiating it here ensures the hook is added.
+    } else {
+         // ... (error notice) ...
+    }
+
+    // ** NEW: Register admin_post_ actions related to Properties **
+    if (class_exists('Fsbhoa_Property_Admin_Page')) {
+        // We need an instance so its constructor runs and hooks the admin_post_ action
+        $property_page_handler_for_actions = new Fsbhoa_Property_Admin_Page();
+        // The 'admin_post_fsbhoa_delete_property' action is hooked in Fsbhoa_Property_Admin_Page constructor.
     } else {
          add_action('admin_notices', function() {
-            echo '<div class="error"><p>FSBHOA Access Control: Cardholder Admin Page Class not found (for AJAX).</p></div>';
+            echo '<div class="error"><p>FSBHOA Access Control: Property Admin Page Class not found (for actions).</p></div>';
         });
     }
-
 }
+
 
 // Only run this if in the admin area
 if ( is_admin() ) {
