@@ -48,46 +48,59 @@ register_deactivation_hook( __FILE__, 'fsbhoa_ac_deactivate' );
  * Load core plugin classes for admin area.
  */
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-admin-menu.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-page.php';
+// For Cardholder DISPLAY
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php'; 
+// For Cardholder ACTIONS (new)
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-actions.php';
+// For Property Display & Actions (already refactored similarly)
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-page.php'; 
+// List Table classes
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-property-list-table.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
 
 
+// In fsbhoa-access-control.php
+
 /**
  * Begins execution of the plugin's admin parts.
- *
- * @since    0.1.0
+ * Initializes admin menu and action handlers.
  */
 function run_fsbhoa_access_control_admin() {
     // Setup Admin Menu
     if (class_exists('Fsbhoa_Admin_Menu')) {
         $plugin_admin_menu = new Fsbhoa_Admin_Menu();
         add_action( 'admin_menu', array( $plugin_admin_menu, 'add_admin_menu_pages' ) );
-        // The enqueue_admin_scripts hook is now in Fsbhoa_Admin_Menu constructor
+        // Note: The enqueue_admin_scripts hook is added in Fsbhoa_Admin_Menu's constructor
     } else {
-        // ... (error notice) ...
-    }
-
-    // Register AJAX handlers related to Cardholders
-    if (class_exists('Fsbhoa_Cardholder_Admin_Page')) {
-        $cardholder_page_handler_for_ajax = new Fsbhoa_Cardholder_Admin_Page(); 
-        // The AJAX hook 'wp_ajax_fsbhoa_search_properties' is in the constructor of Fsbhoa_Cardholder_Admin_Page
-        // So, instantiating it here ensures the hook is added.
-    } else {
-         // ... (error notice) ...
-    }
-
-    // ** NEW: Register admin_post_ actions related to Properties **
-    if (class_exists('Fsbhoa_Property_Admin_Page')) {
-        // We need an instance so its constructor runs and hooks the admin_post_ action
-        $property_page_handler_for_actions = new Fsbhoa_Property_Admin_Page();
-        // The 'admin_post_fsbhoa_delete_property' action is hooked in Fsbhoa_Property_Admin_Page constructor.
-    } else {
-         add_action('admin_notices', function() {
-            echo '<div class="error"><p>FSBHOA Access Control: Property Admin Page Class not found (for actions).</p></div>';
+        add_action('admin_notices', function() {
+            echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Admin_Menu class is missing. Admin menus may not appear.</p></div>';
         });
     }
+
+    // Instantiate Cardholder ACTIONS handler (its constructor sets up admin_post_ and ajax hooks)
+    if (class_exists('Fsbhoa_Cardholder_Actions')) {
+        $cardholder_actions_handler = new Fsbhoa_Cardholder_Actions();
+    } else {
+        add_action('admin_notices', function() {
+            echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Cardholder_Actions class is missing. Cardholder add/edit/delete/search functionality will not work.</p></div>';
+        });
+    }
+
+    // Instantiate Property Page and ACTIONS handler (its constructor sets up admin_post_ hooks)
+    // Note: Fsbhoa_Property_Admin_Page handles both display and its own actions via its constructor.
+    if (class_exists('Fsbhoa_Property_Admin_Page')) {
+        $property_page_handler = new Fsbhoa_Property_Admin_Page();
+        // The menu callback in Fsbhoa_Admin_Menu will call $property_page_handler->render_page()
+        // Its constructor should be hooking its own admin_post_ actions.
+    } else {
+         add_action('admin_notices', function() {
+            echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Admin_Page class is missing. Property management functionality will not work.</p></div>';
+        });
+    }
+
+    // Note: Fsbhoa_Cardholder_Admin_Page is instantiated by the menu callback in Fsbhoa_Admin_Menu
+    // when its specific page is loaded. If it were missing, the callback would show an error.
+    // We don't need to instantiate it here just for its hooks if its constructor is now empty of hooks.
 }
 
 

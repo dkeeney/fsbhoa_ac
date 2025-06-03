@@ -46,23 +46,34 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
                 LEFT JOIN {$properties_table} p ON c.property_id = p.property_id";
 
         // Handle sorting
-        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'last_name'; // Default sort
+        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'full_name';
         $order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( $_REQUEST['order'] ) ) : 'ASC';
-        
-        $allowed_orderby = array('last_name', 'first_name', 'street_address', 'resident_type', 'email'); // Add more as needed
-        if ( $orderby === 'full_name') { // Special handling for combined name sort
+      
+        $allowed_orderby = array('last_name', 'first_name', 'street_address', 'resident_type', 'email', 'full_name'); 
+      
+        $orderby_sql = ''; 
+        if ( $orderby === 'full_name') {
             $orderby_sql = 'c.last_name ' . $order . ', c.first_name ' . $order;
         } elseif ( $orderby === 'street_address') {
             $orderby_sql = 'p.street_address ' . $order;
-        } elseif (in_array(strtolower($orderby), $allowed_orderby) ) {
-            $orderby_sql = 'c.' . $orderby . ' ' . $order; // Prefix with 'c.' for cardholder fields
-        } else {
-            $orderby_sql = 'c.last_name ASC, c.first_name ASC'; // Default
+        } elseif (in_array(strtolower($orderby), $allowed_orderby) && $orderby !== 'full_name' ) { 
+            $orderby_sql = 'c.' . $orderby . ' ' . $order; 
+        } else { 
+            // This default applies if $_REQUEST['orderby'] is not set, or is 'last_name' (from default $orderby value above)
+            // OR if it's an unrecognized value.
+            // To ensure default is last_name, first_name:
+            $orderby_sql = 'c.last_name ASC, c.first_name ASC';
+            if ($orderby === 'last_name' && $order === 'DESC') { // Handle if default sort is clicked to be DESC
+                 $orderby_sql = 'c.last_name DESC, c.first_name DESC';
+            }
         }
         $sql .= ' ORDER BY ' . $orderby_sql;
 
         $sql .= " LIMIT $per_page";
         $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
+
+        // ADD THIS LINE FOR DEBUGGING:
+        error_log("FSBHOA Cardholder List SQL: " . $sql); 
 
         $result = $wpdb->get_results( $sql, 'ARRAY_A' );
         return $result;
@@ -169,7 +180,7 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
 
     public function get_sortable_columns() {
         $sortable_columns = array(
-            'full_name'     => array( 'last_name', true ), // Sort by last_name initially
+            'full_name'     => array( 'full_name', true ), // Sort by last_name, first_name initially
             'property'      => array( 'street_address', false ),
             'resident_type' => array( 'resident_type', false ),
             'email'         => array( 'email', false ),
