@@ -1,7 +1,8 @@
 <?php
 /**
  * Handles the DISPLAY of admin pages for Cardholder management.
- * Action processing is handled by Fsbhoa_Cardholder_Actions class.
+ * Action processing (add, update, delete submissions, AJAX) is handled by Fsbhoa_Cardholder_Actions class,
+ * except for the property search AJAX which is still homed here for now.
  *
  * @package    Fsbhoa_Ac
  * @subpackage Fsbhoa_Ac/admin
@@ -14,15 +15,47 @@ if ( ! defined( 'WPINC' ) ) {
 
 class Fsbhoa_Cardholder_Admin_Page {
 
-    // Constructor is REMOVED from this class. Hooks are in Fsbhoa_Cardholder_Actions.
+    /**
+     * Constructor.
+     * Hooks into WordPress actions for AJAX.
+     *
+     * @since 0.1.12 
+     */
+    public function __construct() {
+        // AJAX hook for property search (used in the add/edit cardholder form)
+        add_action('wp_ajax_fsbhoa_search_properties', array($this, 'ajax_search_properties_callback'));
+    }
+
+    /**
+     * AJAX callback to search properties.
+     * Outputs JSON.
+     * @since 0.1.5
+     */
+    public function ajax_search_properties_callback() {
+        check_ajax_referer('fsbhoa_property_search_nonce', 'security');
+        global $wpdb;
+        $table_name = 'ac_property';
+        $search_term = isset($_GET['term']) ? sanitize_text_field(wp_unslash($_GET['term'])) : '';
+        $results = array();
+        if (strlen($search_term) >= 1) {
+            $wildcard_search_term = '%' . $wpdb->esc_like($search_term) . '%';
+            $properties = $wpdb->get_results( $wpdb->prepare( "SELECT property_id, street_address FROM {$table_name} WHERE street_address LIKE %s ORDER BY street_address ASC LIMIT 20", $wildcard_search_term ), ARRAY_A );
+            if ($properties) {
+                foreach ($properties as $property) {
+                    $results[] = array( 'id' => $property['property_id'], 'label' => $property['street_address'], 'value' => $property['street_address'] );
+                }
+            }
+        }
+        wp_send_json_success($results);
+    }
 
     /**
      * Handles page routing for cardholder admin display.
-     * @since 0.1.11 (Refactored)
+     * @since 0.1.11
      */
     public function render_page() {
         $action = isset($_GET['action']) ? sanitize_key($_GET['action']) : ''; 
-        // error_log('FSBHOA RENDER CARDHOLDER PAGE: $_GET array: ' . print_r($_GET, true)); // Keep for GET param debugging
+        // error_log('FSBHOA RENDER CARDHOLDER PAGE (render_page): $_GET array: ' . print_r($_GET, true)); // User requested to keep this
 
         if ('add' === $action || 'edit_cardholder' === $action ) { 
             $this->render_add_new_cardholder_form($action);
@@ -33,7 +66,7 @@ class Fsbhoa_Cardholder_Admin_Page {
 
     /**
      * Renders the list of cardholders.
-     * @since 0.1.9 (Message handling updated in 0.1.11)
+     * @since 0.1.11 (Message handling updated)
      */
     public function render_cardholders_list_page() {
         $cardholder_list_table = new Fsbhoa_Cardholder_List_Table();
@@ -52,16 +85,16 @@ class Fsbhoa_Cardholder_Admin_Page {
                 if (isset($_GET['updated_id'])) $processed_id = absint($_GET['updated_id']);
                 if (isset($_GET['deleted_id'])) $processed_id = absint($_GET['deleted_id']);
 
-                $message_text = ''; $notice_class = 'notice-info';
+                $message_text = ''; $notice_class = 'notice-info'; // Default
                 switch ($message_code) {
                     case 'cardholder_added_successfully':    $message_text = sprintf(esc_html__('Cardholder added! ID: %d', 'fsbhoa-ac'), $processed_id); $notice_class = 'updated'; break;
                     case 'cardholder_updated_successfully':  $message_text = sprintf(esc_html__('Cardholder updated! ID: %d', 'fsbhoa-ac'), $processed_id); $notice_class = 'updated'; break;
                     case 'cardholder_deleted_successfully':  $message_text = sprintf(esc_html__('Cardholder deleted! ID: %d', 'fsbhoa-ac'), $processed_id); $notice_class = 'updated'; break;
-                    // Error messages are now primarily shown on the form page itself after redirect.
-                    // We might only show very generic errors here if a handler couldn't redirect to form.
-                    case 'cardholder_add_dberror': case 'cardholder_update_dberror': $message_text = esc_html__('Database error during save.', 'fsbhoa-ac'); $notice_class = 'error'; break;
+                    case 'cardholder_add_dberror':           $message_text = esc_html__('Database error during add. Cardholder not saved.', 'fsbhoa-ac'); $notice_class = 'error'; break;
+                    case 'cardholder_update_dberror':        $message_text = esc_html__('Database error during update. Changes not saved.', 'fsbhoa-ac'); $notice_class = 'error'; break;
                     case 'cardholder_delete_error':          $message_text = esc_html__('Error deleting cardholder.', 'fsbhoa-ac'); $notice_class = 'error'; break;
                     case 'cardholder_delete_not_found':      $message_text = esc_html__('Cardholder not found for deletion.', 'fsbhoa-ac'); $notice_class = 'notice-warning'; break;
+                    // Note: cardholder_validation_error messages are now shown on the form page itself.
                 }
                 if (!empty($message_text)) {
                     echo '<div id="message" class="' . esc_attr($notice_class) . ' notice is-dismissible"><p>' . $message_text . '</p></div>';
@@ -72,156 +105,107 @@ class Fsbhoa_Cardholder_Admin_Page {
         </div>
         <?php
     }
-
 /**
      * Renders the form for adding or editing a cardholder.
-     * This method now primarily handles form display, GET request logic for edit,
-     * and retrieving/displaying data and errors from transients after validation failure redirects.
-     * POST submissions are handled by dedicated admin_post_ action handlers.
      *
-     * @since 0.1.11 (Revised for transient-based sticky forms and errors)
-     * @param string $current_page_action ('add' or 'edit_cardholder' from GET).
+     * @since 0.1.13 (Ensuring all HTML fields, including hidden ones for JS toggle, are present)
+     * @param string $current_page_action ('add' or 'edit_cardholder')
      */
     public function render_add_new_cardholder_form($current_page_action = 'add') {
         global $wpdb;
-        // These table names are only used for fetching property address for display in edit mode
-        $cardholder_table_name = 'ac_cardholders'; 
+        $cardholder_table_name = 'ac_cardholders';
         $property_table_name = 'ac_property';
 
-        // Initialize form data with defaults
         $form_data = array(
-            'first_name'    => '', 'last_name'     => '', 
+            'first_name'    => '', 'last_name'     => '',
             'email'         => '', 'phone'         => '',
-            'phone_type'    => '', 'resident_type' => '', 
+            'phone_type'    => '', 'resident_type' => '',
             'property_id'   => '', 'property_address_display' => '',
-            'photo'         => null, // This will hold current photo blob if editing
+            'photo'         => null,
+            'rfid_id'       => '',
+            'notes'         => '',
+            'card_status'   => 'inactive',
+            'card_issue_date' => '',
+            'card_expiry_date' => '',
         );
-        $display_specific_errors = array(); // For errors retrieved from transient
-        
-        $item_id_for_edit = null; 
+        $display_specific_errors = array();
+
+        $item_id_for_edit = null;
         $is_edit_mode = ($current_page_action === 'edit_cardholder' && isset($_GET['cardholder_id']));
         $user_id = get_current_user_id();
         $loaded_from_transient = false;
 
+        // --- Populate $form_data: From Transient or DB ---
         if ($is_edit_mode) {
             $item_id_for_edit = absint($_GET['cardholder_id']);
-            // Try to load from transient first if coming back from a validation error on this specific item
-            if (isset($_GET['message']) && $_GET['message'] === 'cardholder_validation_error_edit') {
-                error_log('FSBHOA RENDER EDIT FORM: Validation error message detected from GET for item ID: ' . $item_id_for_edit);
-                
+            if (isset($_GET['message']) &&
+                ($_GET['message'] === 'cardholder_validation_error_edit' ||
+                 $_GET['message'] === 'cardholder_update_dberror' ||
+                 $_GET['message'] === 'cardholder_no_changes') ) {
+
                 $form_transient_key = 'fsbhoa_edit_ch_data_' . $item_id_for_edit . '_' . $user_id;
                 $errors_transient_key = 'fsbhoa_edit_ch_errors_' . $item_id_for_edit . '_' . $user_id;
-                error_log('FSBHOA RENDER EDIT FORM: Attempting to get transients. Keys: ' . $form_transient_key . ', ' . $errors_transient_key);
 
                 $transient_form_data = get_transient($form_transient_key);
-                if ($transient_form_data !== false) { // Check against false as empty array is valid
-                    error_log('FSBHOA RENDER EDIT FORM: Found form_data transient. Merging. Content: ' . print_r($transient_form_data, true));
-                    $form_data = array_merge($form_data, $transient_form_data); 
+                if ($transient_form_data !== false) {
+                    $form_data = array_merge($form_data, $transient_form_data);
                     delete_transient($form_transient_key);
                     $loaded_from_transient = true;
-                } else {
-                    error_log('FSBHOA RENDER EDIT FORM: Form_data transient NOT found or expired for key: ' . $form_transient_key);
                 }
-
                 $transient_errors = get_transient($errors_transient_key);
                 if ($transient_errors !== false) {
-                    error_log('FSBHOA RENDER EDIT FORM: Found errors transient. Using for display. Errors: ' . print_r($transient_errors, true));
-                    $display_specific_errors = $transient_errors; 
+                    $display_specific_errors = $transient_errors;
                     delete_transient($errors_transient_key);
-                } else {
-                    error_log('FSBHOA RENDER EDIT FORM: Errors transient NOT found or expired for key: ' . $errors_transient_key);
                 }
             }
-            
-            // If not loaded from transient (e.g., initial GET load of edit form), fetch from DB
-            if (!$loaded_from_transient && $item_id_for_edit > 0) { 
-                // Only fetch if it's a GET request; POST data should persist via transient for errors
-                if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-                    error_log('FSBHOA RENDER EDIT FORM: Not loaded from transient (initial GET), fetching from DB for item ID: ' . $item_id_for_edit);
+
+            if (!$loaded_from_transient && $item_id_for_edit > 0) {
+                if ($_SERVER['REQUEST_METHOD'] === 'GET' || !isset($_POST['submit_update_cardholder'])) {
                     $cardholder_to_edit = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$cardholder_table_name} WHERE id = %d", $item_id_for_edit), ARRAY_A);
                     if ($cardholder_to_edit) {
-                        $form_data = array_merge($form_data, $cardholder_to_edit); // Populate with DB data
-                        // Fetch property address display if property_id is set
+                        $form_data = array_merge($form_data, $cardholder_to_edit);
                         if (!empty($form_data['property_id'])) {
                             $property_address = $wpdb->get_var($wpdb->prepare("SELECT street_address FROM {$property_table_name} WHERE property_id = %d", $form_data['property_id']));
                             if ($property_address) { $form_data['property_address_display'] = $property_address; }
                         }
                     } else { echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Cardholder not found for editing.', 'fsbhoa-ac') . '</p></div>'; return; }
                 }
-            } elseif (!$loaded_from_transient && $item_id_for_edit <= 0 && $current_page_action === 'edit_cardholder') { 
+            } elseif (!$loaded_from_transient && $item_id_for_edit <= 0 && $current_page_action === 'edit_cardholder') {
                  echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Invalid Cardholder ID for editing.', 'fsbhoa-ac') . '</p></div>'; return;
             }
-
-        } else { // ADD mode
+        } else { // Add mode
             if (isset($_GET['message']) && $_GET['message'] === 'cardholder_validation_error') {
-                error_log('FSBHOA RENDER ADD FORM: Validation error message detected from GET.');
                 $form_transient_key = 'fsbhoa_add_ch_data_' . $user_id;
                 $errors_transient_key = 'fsbhoa_add_ch_errors_' . $user_id;
-                error_log('FSBHOA RENDER ADD FORM: Attempting to get transients. Keys: ' . $form_transient_key . ', ' . $errors_transient_key);
-
                 $transient_form_data = get_transient($form_transient_key);
-                if ($transient_form_data !== false) {
-                    error_log('FSBHOA RENDER ADD FORM: Found form_data transient. Merging. Content: ' . print_r($transient_form_data, true));
-                    $form_data = array_merge($form_data, $transient_form_data);
-                    delete_transient($form_transient_key);
-                    $loaded_from_transient = true;
-                } else {
-                     error_log('FSBHOA RENDER ADD FORM: Form_data transient NOT found for key: ' . $form_transient_key);
-                }
+                if ($transient_form_data !== false) { $form_data = array_merge($form_data, $transient_form_data); delete_transient($form_transient_key); $loaded_from_transient = true; }
                 $transient_errors = get_transient($errors_transient_key);
-                if ($transient_errors !== false) {
-                    error_log('FSBHOA RENDER ADD FORM: Found errors transient. Using for display. Errors: ' . print_r($transient_errors, true));
-                    $display_specific_errors = $transient_errors;
-                    delete_transient($errors_transient_key);
-                } else {
-                    error_log('FSBHOA RENDER ADD FORM: Errors transient NOT found for key: ' . $errors_transient_key);
-                }
+                if ($transient_errors !== false) { $display_specific_errors = $transient_errors; delete_transient($errors_transient_key); }
             }
-            // Default phone type for truly NEW ADD form (not a reload from error with transient data)
-            if (empty($form_data['phone_type']) && !$loaded_from_transient) {
-                $form_data['phone_type'] = 'Mobile';
-            }
-        }
-        
-        // --- Display messages (either specific validation errors from transient, or generic GET messages) ---
-        if (!empty($display_specific_errors)) {
-            error_log('FSBHOA RENDER FORM: Displaying specific errors from $display_specific_errors array.');
-            echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Please correct the errors highlighted below:', 'fsbhoa-ac') . '</p><ul>';
-            foreach ($display_specific_errors as $field_key => $error_msg) {
-                // Make field key more readable if needed, e.g., ucwords(str_replace('_', ' ', $field_key))
-                echo '<li><strong>' . esc_html(ucwords(str_replace('_', ' ', $field_key))) . ':</strong> ' . esc_html($error_msg) . '</li>';
-            }
-            echo '</ul></div>';
-        } elseif (isset($_GET['message'])) { 
-            // Handle other generic messages if no specific errors were loaded from transient
-            $message_code = sanitize_key($_GET['message']);
-            error_log('FSBHOA RENDER FORM: Displaying generic message from GET: ' . $message_code);
-            $notice_class = 'error'; 
-            $message_text = '';
-            switch ($message_code) {
-                // These cases are primarily for errors if transient failed or for non-validation messages.
-                case 'cardholder_add_dberror':
-                    $message_text = esc_html__('Error saving new cardholder to database. Please try again.', 'fsbhoa-ac'); break;
-                case 'cardholder_update_dberror':
-                    $message_text = esc_html__('Error updating cardholder in database. Please try again.', 'fsbhoa-ac'); break;
-                case 'cardholder_no_changes':
-                    $message_text = esc_html__('No changes were detected for the cardholder.', 'fsbhoa-ac'); $notice_class = 'notice-info'; break;
-                 // 'cardholder_validation_error' and 'cardholder_validation_error_edit' would ideally be handled by $display_specific_errors
-                 // but can have a fallback generic message if transients failed.
-                case 'cardholder_validation_error':
-                case 'cardholder_validation_error_edit':
-                    $message_text = __('Submission failed. Please ensure all required fields are correct and try again.', 'fsbhoa-ac'); break;
-            }
-            if (!empty($message_text)) {
-                echo '<div id="message" class="' . esc_attr($notice_class) . ' notice is-dismissible"><p>' . $message_text . '</p></div>';
-            }
+            if (empty($form_data['phone_type']) && !$loaded_from_transient) { $form_data['phone_type'] = 'Mobile'; }
+            if ((!isset($form_data['card_status']) || empty($form_data['card_status'])) && !$loaded_from_transient) { $form_data['card_status'] = 'inactive';}
         }
 
-        // Form rendering variables
+        if (!empty($display_specific_errors)) {
+            echo '<div id="message" class="error notice is-dismissible"><p>' . esc_html__('Please correct the errors highlighted below:', 'fsbhoa-ac') . '</p><ul>';
+            foreach ($display_specific_errors as $field_key => $error_msg) { echo '<li><strong>' . esc_html(ucwords(str_replace('_', ' ', $field_key))) . ':</strong> ' . esc_html($error_msg) . '</li>'; }
+            echo '</ul></div>';
+        } elseif (isset($_GET['message']) && $_SERVER['REQUEST_METHOD'] === 'GET') {
+            $message_code = sanitize_key($_GET['message']);
+            $notice_class = 'error'; $message_text = '';
+            switch ($message_code) {
+                case 'cardholder_add_dberror': $message_text = esc_html__('Error saving new cardholder. Please try again.', 'fsbhoa-ac'); break;
+                case 'cardholder_update_dberror': $message_text = esc_html__('Error updating cardholder. Please try again.', 'fsbhoa-ac'); break;
+                case 'cardholder_no_changes': $message_text = esc_html__('No changes were detected for the cardholder.', 'fsbhoa-ac'); $notice_class = 'notice-info'; break;
+                case 'cardholder_validation_error': case 'cardholder_validation_error_edit':
+                    if(empty($display_specific_errors)) $message_text = __('Submission failed. Please check form values and try again.', 'fsbhoa-ac'); break;
+            }
+            if (!empty($message_text)) { echo '<div id="message" class="' . esc_attr($notice_class) . ' notice is-dismissible"><p>' . $message_text . '</p></div>'; }
+        }
+
         $page_title = $is_edit_mode ? __( 'Edit Cardholder', 'fsbhoa-ac' ) : __( 'Add New Cardholder', 'fsbhoa-ac' );
         $submit_button_text = $is_edit_mode ? __( 'Update Cardholder', 'fsbhoa-ac' ) : __( 'Add Cardholder', 'fsbhoa-ac' );
         $submit_button_name = $is_edit_mode ? 'submit_update_cardholder' : 'submit_add_cardholder';
-        
         $current_item_id_for_nonce_action = ($is_edit_mode && $item_id_for_edit) ? $item_id_for_edit : 0;
         $nonce_action = $is_edit_mode ? ('fsbhoa_update_cardholder_action_' . $current_item_id_for_nonce_action) : 'fsbhoa_add_cardholder_action';
         $nonce_name   = $is_edit_mode ? 'fsbhoa_update_cardholder_nonce' : 'fsbhoa_add_cardholder_nonce';
@@ -229,13 +213,13 @@ class Fsbhoa_Cardholder_Admin_Page {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html( $page_title ); ?></h1>
-            <form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" enctype="multipart/form-data"> 
+            <form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="<?php echo esc_attr($form_post_hook_action); ?>" />
                 <?php if ($is_edit_mode && $item_id_for_edit) : ?>
                     <input type="hidden" name="cardholder_id" value="<?php echo esc_attr($item_id_for_edit); ?>" />
                 <?php endif; ?>
                 <?php wp_nonce_field( $nonce_action, $nonce_name ); ?>
-                
+
                 <table class="form-table">
                     <tbody>
                         <tr><th scope="row"><label for="first_name"><?php esc_html_e( 'First Name', 'fsbhoa-ac' ); ?></label></th><td><input type="text" name="first_name" id="first_name" class="regular-text" value="<?php echo esc_attr($form_data['first_name']); ?>" required></td></tr>
@@ -271,7 +255,80 @@ class Fsbhoa_Cardholder_Admin_Page {
                                 </select>
                             </td>
                         </tr>
-                        <tr><th scope="row"><label for="fsbhoa_property_search_input"><?php esc_html_e( 'Property Address', 'fsbhoa-ac' ); ?></label></th><td><input type="text" id="fsbhoa_property_search_input" name="property_address_display" class="regular-text" placeholder="<?php esc_attr_e( 'Start typing address...', 'fsbhoa-ac' ); ?>" value="<?php echo esc_attr($form_data['property_address_display']); ?>"><input type="hidden" name="property_id" id="fsbhoa_property_id_hidden" value="<?php echo esc_attr($form_data['property_id']); ?>"><p class="description"><?php esc_html_e( 'Type 1+ characters to search.', 'fsbhoa-ac' ); ?> <span id="fsbhoa_property_clear_selection" style="display: <?php echo empty($form_data['property_id']) ? 'none' : 'inline'; ?>; margin-left:10px; color: #0073aa; cursor:pointer;"><?php esc_html_e('[Clear Selection]', 'fsbhoa-ac'); ?></span></p><div id="fsbhoa_selected_property_display" style="margin-top:5px; font-style:italic;"><?php if ($is_edit_mode && !empty($form_data['property_id']) && !empty($form_data['property_address_display'])) { echo 'Currently assigned: ' . esc_html($form_data['property_address_display']); } ?></div><div id="fsbhoa_property_search_no_results" style="color: #dc3232; margin-top: 5px; min-height: 1em;"></div></td></tr>
+                        <tr>
+                            <th scope="row"><label for="fsbhoa_property_search_input"><?php esc_html_e( 'Property Address', 'fsbhoa-ac' ); ?></label></th>
+                            <td>
+                                <input type="text" id="fsbhoa_property_search_input" name="property_address_display" class="regular-text" placeholder="<?php esc_attr_e( 'Start typing address...', 'fsbhoa-ac' ); ?>" value="<?php echo esc_attr($form_data['property_address_display']); ?>">
+                                <input type="hidden" name="property_id" id="fsbhoa_property_id_hidden" value="<?php echo esc_attr($form_data['property_id']); ?>">
+                                <p class="description"><?php esc_html_e( 'Type 1+ characters to search.', 'fsbhoa-ac' ); ?> <span id="fsbhoa_property_clear_selection" style="display: <?php echo empty($form_data['property_id']) ? 'none' : 'inline'; ?>; margin-left:10px; color: #0073aa; cursor:pointer;"><?php esc_html_e('[Clear Selection]', 'fsbhoa-ac'); ?></span></p>
+                                <div id="fsbhoa_selected_property_display" style="margin-top:5px; font-style:italic;"><?php if ($is_edit_mode && !empty($form_data['property_id']) && !empty($form_data['property_address_display'])) { echo 'Currently assigned: ' . esc_html($form_data['property_address_display']); } ?></div>
+                                <div id="fsbhoa_property_search_no_results" style="color: #dc3232; margin-top: 5px; min-height: 1em;"></div>
+                            </td>
+                        </tr>
+
+                        <tr id="fsbhoa_rfid_details_section" <?php if (!$is_edit_mode) echo 'style="display:none;"'; ?>>
+                            <th scope="row"><label for="rfid_id"><?php esc_html_e( 'RFID & Card Details', 'fsbhoa-ac' ); ?></label></th>
+                            <td>
+                                <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 25px;">
+                                    <div style="margin-bottom: 5px; flex-shrink: 0;">
+                                        <label for="rfid_id" style="display: block; font-weight: bold; margin-bottom: .2em;"><?php esc_html_e( 'RFID Card ID', 'fsbhoa-ac' ); ?></label>
+                                        <input type="text" name="rfid_id" id="rfid_id" class="regular-text"
+                                               value="<?php echo esc_attr($form_data['rfid_id']); ?>"
+                                               maxlength="8" pattern="[a-zA-Z0-9]{8}" title="<?php esc_attr_e('8-digit alphanumeric RFID.', 'fsbhoa-ac'); ?>"
+                                               style="width: 10em;">
+                                    </div>
+
+                                    <?php // This section for status, dates, toggle is only shown in edit mode ?>
+                                    <div style="margin-bottom: 5px; flex-shrink: 0;"> <?php // Status and Toggle Group ?>
+                                        <strong style="display: block; margin-bottom: .2em;"><?php esc_html_e( 'Status:', 'fsbhoa-ac' ); ?></strong>
+                                        <span id="fsbhoa_card_status_display" style="padding: 3px 0; display: inline-block; min-width: 7em;"><?php echo esc_html(ucwords($form_data['card_status'])); ?></span>
+                                        <?php
+                                        // Show toggle only if an RFID is actually present for this record
+                                        $show_ui_toggle = !empty($form_data['rfid_id']);
+                                        if ($show_ui_toggle) :
+                                            $is_card_active_for_ui_toggle = (isset($form_data['card_status']) && $form_data['card_status'] === 'active');
+                                        ?>
+                                        <label style="margin-left: 10px; white-space: nowrap;">
+                                            <input type="checkbox" id="fsbhoa_card_status_ui_toggle" value="active" <?php checked($is_card_active_for_ui_toggle); ?>>
+                                            <span id="fsbhoa_card_status_toggle_ui_label"><?php echo $is_card_active_for_ui_toggle ? esc_html__('Card is Active (Click to Disable)', 'fsbhoa-ac') : esc_html__('Card is Inactive (Click to Activate)', 'fsbhoa-ac'); ?></span>
+                                        </label>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <div style="display: flex; align-items: baseline; gap: 5px 15px; flex-shrink: 0; flex-wrap:nowrap;"> <?php // Dates Group ?>
+                                        <?php if (!empty($form_data['card_issue_date']) && $form_data['card_issue_date'] !== '0000-00-00') : ?>
+                                        <div style="white-space: nowrap;" id="fsbhoa_issue_date_wrapper">
+                                            <strong style="margin-right: .3em;"><?php esc_html_e( 'Issued:', 'fsbhoa-ac' ); ?></strong>
+                                            <span id="fsbhoa_card_issue_date_display"><?php echo esc_html($form_data['card_issue_date']); ?></span>
+                                        </div>
+                                        <?php endif; ?>
+
+                                        <?php $current_resident_type_for_expiry_display = isset($form_data['resident_type']) ? $form_data['resident_type'] : ''; ?>
+                                        <?php if ($current_resident_type_for_expiry_display === 'Contractor') : ?>
+                                            <div style="white-space: nowrap;" id="fsbhoa_expiry_date_wrapper_contractor">
+                                                <label for="card_expiry_date_contractor_input" style="font-weight: bold; margin-right: .3em;"><?php esc_html_e( 'Expires (Contractor):', 'fsbhoa-ac' ); ?></label>
+                                                <input type="date" name="card_expiry_date" id="card_expiry_date_contractor_input" class="regular-text"
+                                                       value="<?php echo esc_attr((isset($form_data['card_expiry_date']) && $form_data['card_expiry_date'] && $form_data['card_expiry_date'] !== '0000-00-00') ? $form_data['card_expiry_date'] : FSBHOA_WAY_OUT_EXPIRY_DATE); ?>"
+                                                       style="width: 10em;">
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="submitted_card_status" id="fsbhoa_submitted_card_status" value="<?php echo esc_attr($form_data['card_status']); ?>">
+                                <input type="hidden" name="submitted_card_issue_date" id="fsbhoa_submitted_card_issue_date" value="<?php echo esc_attr($form_data['card_issue_date']); ?>">
+
+                                <p class="description" style="margin-top: .5em;">
+                                    <?php if (!$is_edit_mode) : echo esc_html__( 'RFID details managed after cardholder is added (on the Edit screen).', 'fsbhoa-ac' );
+                                          else: echo esc_html__( 'Use checkbox to update card status. RFID assignment also activates card. Contractors require an expiry date for active cards.', 'fsbhoa-ac' ); endif; ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row"><label for="notes"><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></label></th>
+                            <td><textarea name="notes" id="notes" rows="3" class="large-text"><?php echo esc_textarea(isset($form_data['notes']) ? $form_data['notes'] : ''); ?></textarea></td>
+                        </tr>
+
                         <tr>
                             <th scope="row"><label><?php esc_html_e( 'Cardholder Photo', 'fsbhoa-ac' ); ?></label></th>
                             <td>
@@ -299,7 +356,8 @@ class Fsbhoa_Cardholder_Admin_Page {
             </form>
         </div>
         <?php
-    } // end render_add_new_cardholder_form()
+    } // End render_add_new_cardholder_form
+
 
 } // end class Fsbhoa_Cardholder_Admin_Page
 ?>
