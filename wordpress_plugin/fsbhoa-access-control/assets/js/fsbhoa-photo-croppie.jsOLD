@@ -1,0 +1,95 @@
+// assets/js/fsbhoa-photo-croppie.js
+console.log("CROPPIE SCRIPT: Parsing fsbhoa-photo-croppie.js - TOP OF FILE");
+
+var FSBHOA_Croppie = (function($) {
+    console.log("CROPPIE SCRIPT: IIFE has started.");
+
+    let croppieInstance = null;
+    let onCropCompleteCallback = null;
+
+    function initialize(containerElement, imageSrc, options) {
+        console.log("CROPPIE SCRIPT: initialize() called.");
+        if (!containerElement || typeof Croppie === 'undefined') {
+            console.error("CROPPIE SCRIPT: initialize() failed. Croppie library or container missing.");
+            return;
+        }
+        
+        const photoSettings = options || {};
+        const vpw = 300;
+        const vph = vpw * ((photoSettings.height || 800) / (photoSettings.width || 640));
+
+        if (croppieInstance) { croppieInstance.destroy(); }
+        
+        croppieInstance = new Croppie(containerElement, {
+            viewport: { width: vpw, height: vph },
+            boundary: { width: 350, height: 400 },
+            showZoomer: true,
+            enableOrientation: true
+        });
+        
+        console.log("CROPPIE SCRIPT: Croppie instance created. Binding image...");
+        croppieInstance.bind({ url: imageSrc });
+    }
+
+    function destroy() {
+        if (croppieInstance) {
+            croppieInstance.destroy();
+            croppieInstance = null;
+        }
+    }
+
+    function init(callback) {
+        console.log("CROPPIE SCRIPT: init() called.");
+        onCropCompleteCallback = callback;
+        const cropperDialog = $('#fsbhoa-cropper-dialog');
+
+        if (cropperDialog.length) {
+            console.log("CROPPIE SCRIPT: Dialog element found. Initializing .dialog() widget.");
+            cropperDialog.dialog({
+                autoOpen: false, resizable: true, height: 550, width: 450, modal: true,
+                classes: { "ui-dialog": "wp-dialog" },
+                open: function() {
+                    console.log("CROPPIE SCRIPT: Dialog 'open' event fired.");
+                    const imageSrc = $(this).data('imageSrc');
+                    const options = $(this).data('options');
+                    const container = document.getElementById('fsbhoa-cropper-image-container');
+                    initialize(container, imageSrc, options);
+                },
+                buttons: {
+                    "Apply Crop": function() {
+                        if (croppieInstance) {
+                            const photoSettings = (typeof fsbhoa_photo_settings !== 'undefined') ? fsbhoa_photo_settings : {};
+                            croppieInstance.result({
+                                type: 'base64', size: { width: photoSettings.width, height: photoSettings.height }, format: 'jpeg'
+                            }).then(function(result) {
+                                if (typeof onCropCompleteCallback === 'function') { onCropCompleteCallback(result); }
+                            });
+                        }
+                        $(this).dialog("close");
+                    },
+                    "Cancel": function() { $(this).dialog("close"); }
+                },
+                close: function() { destroy(); }
+            });
+        } else {
+             console.error("CROPPIE SCRIPT: Could NOT find #fsbhoa-cropper-dialog to initialize.");
+        }
+    }
+    
+    function open(imageSrc, options) {
+        console.log("CROPPIE SCRIPT: open() called.");
+        const cropperDialog = $('#fsbhoa-cropper-dialog');
+        if (cropperDialog.length) {
+            cropperDialog.data('imageSrc', imageSrc).data('options', options).dialog('open');
+        }
+    }
+
+    console.log("CROPPIE SCRIPT: Returning the public interface object.");
+    return {
+        init: init,
+        open: open
+    };
+})(jQuery);
+
+console.log("CROPPIE SCRIPT: Parsing fsbhoa-photo-croppie.js - BOTTOM OF FILE.");
+

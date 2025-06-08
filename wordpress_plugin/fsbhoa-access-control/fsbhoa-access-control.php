@@ -57,9 +57,10 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-
 // List Table classes
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-property-list-table.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
 
 
-// In fsbhoa-access-control.php
 
 /**
  * Begins execution of the plugin's admin parts.
@@ -75,6 +76,10 @@ function run_fsbhoa_access_control_admin() {
         add_action('admin_notices', function() {
             echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Admin_Menu class is missing. Admin menus may not appear.</p></div>';
         });
+    }
+
+    if ( class_exists( 'Fsbhoa_Ac_Settings_Page' ) ) {
+        new Fsbhoa_Ac_Settings_Page(); 
     }
 
     // Instantiate Cardholder ACTIONS handler (its constructor sets up admin_post_ and ajax hooks)
@@ -109,4 +114,10 @@ if ( is_admin() ) {
     run_fsbhoa_access_control_admin();
 }
 
+function run_fsbhoa_ac_shortcodes() {
+    if ( class_exists('Fsbhoa_Shortcodes') ) {
+        new Fsbhoa_Shortcodes();
+    }
+}
+run_fsbhoa_ac_shortcodes();
 ?>
