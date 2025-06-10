@@ -190,3 +190,57 @@
 #fsbhoa-cropper-image-container .cropper-container {
     height: 100% !important;
 }
+
+
+/* --- New Flexbox Form Layout Styles --- */
+
+.fsbhoa-form-section {
+    padding: 1.5em;
+    border-bottom: 1px solid #ddd;
+}
+.fsbhoa-form-section h3 {
+    margin-top: 0;
+    font-size: 1.2em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5em;
+    margin-bottom: 1em;
+}
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px; /* Space between fields */
+    margin-bottom: 1em;
+    align-items: center;
+}
+.form-field {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1; /* Allows fields to grow and fill space */
+}
+.form-field label {
+    font-weight: bold;
+    margin-bottom: 0.3em;
+}
+.form-field input[type="text"],
+.form-field input[type="email"],
+.form-field input[type="tel"],
+.form-field select {
+    width: 100%;
+    max-width: 300px; /* Stop fields from becoming too wide */
+}
+.form-field textarea {
+    width: 100%;
+    max-width: 620px;
+}
+
+/* Target the container for the phone type dropdown */
+.form-field.phone-type-field {
+    flex-grow: 0; /* Stop this field from growing */
+    flex-shrink: 1;
+    flex-basis: 180px; /* Give it a specific base width */
+}
+
+/* Ensure the select element inside doesn't overflow */
+.form-field.phone-type-field select {
+    max-width: 100%;
+}

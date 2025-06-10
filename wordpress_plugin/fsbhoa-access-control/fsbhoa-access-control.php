@@ -20,6 +20,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 // Define plugin version and path constants
+define( 'FSBHOA_DEBUG_MODE', true);
 define( 'FSBHOA_AC_VERSION', '0.1.0' );
 define( 'FSBHOA_AC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FSBHOA_AC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

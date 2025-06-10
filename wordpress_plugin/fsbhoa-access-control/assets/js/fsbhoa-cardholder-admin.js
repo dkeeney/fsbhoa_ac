@@ -16,6 +16,10 @@ jQuery(function($) {
 
         cacheSelectors: function() {
             this.vars = {
+                statusUiToggleCheckbox: $('#fsbhoa_card_status_ui_toggle'),
+                submittedStatusHidden: $('#fsbhoa_submitted_card_status'),
+                statusDisplaySpan: $('#fsbhoa_card_status_display'),
+                toggleLabelSpan: $('#fsbhoa_card_status_toggle_ui_label'),
                 mainPhotoPreviewImg: $('#fsbhoa_photo_preview_main_img'),
                 noPhotoMessage: $('#fsbhoa_no_photo_message'),
                 cropPhotoButton: $('#fsbhoa-crop-photo-btn'),
@@ -50,6 +54,59 @@ jQuery(function($) {
                     }
                 });
             }
+            this.initPropertyAutocomplete();
+
+        },
+
+        initPropertyAutocomplete: function() {
+            // Re-cache selectors here just to be absolutely certain
+            this.vars.propertySearchInput = $('#fsbhoa_property_search_input');
+            this.vars.propertyIdHiddenInput = $('#fsbhoa_property_id_hidden');
+
+            console.log("AUTOCOMPLETE: Attempting to initialize.");
+            if (this.vars.propertySearchInput.length) {
+                console.log("AUTOCOMPLETE: Found input field, attaching widget.");
+                this.vars.propertySearchInput.autocomplete({
+                    source: (request, response) => {
+                        console.log("AUTOCOMPLETE: User typed, searching for:", request.term);
+                        $.ajax({
+                            url: fsbhoa_ajax_settings.ajax_url,
+                            dataType: "json",
+                            data: {
+                                action: 'fsbhoa_search_properties',
+                                term: request.term,
+                                security: fsbhoa_ajax_settings.property_search_nonce
+                            },
+                            success: (data) => {
+                                console.log("AUTOCOMPLETE: AJAX success. Server response:", data);
+                                if (data.success) {
+                                    response(data.data);
+                                } else {
+                                    response([]);
+                                }
+                            },
+                            error: function(jqXHR, textStatus, errorThrown) {
+                                console.error("Autocomplete AJAX Error:", textStatus, errorThrown);
+                                response([]);
+                            }
+                        });
+                    },
+                    minLength: 1,
+                    select: (event, ui) => {
+                        event.preventDefault();
+                        if (ui.item) {
+                            console.log("AUTOCOMPLETE: User selected:", ui.item);
+                            this.vars.propertySearchInput.val(ui.item.label);
+                            this.vars.propertyIdHiddenInput.val(ui.item.id);
+                            this.vars.clearSelectionButton.show();
+                            this.vars.selectedPropertyDisplay.text('Selected: ' + ui.item.label).show();
+                        }
+                        return false;
+                    }
+                });
+            } else {
+                console.error("AUTOCOMPLETE: ERROR - Could not find the #fsbhoa_property_search_input field.");
+            }
         },
         
         bindEvents: function() {
@@ -62,6 +119,10 @@ jQuery(function($) {
                     const photoSettings = (typeof fsbhoa_photo_settings !== 'undefined') ? fsbhoa_photo_settings : {};
                     FSBHOA_Croppie.open(imageSrc, photoSettings);
                 }
+            });
+
+            appContainer.on('click', '#fsbhoa_card_status_ui_toggle', () => {
+                this.updateStatusDisplayFromCheckbox();
             });
 
             appContainer.on('click', '#fsbhoa_start_webcam_button', () => {
@@ -120,6 +181,21 @@ jQuery(function($) {
                 this.vars.mainPhotoPreviewImg.attr('src', '#').hide();
                 if (this.vars.noPhotoMessage) this.vars.noPhotoMessage.show();
                 if (this.vars.cropPhotoButton) this.vars.cropPhotoButton.hide();
+            }
+        },
+
+        updateStatusDisplayFromCheckbox: function() {
+            if (!this.vars.statusUiToggleCheckbox.length) return;
+
+            const isChecked = this.vars.statusUiToggleCheckbox.is(':checked');
+            if (isChecked) {
+                this.vars.submittedStatusHidden.val('active');
+                this.vars.statusDisplaySpan.text('Active');
+                this.vars.toggleLabelSpan.text('Card is Active (Click to Disable)');
+            } else {
+                this.vars.submittedStatusHidden.val('disabled');
+                this.vars.statusDisplaySpan.text('Disabled');
+                this.vars.toggleLabelSpan.text('Card is Inactive (Click to Activate)');
             }
         }
     };
