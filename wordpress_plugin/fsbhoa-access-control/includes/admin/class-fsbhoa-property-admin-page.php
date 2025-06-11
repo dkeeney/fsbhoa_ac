@@ -117,26 +117,45 @@ public function handle_delete_property_action() {
      * @since 0.1.5 
      */
     public function render_property_list_page() {
-        $property_list_table = new Fsbhoa_Property_List_Table();
-        $property_list_table->prepare_items();
+        // Use the static method from the list table class to fetch data
+        $properties = class_exists('Fsbhoa_Property_List_Table') ? Fsbhoa_Property_List_Table::get_properties(999, 1) : array();
+        $current_page_url = get_permalink();
         ?>
         <div class="wrap">
             <h1><?php echo esc_html__( 'Property Management', 'fsbhoa-ac' ); ?></h1>
-            
-            <a href="?page=fsbhoa_ac_properties&action=add" class="page-title-action">
+
+            <a href="<?php echo esc_url( add_query_arg('action', 'add', $current_page_url) ); ?>" class="page-title-action">
                 <?php echo esc_html__( 'Add New Property', 'fsbhoa-ac' ); ?>
             </a>
 
-            <?php // Admin notices are usually displayed higher up by WordPress if settings_errors() is called.
-                  // The custom message display is now inside render_page() for the list view.
-            ?>
-
-            <form method="post">
-                <input type="hidden" name="page" value="<?php echo esc_attr( isset($_REQUEST['page']) ? sanitize_text_field(wp_unslash($_REQUEST['page'])) : '' ); ?>" />
-                <?php
-                $property_list_table->display();
-                ?>
-            </form>
+            <table id="fsbhoa-property-table" class="display" style="width:100%; margin-top: 20px;">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e( 'Street Address', 'fsbhoa-ac' ); ?></th>
+                        <th><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></th>
+                        <th class="no-sort"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ( ! empty($properties) ) : foreach ( $properties as $property ) : ?>
+                        <tr>
+                            <td><strong><?php echo esc_html( $property['street_address'] ); ?></strong></td>
+                            <td><?php echo esc_html( $property['notes'] ); ?></td>
+                            <td>
+                                <?php
+                                $edit_url = add_query_arg(array('action' => 'edit', 'property_id' => absint($property['property_id'])), $current_page_url);
+                                $delete_nonce = wp_create_nonce('fsbhoa_delete_property_nonce_' . $property['property_id']);
+                                $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_property', 'property_id' => absint($property['property_id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
+                                ?>
+                                <a href="<?php echo esc_url($edit_url); ?>">Edit</a> |
+                                <a href="<?php echo esc_url($delete_url); ?>" onclick="return confirm('Are you sure you want to delete this property?');" style="color:#a00;">Delete</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; else : ?>
+                        <tr><td colspan="3"><?php esc_html_e( 'No properties found.', 'fsbhoa-ac' ); ?></td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
         </div>
         <?php
     }

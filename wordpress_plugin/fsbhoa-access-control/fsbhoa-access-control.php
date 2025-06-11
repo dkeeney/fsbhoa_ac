@@ -61,7 +61,15 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-car
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
 
-
+// --- Load Admin Dependencies for WP_List_Table ---
+// These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
+// This makes the admin functions available on the front-end for our shortcode.
+if ( ! class_exists( 'WP_List_Table' ) ) {
+    require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
+}
+if ( ! function_exists( 'get_screen_option' ) ) {
+    require_once ABSPATH . 'wp-admin/includes/screen.php';
+}
 
 /**
  * Begins execution of the plugin's admin parts.

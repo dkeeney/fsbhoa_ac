@@ -26,34 +26,6 @@ class Fsbhoa_Admin_Menu {
     }
 
     public function add_admin_menu_pages() {
-        add_menu_page(
-            __( 'FSBHOA Access Control', 'fsbhoa-ac' ),
-            __( 'FSBHOA Access', 'fsbhoa-ac' ),
-            'manage_options', // Capability
-            'fsbhoa_ac_main_menu', // Menu slug
-            array( $this, 'display_main_admin_page' ),
-            'dashicons-id-alt', // Icon
-            26 // Position
-        );
-
-        add_submenu_page(
-            'fsbhoa_ac_main_menu',
-            __( 'Cardholders', 'fsbhoa-ac' ),
-            __( 'Cardholders', 'fsbhoa-ac' ),
-            'manage_options',
-            'fsbhoa_ac_cardholders',
-            array( $this, 'display_cardholders_page_callback' )
-        );
-
-        // Add a submenu page for Properties
-        add_submenu_page(
-            'fsbhoa_ac_main_menu',                      // Parent slug
-            __( 'Properties', 'fsbhoa-ac' ),            // Page title
-            __( 'Properties', 'fsbhoa-ac' ),            // Menu title
-            'manage_options',                           // Capability
-            'fsbhoa_ac_properties',                     // Menu slug (unique)
-            array( $this, 'display_properties_page_callback' ) // Callback function
-        );
     }
 
     public function display_main_admin_page() {

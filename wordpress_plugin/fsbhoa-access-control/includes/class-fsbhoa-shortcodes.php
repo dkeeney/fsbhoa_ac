@@ -12,17 +12,50 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_cardholder_management', array( $this, 'render_cardholder_management_shortcode' ) );
     }
 
-    public function render_cardholder_management_shortcode() {
+    /**
+     * Renders the main shortcode content.
+     * Can now display different views based on the 'view' attribute.
+     * e.g., [fsbhoa_cardholder_management view="properties"]
+     *
+     * @param array|string $atts Shortcode attributes.
+     * @return string The HTML output for the shortcode.
+     */
+    public function render_cardholder_management_shortcode( $atts ) {
         if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
             return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
         }
 
+
+        // Process the 'view' attribute with defaults
+        $atts = shortcode_atts(
+            array(
+                'view' => 'cardholders', // Default to the cardholders view
+            ),
+            $atts,
+            'fsbhoa_cardholder_management'
+        );
+
+        $current_view = sanitize_key( $atts['view'] );
+
         $this->enqueue_scripts();
         ob_start();
 
-        if ( class_exists('Fsbhoa_Cardholder_Admin_Page') ) {
-            $cardholder_admin_page = new Fsbhoa_Cardholder_Admin_Page();
-            $cardholder_admin_page->render_page(); 
+        // Conditionally render the correct page based on the view
+        if ( $current_view === 'properties' ) {
+            if ( class_exists('Fsbhoa_Property_Admin_Page') ) {
+                $property_admin_page = new Fsbhoa_Property_Admin_Page();
+                $property_admin_page->render_page();
+            } else {
+                echo '<p>' . esc_html__( 'Error: Property management class not found.', 'fsbhoa-ac' ) . '</p>';
+            }
+        } else {
+            // Default to the cardholder view
+            if ( class_exists('Fsbhoa_Cardholder_Admin_Page') ) {
+                $cardholder_admin_page = new Fsbhoa_Cardholder_Admin_Page();
+                $cardholder_admin_page->render_page();
+            } else {
+                echo '<p>' . esc_html__( 'Error: Cardholder management class not found.', 'fsbhoa-ac' ) . '</p>';
+            }
         }
 
         return ob_get_clean();
