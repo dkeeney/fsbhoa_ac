@@ -20,7 +20,7 @@ class Fsbhoa_Admin_Menu {
     public function __construct() {
         $this->plugin_name = 'fsbhoa-ac';
         // Ensure FSBHOA_AC_PLUGIN_VERSION is defined in your main plugin file
-        $this->version = defined('FSBHOA_AC_PLUGIN_VERSION') ? FSBHOA_AC_PLUGIN_VERSION : '0.1.4'; // Bump version
+        $this->version = defined('FSBHOA_AC_PLUGIN_VERSION') ? FSBHOA_AC_PLUGIN_VERSION : '0.1.6'; // Bump version
 
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
     }
@@ -119,6 +119,10 @@ class Fsbhoa_Admin_Menu {
 
         // Scripts specific to the CARDHOLDER admin page
         if ( $screen && $screen->id === $cardholder_page_hook ) {
+            // ---  Enqueue DataTables library for the admin list view ---
+            wp_enqueue_style('datatables-style', 'https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.css');
+            wp_enqueue_script('datatables-script', 'https://cdn.datatables.net/2.0.8/js/dataTables.js', array('jquery'), '2.0.8', true);
+
             // --- START: RE-ADDING CROPPER CSS ---
             // This is to test if the "white screen" issue is due to missing styles.
             wp_enqueue_style(
@@ -142,7 +146,7 @@ class Fsbhoa_Admin_Menu {
             wp_enqueue_script(
                 'fsbhoa-cardholder-admin-script',
                 FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js',
-                array('jquery', 'jquery-ui-autocomplete', 'cropperjs-script'), 
+                array('jquery', 'jquery-ui-autocomplete', 'cropperjs-script', 'datatables-script'), 
                 $this->version,
                 true
             );
@@ -150,7 +154,7 @@ class Fsbhoa_Admin_Menu {
             // Localize data for the script
             wp_localize_script(
                 'fsbhoa-cardholder-admin-script',
-                'fsbhoa_cardholder_ajax_obj',
+                'fsbhoa_ajax_settings',
                 array(
                     'ajax_url'               => admin_url('admin-ajax.php'),
                     'property_search_nonce'  => wp_create_nonce('fsbhoa_property_search_nonce'),

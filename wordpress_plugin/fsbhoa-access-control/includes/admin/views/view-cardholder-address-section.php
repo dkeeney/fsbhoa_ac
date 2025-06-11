@@ -57,24 +57,3 @@ function fsbhoa_render_address_section( $form_data ) {
 
 
 
-/**
- * AJAX callback for the property address search field.
- */
-function fsbhoa_ajax_search_properties_callback() {
-    check_ajax_referer('fsbhoa_property_search_nonce', 'security');
-    global $wpdb;
-    $table_name = 'ac_property';
-    $search_term = isset($_GET['term']) ? sanitize_text_field(wp_unslash($_GET['term'])) : '';
-    $results = array();
-
-    if (strlen($search_term) >= 1) {
-        $wildcard_search_term = '%' . $wpdb->esc_like($search_term) . '%';
-        $properties = $wpdb->get_results( $wpdb->prepare( "SELECT property_id, street_address FROM {$table_name} WHERE street_address LIKE %s ORDER BY street_address ASC LIMIT 20", $wildcard_search_term ), ARRAY_A );
-        if ($properties) {
-            foreach ($properties as $property) {
-                $results[] = array( 'id' => $property['property_id'], 'label' => $property['street_address'], 'value' => $property['street_address'] );
-            }
-        }
-    }
-    wp_send_json_success($results);
-}
