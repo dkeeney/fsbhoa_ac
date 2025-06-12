@@ -1,3 +1,141 @@
+/* --- FSBHOA Cardholder List Table Styling --- */
+
+/* Constrain the width of the entire plugin interface */
+.fsbhoa-frontend-wrap {
+    max-width: 700px; /* Adjust this value as needed */
+    margin: 0.5em auto 2em;  /* Reduced top margin from 2em to 0.5em */
+
+}
+
+/* This rule hides the default page title (e.g., "Cardholder") that comes from the theme */
+body.page .entry-title {
+    display: none !important;
+}
+/* This rule styles the "Cardholder Management" H1 title inside our plugin to be more compact */
+.fsbhoa-frontend-wrap h1 {
+    font-size: 24px  !important;   /* Reduced from a typical default H1 size */
+    margin-top: 0;     /* Remove extra space above the title */
+    margin-bottom: 5px; /* Reduce space below the title */
+    padding-bottom: 5px;/* Reduce space below the bottom border */
+    border-bottom: 1px solid #ddd;
+}
+
+/* ---  Table Controls Bar Styling --- */
+
+/* This is the main container for the top controls */
+.fsbhoa-table-controls {
+    display: flex;
+    justify-content: space-between; /* Pushes button to the left, and right-controls to the right */
+    align-items: center;
+    margin-bottom: 1em;
+}
+
+/* The wrapper for the "Show entries" and "Search" controls */
+.fsbhoa-table-right-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.5em; /* Space between the two control groups */
+}
+
+/* A single group, like the "Search" label and its input */
+.fsbhoa-control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5em; /* Space between a label and its input/select */
+    font-size: 13px;
+}
+
+
+.fsbhoa-control-group select,
+.fsbhoa-control-group input {
+    font-size: 13px;
+    padding: 4px;
+}
+
+.fsbhoa-control-group select {
+    min-width: 60px;
+}
+
+.fsbhoa-control-group input[type="search"] {
+    width: 150px;
+}
+
+/* ---  "Add" Button Styling --- */
+/* These rules ensure our moved "Add New" link looks like a button */
+.fsbhoa-table-controls .button-primary {
+    display: inline-block;
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 2.15;
+    min-height: 30px;
+    margin: 0;
+    padding: 0 12px;
+    cursor: pointer;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 3px;
+    white-space: nowrap;
+    box-sizing: border-box;
+    background: #0073aa; /* WordPress blue */
+    border-color: #0073aa;
+    color: #fff;
+    box-shadow: 0 1px 0 #006799;
+}
+
+
+.fsbhoa-table-controls .button-primary:hover,
+.fsbhoa-table-controls .button-primary:focus {
+    background: #0085ba;
+    border-color: #0085ba;
+    color: #fff;
+}
+
+
+
+
+/* --- FSBHOA Cardholder List Table Styling --- */
+
+/* Make the entire table more compact by reducing cell padding */
+#fsbhoa-cardholder-table th,
+#fsbhoa-cardholder-table td {
+    padding: 2px 4px !important; /* reduced vertical padding for a row */
+    line-height: 1.1 !important;   /* Tighten the line height */
+       font-size: 13px;  /* Reducing font size for smaller row height */
+    vertical-align: middle;
+}
+
+/* Style the Actions column to be short and centered */
+.fsbhoa-actions-column {
+    width: 80px; /* Fixed width for the column */
+    text-align: center;
+}
+
+/* Style the icons within the Actions column */
+.fsbhoa-action-icon {
+    display: inline-block;
+    padding: 4px;
+    text-decoration: none;
+    color: #555;
+    vertical-align: middle;
+}
+
+.fsbhoa-action-icon .dashicons {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.fsbhoa-action-icon:hover {
+    color: #0073aa; /* WordPress blue on hover */
+}
+
+/* Style for the status column to enforce minimum width */
+.fsbhoa-status-column {
+    width: 1%; /* This is a trick to make the column as narrow as its content allows */
+    white-space: nowrap; /* Prevents status text from wrapping */
+}
+
+
+
 /* FSBHOA Admin Styles */
 
 .wp-list-table th.column-actions,
@@ -5,6 +143,79 @@
     width: 10%; 
     text-align: center;
 }
+
+
+/* ==========================================================================
+    Add/Edit Form Compact Layout Styles
+   ========================================================================== */
+
+/* Reduce padding and border on the main form sections */
+.fsbhoa-form-section {
+    padding: 0;
+}
+
+/*  This adds a top border and vertical padding to every section EXCEPT the first one */
+/* This is the key to creating consistent spacing between sections */
+.fsbhoa-form-section + .fsbhoa-form-section {
+    border-top: 1px solid #eee;
+    padding-top: 0.3em; /* Controls the space between sections */
+}
+
+/* Reduce the gap between fields and the bottom margin of each row */
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px; /* Reduced from 20px */
+    margin-bottom: 0.8em; /* Reduced from 1em */
+    align-items: center;
+}
+.form-row:last-child {
+    margin-bottom: 0; /* Remove margin from the last row in a section */
+}
+
+/* Reduce the space below the field labels */
+.form-field label {
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 0.2em;
+    display: block;
+}
+
+/* Make the input fields themselves more compact */
+.form-field input[type="text"],
+.form-field input[type="email"],
+.form-field input[type="tel"],
+.form-field input[type="date"],
+.form-field select {
+    width: 100%;
+    max-width: 300px;
+    padding: 4px;
+    font-size: 13px;
+    border: 1px solid #8c8f94; /* Added a standard border for consistency */
+    border-radius: 3px;
+}
+
+
+.form-field textarea {
+    width: 100%;
+    max-width: 620px;
+    padding: 4px;
+    font-size: 13px;
+}
+
+/* Target the photo section for a more compact horizontal layout */
+#fsbhoa_photo_section .form-row {
+    align-items: flex-start;
+}
+
+#fsbhoa_main_photo_preview_area {
+    flex-shrink: 0;
+}
+
+
+
+
+
 /* --- Cropper Modal Styles (Improved Visibility Handling) --- */
 
 #fsbhoa-cropper-modal {

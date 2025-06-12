@@ -8,70 +8,52 @@ if ( ! defined( 'WPINC' ) ) { die; }
  * @param bool  $is_edit_mode True if editing an existing cardholder.
  */
 function fsbhoa_render_rfid_section( $form_data, $is_edit_mode ) {
-   if ( $is_edit_mode ) {
+    if ( ! $is_edit_mode ) {
+        // On an "Add" screen, show a simple placeholder message
+        echo '<div class="fsbhoa-form-section"><p class="description"><em>' . esc_html__( 'RFID details can be added after the cardholder has been saved.', 'fsbhoa-ac' ) . '</em></p></div>';
+        return;
+    }
+
+    // On an "Edit" screen, show the full controls
 ?>
-<tr id="fsbhoa_rfid_details_section" <?php if (!$is_edit_mode) echo 'style="display:none;"'; ?>>
-    <th scope="row"><label for="rfid_id"><?php esc_html_e( 'RFID & Card Details', 'fsbhoa-ac' ); ?></label></th>
-    <td>
-        <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 25px;">
-            
+    <div class="fsbhoa-form-section">
+        <div class="form-row">
             <!-- RFID ID Input -->
-            <div style="margin-bottom: 5px; flex-shrink: 0;">
-                <label for="rfid_id" style="display: block; font-weight: bold; margin-bottom: .2em;"><?php esc_html_e( 'RFID Card ID', 'fsbhoa-ac' ); ?></label>
-                <input type="text" name="rfid_id" id="rfid_id" class="regular-text" value="<?php echo esc_attr($form_data['rfid_id']); ?>" maxlength="8" pattern="[a-zA-Z0-9]{8}" title="<?php esc_attr_e('8-digit alphanumeric RFID.', 'fsbhoa-ac'); ?>" style="width: 10em;">
+            <div class="form-field">
+                <label for="rfid_id"><?php esc_html_e( 'RFID Card ID', 'fsbhoa-ac' ); ?></label>
+                <input type="text" name="rfid_id" id="rfid_id" value="<?php echo esc_attr($form_data['rfid_id']); ?>" maxlength="8" pattern="[a-zA-Z0-9]{8}" title="<?php esc_attr_e('8-digit alphanumeric RFID.', 'fsbhoa-ac'); ?>">
             </div>
 
-            <!-- Card Status Display (Always show on edit) -->
-            <div style="margin-bottom: 5px; flex-shrink: 0;">
-                <strong style="display: block; margin-bottom: .2em;"><?php esc_html_e( 'Status:', 'fsbhoa-ac' ); ?></strong>
-                <span id="fsbhoa_card_status_display" style="padding: 3px 0; display: inline-block; min-width: 7em; font-weight: bold;"><?php echo esc_html(ucwords( !empty($form_data['card_status']) ? $form_data['card_status'] : 'inactive' )); ?></span>
-                
-                <!-- This container will be shown/hidden by JavaScript -->
-                <label id="fsbhoa_card_status_toggle_container" style="margin-left: 10px; white-space: nowrap; <?php if (empty($form_data['rfid_id'])) echo 'display:none;'; ?>">
-                    <input type="checkbox" id="fsbhoa_card_status_ui_toggle" value="active" <?php checked(isset($form_data['card_status']) && $form_data['card_status'] === 'active'); ?>>
-                    <span id="fsbhoa_card_status_toggle_ui_label"><?php echo (isset($form_data['card_status']) && $form_data['card_status'] === 'active') ? esc_html__('Card is Active (Click to Disable)', 'fsbhoa-ac') : esc_html__('Card is Inactive (Click to Activate)', 'fsbhoa-ac'); ?></span>
-                </label>
-
+            <!-- Card Status Display -->
+            <div class="form-field">
+                <label><?php esc_html_e( 'Status', 'fsbhoa-ac' ); ?></label>
+                <div class="fsbhoa-status-control-group">
+                    <span id="fsbhoa_card_status_display"><?php echo esc_html(ucwords( !empty($form_data['card_status']) ? $form_data['card_status'] : 'inactive' )); ?></span>
+                    <label id="fsbhoa_card_status_toggle_container" style="<?php if (empty($form_data['rfid_id'])) echo 'display:none;'; ?>">
+                        <input type="checkbox" id="fsbhoa_card_status_ui_toggle" value="active" <?php checked(isset($form_data['card_status']) && $form_data['card_status'] === 'active'); ?>>
+                        <span id="fsbhoa_card_status_toggle_ui_label"><?php echo (isset($form_data['card_status']) && $form_data['card_status'] === 'active') ? esc_html__('Active', 'fsbhoa-ac') : esc_html__('Disabled', 'fsbhoa-ac'); ?></span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Issue Date Display -->
+            <div class="form-field">
+                 <label><?php esc_html_e( 'Issued On', 'fsbhoa-ac' ); ?></label>
+                 <span id="fsbhoa_card_issue_date_display" class="fsbhoa-readonly-field"><?php echo (!empty($form_data['card_issue_date']) && $form_data['card_issue_date'] !== '0000-00-00') ? esc_html($form_data['card_issue_date']) : 'N/A'; ?></span>
             </div>
 
-            <!-- Issue and Expiry Dates (Always show on edit) -->
-            <div style="display: flex; align-items: baseline; gap: 5px 15px; flex-shrink: 0; flex-wrap:nowrap;">
-                <div style="white-space: nowrap;" id="fsbhoa_issue_date_wrapper">
-                    <strong style="margin-right: .3em;"><?php esc_html_e( 'Issued:', 'fsbhoa-ac' ); ?></strong>
-                    <span id="fsbhoa_card_issue_date_display">
-                        <?php echo (!empty($form_data['card_issue_date']) && $form_data['card_issue_date'] !== '0000-00-00') ? esc_html($form_data['card_issue_date']) : 'N/A'; ?>
-                    </span>
-                </div>
-                
-                <!--  The logic for hiding/showing the contractor expiry is now more robust -->
-                <div style="white-space: nowrap; <?php if ($form_data['resident_type'] !== 'Contractor') echo 'display:none;'; ?>" id="fsbhoa_expiry_date_wrapper_contractor">
-                    <label for="card_expiry_date_contractor_input" style="font-weight: bold; margin-right: .3em;"><?php esc_html_e( 'Expires (Contractor):', 'fsbhoa-ac' ); ?></label>
-                    <input type="date" name="card_expiry_date" id="card_expiry_date_contractor_input" value="<?php echo esc_attr((isset($form_data['card_expiry_date']) && $form_data['card_expiry_date'] && $form_data['card_expiry_date'] !== '0000-00-00') ? $form_data['card_expiry_date'] : ''); ?>" style="width: 10em;">
-                </div>
-
+            <!-- Expiry Date Input (for Contractors) -->
+            <div class="form-field" id="fsbhoa_expiry_date_wrapper_contractor" style="<?php if ($form_data['resident_type'] !== 'Contractor') echo 'display:none;'; ?>">
+                <label for="card_expiry_date_contractor_input"><?php esc_html_e( 'Expires (Contractor)', 'fsbhoa-ac' ); ?></label>
+                <input type="date" name="card_expiry_date" id="card_expiry_date_contractor_input" value="<?php echo esc_attr((isset($form_data['card_expiry_date']) && $form_data['card_expiry_date'] && $form_data['card_expiry_date'] !== '0000-00-00') ? $form_data['card_expiry_date'] : ''); ?>">
             </div>
         </div>
-
-        <!-- Hidden fields to stage data for submission -->
+        
+        <!-- Hidden fields for submission -->
         <input type="hidden" name="submitted_card_status" id="fsbhoa_submitted_card_status" value="<?php echo esc_attr($form_data['card_status']); ?>">
         <input type="hidden" name="submitted_card_issue_date" id="fsbhoa_submitted_card_issue_date" value="<?php echo esc_attr($form_data['card_issue_date']); ?>">
-        
-        <p class="description" style="margin-top: .5em;"><?php esc_html_e( 'RFID details are managed on the Edit screen. Enter an 8-digit ID to activate a card.', 'fsbhoa-ac' ); ?></p>
-    </td>
-</tr>
-
+    </div>
 <?php
-    } else {
-        // We are ADDING a new cardholder, so show a placeholder message instead.
-?>
-        <tr>
-            <th scope="row"><?php esc_html_e( 'RFID & Card Details', 'fsbhoa-ac' ); ?></th>
-            <td>
-                <p class="description"><em><?php esc_html_e( 'RFID details can be added after the cardholder has been saved.', 'fsbhoa-ac' ); ?></em></p>
-            </td>
-        </tr>
-<?php
-    }
 }
 
 

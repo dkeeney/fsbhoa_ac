@@ -10,11 +10,12 @@ jQuery(function($) {
 
             this.cacheSelectors();
 
-            // --- CORRECTED: Conditional Initialization ---
+            // ---  Conditional Initialization ---
             // This now safely checks for elements before trying to initialize them.
 
             if (this.vars.cardholderTable && this.vars.cardholderTable.length) {
                 this.initDataTable();
+                this.bindTableControlEvents(); //  Bind events for our custom controls
             }
 
             if (this.vars.cardholderForm && this.vars.cardholderForm.length) {
@@ -29,6 +30,11 @@ jQuery(function($) {
                 // Page-level containers
                 cardholderForm: $('#fsbhoa-cardholder-form'),
                 cardholderTable: $('#fsbhoa-cardholder-table'),
+                
+                //  Custom table controls
+                customLengthMenu: $('#fsbhoa-custom-length-menu'),
+                customSearchInput: $('#fsbhoa-custom-search-input'),
+
 
                 // RFID Section
                 rfidInput: $('#rfid_id'),
@@ -68,10 +74,39 @@ jQuery(function($) {
         },
         
         initDataTable: function() {
-             if (this.vars.cardholderTable.length) {
-                this.vars.cardholderTable.DataTable();
-            }
+             if (!this.vars.cardholderTable.length) { return; }
+
+             // Find the "Add New" button and hide the original, we will use a clone.
+             //const $addNewButton = $('.fsbhoa-frontend-wrap .button-primary').first().clone(true);
+             //$('.fsbhoa-frontend-wrap .button-primary').first().hide();
+
+             if (!this.vars.cardholderTable.length) { return; }
+
+             //  We now initialize the table and store its instance.
+             // The 'dom' option is set to only show the table itself ('t'), plus info and pagination ('ip').
+             // The default controls ('l' and 'f') are removed because we built our own.
+             this.dataTableInstance = this.vars.cardholderTable.DataTable({
+                "dom": 'tip', // 't' = table, 'i' = info, 'p' = pagination
+                "pageLength": 10 // Set a default page length
+             });
+
         },
+
+        //  This function binds events for our custom HTML controls
+        bindTableControlEvents: function() {
+            if (!this.dataTableInstance) { return; }
+
+            // When the user types in our custom search box
+            this.vars.customSearchInput.on('keyup', (e) => {
+                this.dataTableInstance.search(e.target.value).draw();
+            });
+
+            // When the user changes our custom "Show entries" dropdown
+            this.vars.customLengthMenu.on('change', (e) => {
+                this.dataTableInstance.page.len(e.target.value).draw();
+            });
+        },
+
         
         initFormLibraries: function() {
             if (typeof FSBHOA_Croppie !== 'undefined') {
