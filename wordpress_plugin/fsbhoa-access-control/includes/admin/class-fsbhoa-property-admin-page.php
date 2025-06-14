@@ -71,44 +71,66 @@ class Fsbhoa_Property_Admin_Page {
     }
 
     /**
-     * Renders the list of properties using WP_List_Table.
-     *
-     * @since 0.1.5 
+     * Renders the list of properties using a DataTables-ready HTML structure,
+     * matching the cardholder list view.
      */
     public function render_property_list_page() {
-        // Use the static method from the list table class to fetch data
+        // We get the data using our static method from the old List Table class.
         $properties = class_exists('Fsbhoa_Property_List_Table') ? Fsbhoa_Property_List_Table::get_properties(999, 1) : array();
         $current_page_url = get_permalink();
         ?>
         <div class="wrap">
             <h1><?php echo esc_html__( 'Property Management', 'fsbhoa-ac' ); ?></h1>
 
-            <a href="<?php echo esc_url( add_query_arg('action', 'add', $current_page_url) ); ?>" class="page-title-action">
-                <?php echo esc_html__( 'Add New Property', 'fsbhoa-ac' ); ?>
-            </a>
+            <div class="fsbhoa-table-controls">
+                <a href="<?php echo esc_url( add_query_arg('action', 'add', $current_page_url) ); ?>" class="button button-primary">
+                    <?php echo esc_html__( 'Add New Property', 'fsbhoa-ac' ); ?>
+                </a>
 
-            <table id="fsbhoa-property-table" class="display" style="width:100%; margin-top: 20px;">
+                <div class="fsbhoa-table-right-controls">
+                    <div class="fsbhoa-control-group">
+                        <label for="fsbhoa-property-length-menu">Show</label>
+                        <select name="fsbhoa-property-length-menu" id="fsbhoa-property-length-menu">
+                            <option value="100">100</option>
+                            <option value="250">250</option>
+                            <option value="500">500</option>
+                            <option value="-1">All</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
+                    <div class="fsbhoa-control-group">
+                        <label for="fsbhoa-property-search-input">Search:</label>
+                        <input type="search" id="fsbhoa-property-search-input" placeholder="Search...">
+                    </div>
+                </div>
+            </div>
+
+            <table id="fsbhoa-property-table" class="display" style="width:100%">
                 <thead>
                     <tr>
+                        <th class="no-sort fsbhoa-actions-column"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
                         <th><?php esc_html_e( 'Street Address', 'fsbhoa-ac' ); ?></th>
                         <th><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></th>
-                        <th class="no-sort"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ( ! empty($properties) ) : foreach ( $properties as $property ) : ?>
                         <tr>
-                            <td><strong><?php echo esc_html( $property['street_address'] ); ?></strong></td>
-                            <td><?php echo esc_html( $property['notes'] ); ?></td>
-                            <td>
+                            <td class="fsbhoa-actions-column">
                                 <?php
                                 $edit_url = add_query_arg(array('action' => 'edit', 'property_id' => absint($property['property_id'])), $current_page_url);
                                 $delete_nonce = wp_create_nonce('fsbhoa_delete_property_nonce_' . $property['property_id']);
                                 $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_property', 'property_id' => absint($property['property_id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
                                 ?>
-                                <a href="<?php echo esc_url($edit_url); ?>">Edit</a> |
-                                <a href="<?php echo esc_url($delete_url); ?>" onclick="return confirm('Are you sure you want to delete this property?');" style="color:#a00;">Delete</a>
+                                <a href="<?php echo esc_url($edit_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Edit Property', 'fsbhoa-ac'); ?>">
+                                    <span class="dashicons dashicons-edit"></span>
+                                </a>
+                                <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Delete Property', 'fsbhoa-ac'); ?>" onclick="return confirm('Are you sure you want to delete this property?');">
+                                    <span class="dashicons dashicons-trash"></span>
+                                </a>
                             </td>
+                            <td><strong><?php echo esc_html( $property['street_address'] ); ?></strong></td>
+                            <td><?php echo esc_html( $property['notes'] ); ?></td>
                         </tr>
                     <?php endforeach; else : ?>
                         <tr><td colspan="3"><?php esc_html_e( 'No properties found.', 'fsbhoa-ac' ); ?></td></tr>
@@ -126,7 +148,7 @@ class Fsbhoa_Property_Admin_Page {
      * @since 0.1.5 
      * @param string $current_view_action The action determining the view ('add' or 'edit' from GET).
      */
-    public function render_add_new_property_form($current_view_action = 'add') {
+public function render_add_new_property_form($current_view_action = 'add') {
         // Ensure the submit_button() function is available when run from a shortcode
         if ( ! function_exists( 'submit_button' ) ) {
             require_once ABSPATH . 'wp-admin/includes/template.php';
@@ -141,7 +163,7 @@ class Fsbhoa_Property_Admin_Page {
         if ($is_edit_mode) {
             $item_id = absint($_GET['property_id']);
             $property_to_edit = $wpdb->get_row($wpdb->prepare("SELECT street_address, notes FROM {$table_name} WHERE property_id = %d", $item_id), ARRAY_A);
-        
+            
             if ($wpdb->last_error) {
                 error_log('FSBHOA DB Error (Get Property for Edit): ' . $wpdb->last_error);
                 wp_die('A database error occurred while retrieving property details. Please go back and try again.');
@@ -150,12 +172,10 @@ class Fsbhoa_Property_Admin_Page {
             if ($property_to_edit) {
                 $form_data = $property_to_edit;
             } else {
-                // Handle case where property ID is valid but not found in DB
                 wp_die('Error: The property you are trying to edit could not be found. It may have been deleted.');
             }
         }
 
-        // --- Setup form variables ---
         $page_title = $is_edit_mode ? 'Edit Property' : 'Add New Property';
         $submit_button_text = $is_edit_mode ? 'Update Property' : 'Add Property';
         $form_action = $is_edit_mode ? 'fsbhoa_update_property' : 'fsbhoa_add_property';
@@ -164,33 +184,31 @@ class Fsbhoa_Property_Admin_Page {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html($page_title); ?></h1>
-    
+
             <form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="<?php echo esc_attr($form_action); ?>" />
                 <?php if ($is_edit_mode) : ?>
                     <input type="hidden" name="property_id" value="<?php echo esc_attr($item_id); ?>" />
                 <?php endif; ?>
                 <?php wp_nonce_field($nonce_action, 'fsbhoa_property_nonce'); ?>
-    
-                <table class="form-table">
-                    <tbody>
-                        <tr>
-                            <th scope="row"><label for="street_address"><?php esc_html_e( 'Street Address', 'fsbhoa-ac' ); ?></label></th>
-                            <td>
-                                <input type="text" name="street_address" id="street_address" class="regular-text"
-                                       value="<?php echo esc_attr($form_data['street_address']); ?>" required>
-                                <p class="description"><?php esc_html_e( 'E.g., 123 Main St. This must be unique.', 'fsbhoa-ac' ); ?></p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><label for="notes"><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></label></th>
-                            <td>
-                                <textarea name="notes" id="notes" rows="5" class="large-text"><?php echo esc_textarea($form_data['notes']); ?></textarea>
-                                <p class="description"><?php esc_html_e( 'Optional notes about the property.', 'fsbhoa-ac' ); ?></p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+
+                <div class="fsbhoa-form-section">
+                    <div class="form-row">
+                        <div class="form-field" style="flex-basis: 100%;">
+                            <label for="street_address"><?php esc_html_e( 'Street Address', 'fsbhoa-ac' ); ?></label>
+                            <input type="text" name="street_address" id="street_address" class="regular-text"
+                                   value="<?php echo esc_attr($form_data['street_address']); ?>" required>
+                            <p class="description"><?php esc_html_e( 'Example: 123 Main St. This must be unique.', 'fsbhoa-ac' ); ?></p>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field" style="flex-basis: 100%;">
+                            <label for="notes"><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></label>
+                            <textarea name="notes" id="notes" rows="5" class="large-text"><?php echo esc_textarea($form_data['notes']); ?></textarea>
+                            <p class="description"><?php esc_html_e( 'Optional notes about the property.', 'fsbhoa-ac' ); ?></p>
+                        </div>
+                    </div>
+                </div>
                 <?php submit_button($submit_button_text); ?>
             </form>
             <p><a href="<?php echo esc_url($properties_list_url); ?>"><?php esc_html_e('&larr; Back to Properties List', 'fsbhoa-ac'); ?></a></p>

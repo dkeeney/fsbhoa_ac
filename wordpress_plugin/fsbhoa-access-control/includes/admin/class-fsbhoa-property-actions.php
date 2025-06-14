@@ -28,9 +28,9 @@ class Fsbhoa_Property_Actions {
         $result = $wpdb->delete($table_name, array('property_id' => $item_id_to_delete), array('%d'));
 
         // Get the URL of the page that submitted the request
-        $redirect_url = wp_get_referer() ? wp_get_referer() : home_url('/');
-        // Make sure the 'view' parameter is correctly set for the properties list
-        $redirect_url = add_query_arg('view', 'properties', remove_query_arg(array('action', 'property_id'), $redirect_url));
+        $base_redirect_url = wp_get_referer() ? wp_get_referer() : home_url('/');
+        // Now, clean the URL by removing the action parameters. This becomes our final redirect URL.
+        $redirect_url = remove_query_arg( array('action', 'property_id'), $base_redirect_url );
 
         if ($result === false) {
             $final_redirect_url = add_query_arg('message', 'delete_error', $redirect_url);
@@ -53,9 +53,10 @@ class Fsbhoa_Property_Actions {
         check_admin_referer($nonce_action, 'fsbhoa_property_nonce');
 
         // Get the URL of the page that submitted the request
-        $redirect_url = wp_get_referer() ? wp_get_referer() : home_url('/');
-        // Make sure the 'view' parameter is correctly set for the properties list
-        $redirect_url = add_query_arg('view', 'properties', remove_query_arg(array('action', 'property_id'), $redirect_url));
+        $base_redirect_url = wp_get_referer() ? wp_get_referer() : home_url('/');
+        
+        // Now, clean the URL by removing the action parameters. This becomes our final redirect URL.
+        $redirect_url = remove_query_arg( array('action', 'property_id'), $base_redirect_url );
 
         // --- Validation Logic ---
         $errors = array();

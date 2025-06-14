@@ -40,16 +40,16 @@ function fsbhoa_render_cardholder_list_view() {
                 <div class="fsbhoa-control-group">
                     <label for="fsbhoa-custom-length-menu">Show</label>
                     <select name="fsbhoa-custom-length-menu" id="fsbhoa-custom-length-menu">
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                        <option value="500">500</option>
                         <option value="-1">All</option>
                     </select>
                     <span>entries</span>
                 </div>
                 <div class="fsbhoa-control-group">
-                     <label for="fsbhoa-custom-search-input">Search:</label>
-                    <input type="search" id="fsbhoa-custom-search-input" placeholder="Search...">
+                     <label for="fsbhoa-cardholder-search-input">Search:</label>
+                    <input type="search" id="fsbhoa-cardholder-search-input" placeholder="Search...">
                 </div>
             </div>
         </div>

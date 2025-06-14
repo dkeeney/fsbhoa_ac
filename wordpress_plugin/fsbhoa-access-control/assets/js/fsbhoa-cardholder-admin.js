@@ -89,7 +89,8 @@ jQuery(function($) {
              // The default controls ('l' and 'f') are removed because we built our own.
              this.dataTableInstance = this.vars.cardholderTable.DataTable({
                 "dom": 'tip', // 't' = table, 'i' = info, 'p' = pagination
-                "pageLength": 10 // Set a default page length
+                "pageLength": 100,       // Set a default page length
+                "stateSave": true,       //  This makes the setting sticky
              });
 
         },
@@ -97,14 +98,14 @@ jQuery(function($) {
         //  This function binds events for our custom HTML controls
         bindTableControlEvents: function() {
             if (!this.dataTableInstance) { return; }
-
+        
             // When the user types in our custom search box
-            this.vars.customSearchInput.on('keyup', (e) => {
+            $('#fsbhoa-cardholder-search-input').on('keyup', (e) => {
                 this.dataTableInstance.search(e.target.value).draw();
             });
 
             // When the user changes our custom "Show entries" dropdown
-            this.vars.customLengthMenu.on('change', (e) => {
+            $('#fsbhoa-custom-length-menu').on('change', (e) => {
                 this.dataTableInstance.page.len(e.target.value).draw();
             });
         },

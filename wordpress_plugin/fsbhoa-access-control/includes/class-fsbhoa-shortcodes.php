@@ -10,6 +10,7 @@ class Fsbhoa_Shortcodes {
 
     public function __construct() {
         add_shortcode( 'fsbhoa_cardholder_management', array( $this, 'render_cardholder_management_shortcode' ) );
+        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
     /**
@@ -37,7 +38,6 @@ class Fsbhoa_Shortcodes {
 
         $current_view = sanitize_key( $atts['view'] );
 
-        $this->enqueue_scripts();
         ob_start();
 
         // Conditionally render the correct page based on the view
@@ -61,35 +61,45 @@ class Fsbhoa_Shortcodes {
         return ob_get_clean();
     }
 
-    private function enqueue_scripts() {
-        $app_script_handle = 'fsbhoa-cardholder-app';
+    /**
+     *  This function handles loading all CSS and JS for the shortcode.
+     * It runs on the 'wp_enqueue_scripts' hook and checks the current view.
+     */
+    public function enqueue_shortcode_assets() {
+        // First, check if we are on a page that is actually displaying our shortcode.
+        // This is good practice to prevent loading assets on every single page.
+        global $post;
+        if ( ! is_a( $post, 'WP_Post' ) || ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) ) {
+            return;
+        }
 
-        // Enqueue Styles
-        wp_enqueue_style('wp-jquery-ui-dialog');
-        wp_enqueue_style('datatables-style', 'https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.css');
-        wp_enqueue_style('croppie-style', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.css');
-        wp_enqueue_style('fsbhoa-admin-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-admin-styles.css');
-    
-        // Enqueue Library Scripts
-        wp_enqueue_script('jquery-ui-dialog');
+        // --- Load assets needed for all views ---
         wp_enqueue_script('jquery-ui-autocomplete');
+        wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_VERSION);
+        wp_enqueue_style('datatables-style', 'https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.css');
         wp_enqueue_script('datatables-script', 'https://cdn.datatables.net/2.0.8/js/dataTables.js', array('jquery'), '2.0.8', true);
-        wp_enqueue_script('croppie-script', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.js', array('jquery'), '2.6.5', true );
-        
-        // Enqueue our custom scripts with dependency chain
+
+
+        // --- CARDHOLDER-SPECIFIC ASSETS ---
+        $app_script_handle = 'fsbhoa-cardholder-admin-script';
+        wp_enqueue_style('wp-jquery-ui-dialog');
+        wp_enqueue_style('croppie-style', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.css', array(), '2.6.5');
+        wp_enqueue_style('fsbhoa-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_VERSION);
+        wp_enqueue_script('croppie-script', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.js', array('jquery'), '2.6.5', true);
         wp_enqueue_script('fsbhoa-photo-croppie', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-photo-croppie.js', array('jquery', 'jquery-ui-dialog', 'croppie-script'), FSBHOA_AC_VERSION, true);
-        wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('fsbhoa-photo-croppie'), FSBHOA_AC_VERSION, true);
-    
-        // Localize data
-        $photo_settings = array( 'width'  => get_option('fsbhoa_ac_photo_width', 640), 'height' => get_option('fsbhoa_ac_photo_height', 800) );
-        wp_localize_script($app_script_handle, 'fsbhoa_photo_settings', $photo_settings);
+        wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('jquery', 'jquery-ui-autocomplete', 'datatables-script', 'fsbhoa-photo-croppie'), FSBHOA_AC_VERSION, true);
+            
         
-        $ajax_settings = array( 'ajax_url' => admin_url('admin-ajax.php'), 'property_search_nonce'  => wp_create_nonce('fsbhoa_property_search_nonce') );
+        // Localized data for the scripts
+        $photo_settings = array('width'  => get_option('fsbhoa_ac_photo_width', 640), 'height' => get_option('fsbhoa_ac_photo_height', 800));
+        wp_localize_script($app_script_handle, 'fsbhoa_photo_settings', $photo_settings);
+        $ajax_settings = array('ajax_url' => admin_url('admin-ajax.php'), 'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'));
         wp_localize_script($app_script_handle, 'fsbhoa_ajax_settings', $ajax_settings);
 
-        // Safely trigger our app's initialization script after all other scripts are loaded.
-        $inline_script = "jQuery(document).ready(function(){ if(window.FSBHOA_Cardholder_App){ window.FSBHOA_Cardholder_App.init(); } });";
-        wp_add_inline_script( $app_script_handle, $inline_script, 'after' );
+        // --- PROPERTY-SPECIFIC ASSETS ---
+        wp_enqueue_style('fsbhoa-property-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-property-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_VERSION);
+        wp_enqueue_script('fsbhoa-property-admin', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-property-admin.js', array('jquery', 'datatables-script'), FSBHOA_AC_VERSION, true);
     }
+
 }
 
