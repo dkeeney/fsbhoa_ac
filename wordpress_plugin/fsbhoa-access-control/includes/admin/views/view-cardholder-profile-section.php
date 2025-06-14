@@ -9,7 +9,6 @@ if ( ! defined( 'WPINC' ) ) { die; }
 function fsbhoa_render_profile_section( $form_data ) {
 ?>
 <div class="fsbhoa-form-section">
-    <h3>Cardholder Profile</h3>
     <div class="form-row">
         <div class="form-field">
             <label for="first_name">First Name</label>
@@ -29,8 +28,8 @@ function fsbhoa_render_profile_section( $form_data ) {
             <label for="phone">Phone Number</label>
             <input type="tel" name="phone" id="phone" value="<?php echo esc_attr($form_data['phone']); ?>" pattern="[0-9\s\(\)\-\.+]{10,}" title="Please enter a valid 10-digit phone number.">
         </div>
-        <div class="class="form-field phone-type-field">
-             <label for="phone_type">Phone Type</label>
+        <div class="form-field">
+            <label for="phone_type">Phone Type</label>
             <select name="phone_type" id="phone_type">
                 <?php $current_phone_type = isset($form_data['phone_type']) ? $form_data['phone_type'] : 'Mobile'; ?>
                 <option value="" <?php selected($current_phone_type, ''); ?>>-- Select --</option>
