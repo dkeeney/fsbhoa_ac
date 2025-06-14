@@ -18,11 +18,17 @@ jQuery(function($) {
                 this.bindTableControlEvents(); //  Bind events for our custom controls
             }
 
+            // Initialize Cardholder List if it exists
             if (this.vars.cardholderForm && this.vars.cardholderForm.length) {
                 this.initFormLibraries();
- console.log('DEBUG: Attempting to call bindFormEvents...');
                 this.bindFormEvents();
                 this.updateMainPhotoDisplay(this.vars.initialMainPhotoSrc);
+            }
+
+            //  Initialize Property List if it exists
+            if (this.vars.propertyTable && this.vars.propertyTable.length) {
+                this.initPropertyDataTable();
+                this.bindPropertyTableControlEvents();
             }
         },
 
@@ -31,7 +37,7 @@ jQuery(function($) {
                 // Page-level containers
                 cardholderForm: $('#fsbhoa-cardholder-form'),
                 cardholderTable: $('#fsbhoa-cardholder-table'),
-
+                
                 //  Custom table controls
                 customLengthMenu: $('#fsbhoa-custom-length-menu'),
                 customSearchInput: $('#fsbhoa-custom-search-input'),
@@ -63,8 +69,6 @@ jQuery(function($) {
                 stopWebcamButton: $('#fsbhoa_stop_webcam_button'),
                 capturePhotoButton: $('#fsbhoa_capture_photo_button'),
                 canvasElement: document.getElementById('fsbhoa_webcam_canvas'),
-                removePhotoCheckbox: $('#fsbhoa_remove_photo_checkbox'),
-                webcamErrorMessage: $('#fsbhoa_webcam_error_message'),
                 stream: null,
                 initialMainPhotoSrc: ($('#fsbhoa_photo_preview_main_img').attr('src') && $('#fsbhoa_photo_preview_main_img').attr('src') !== '#') ? $('#fsbhoa_photo_preview_main_img').attr('src') : null,
 
@@ -72,17 +76,13 @@ jQuery(function($) {
                 propertySearchInput: $('#fsbhoa_property_search_input'),
                 propertyIdHiddenInput: $('#fsbhoa_property_id_hidden'),
                 selectedPropertyDisplay: $('#fsbhoa_selected_property_display'),
+                clearSelectionButton: $('#fsbhoa_property_clear_selection'),
             };
         },
-
+        
         initDataTable: function() {
              if (!this.vars.cardholderTable.length) { return; }
 
-             // Find the "Add New" button and hide the original, we will use a clone.
-             //const $addNewButton = $('.fsbhoa-frontend-wrap .button-primary').first().clone(true);
-             //$('.fsbhoa-frontend-wrap .button-primary').first().hide();
-
-             if (!this.vars.cardholderTable.length) { return; }
 
              //  We now initialize the table and store its instance.
              // The 'dom' option is set to only show the table itself ('t'), plus info and pagination ('ip').
@@ -109,7 +109,7 @@ jQuery(function($) {
             });
         },
 
-
+        
         initFormLibraries: function() {
             if (typeof FSBHOA_Croppie !== 'undefined') {
                 FSBHOA_Croppie.init((croppedImageDataURL) => {
@@ -153,18 +153,16 @@ jQuery(function($) {
                     if (ui.item && ui.item.id) {
                         this.vars.propertySearchInput.val(ui.item.label);
                         this.vars.propertyIdHiddenInput.val(ui.item.id);
+                        this.vars.clearSelectionButton.show();
                     }
                     return false;
                 }
             });
         },
-
+        
         bindFormEvents: function() {
-console.log('DEBUG: Inside bindFormEvents function.');
             const formContainer = this.vars.cardholderForm;
             if (!formContainer.length) { return; }
-
-console.log('DEBUG: Attaching webcam button listeners...');
 
             formContainer.on('click', '#fsbhoa-crop-photo-btn', () => this.handleCropButtonClick());
             formContainer.on('click', '#fsbhoa_card_status_ui_toggle', () => this.updateStatusDisplayFromCheckbox());
@@ -173,26 +171,8 @@ console.log('DEBUG: Attaching webcam button listeners...');
             formContainer.on('click', '#fsbhoa_capture_photo_button', () => this.captureWebcamPhoto());
             formContainer.on('change', '#cardholder_photo_file_input', (e) => this.handleFileSelect(e));
             formContainer.on('input', '#rfid_id', () => this.handleRfidInputChange());
-            formContainer.on('change', '#fsbhoa_remove_photo_checkbox', () => this.handleRemovePhotoToggle());
         },
 
-        handleRemovePhotoToggle: function() {
-            const isChecked = this.vars.removePhotoCheckbox.is(':checked');
-            if (isChecked) {
-                this.vars.mainPhotoPreviewImg.hide();
-                this.vars.noPhotoMessage.show();
-                this.vars.fileUploadInput.prop('disabled', true);
-                this.vars.startWebcamButton.prop('disabled', true);
-            } else {
-                if (this.vars.initialMainPhotoSrc) {
-                    this.vars.mainPhotoPreviewImg.attr('src', this.vars.initialMainPhotoSrc).show();
-                    this.vars.noPhotoMessage.hide();
-                }
-                this.vars.fileUploadInput.prop('disabled', false);
-                this.vars.startWebcamButton.prop('disabled', false);
-            }
-        },
-        
         handleCropButtonClick: function() {
             const imageSrc = this.vars.mainPhotoPreviewImg.attr('src');
             if (imageSrc && imageSrc !== '#') {
@@ -202,41 +182,19 @@ console.log('DEBUG: Attaching webcam button listeners...');
         },
 
         startWebcam: function() {
-           // First, hide any previous error messages
-           this.vars.webcamErrorMessage.hide().text('');
-
-           // Check if the browser supports the mediaDevices API (requires HTTPS or localhost)
-           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-               const errorMessage = 'Webcam requires a secure connection (HTTPS). Please use an https:// URL to access this page.';
-               this.vars.webcamErrorMessage.text(errorMessage).show();
-               console.error(errorMessage);
-               return; // Stop the function here
-           }
-
-           // If the check passes, proceed with trying to access the camera
-           navigator.mediaDevices.getUserMedia({ video: true })
-               .then((mediaStream) => {
-                   this.vars.stream = mediaStream;
-                   if (this.vars.videoElement) {
-                       this.vars.videoElement.srcObject = this.vars.stream;
-                       this.vars.videoElement.play();
-                       this.vars.webcamContainer.show();
-                   }
-                   this.vars.startWebcamButton.hide();
-                   this.vars.webcamActiveControls.show();
-                   this.vars.fileUploadSection.hide();
-               })
-               .catch((err) => {
-                   // This will now catch other errors, like the user denying permission
-                   let errorMessage = 'Could not access webcam.';
-                   if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                       errorMessage = 'Webcam access was denied. Please allow camera access in your browser settings.';
-                   } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-                       errorMessage = 'No webcam was found. Please ensure a camera is connected and enabled.';
-                   }
-                   this.vars.webcamErrorMessage.text(errorMessage).show();
-                   console.error('Webcam Error:', err);
-               });
+             navigator.mediaDevices.getUserMedia({ video: true })
+                .then((mediaStream) => {
+                    this.vars.stream = mediaStream;
+                    if (this.vars.videoElement) {
+                        this.vars.videoElement.srcObject = this.vars.stream;
+                        this.vars.videoElement.play();
+                        this.vars.webcamContainer.show();
+                    }
+                    this.vars.startWebcamButton.hide();
+                    this.vars.webcamActiveControls.show();
+                    this.vars.fileUploadSection.hide();
+                })
+                .catch((err) => { alert('Could not access webcam: ' + err.name); });
         },
 
         stopWebcam: function() {
@@ -271,7 +229,7 @@ console.log('DEBUG: Attaching webcam button listeners...');
         handleRfidInputChange: function() {
             const rfidValue = this.vars.rfidInput.val();
             const today = new Date().toISOString().slice(0, 10);
-
+            
             if (rfidValue && rfidValue.length === 8) {
                 this.vars.statusDisplaySpan.text('Active');
                 this.vars.submittedStatusHidden.val('active');
@@ -314,7 +272,7 @@ console.log('DEBUG: Attaching webcam button listeners...');
             if (isChecked) {
                 this.vars.submittedStatusHidden.val('active');
                 this.vars.statusDisplaySpan.text('Active');
-                this.vars.toggleLabelSpan.text('(Click to Disable)');
+                this.vars.toggleLabelSpan.text('Card is Active (Click to Disable)');
                 if (wasPreviouslyDisabled) {
                     this.vars.issueDateDisplay.text(today);
                     this.vars.issueDateHidden.val(today);
@@ -322,7 +280,7 @@ console.log('DEBUG: Attaching webcam button listeners...');
             } else {
                 this.vars.submittedStatusHidden.val('disabled');
                 this.vars.statusDisplaySpan.text('Disabled');
-                this.vars.toggleLabelSpan.text('(Click to Activate)');
+                this.vars.toggleLabelSpan.text('Card is Inactive (Click to Activate)');
             }
         }
     };
@@ -331,4 +289,3 @@ console.log('DEBUG: Attaching webcam button listeners...');
         App.init();
     });
 });
-

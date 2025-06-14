@@ -61,7 +61,7 @@ class Fsbhoa_Admin_Menu {
     }
 
 
-/**
+    /**
      * Enqueue scripts and styles for the admin area.
      *
      * @since 0.1.5
@@ -70,15 +70,18 @@ class Fsbhoa_Admin_Menu {
     public function enqueue_admin_scripts($hook_suffix) {
         $screen = get_current_screen();
 
-        // Define our page hooks based on the actual observed screen IDs
+        // These are your page identifiers.
         $cardholder_page_hook = 'fsbhoa-access_page_fsbhoa_ac_cardholders';
         $property_page_hook   = 'fsbhoa-access_page_fsbhoa_ac_properties';
 
+        // This array correctly identifies all pages in your plugin suite.
         $plugin_admin_pages = array(
-            $cardholder_page_hook, 
-            $property_page_hook,  
+            $cardholder_page_hook,
+            $property_page_hook,
         );
 
+        // --- Step 1: Load assets needed on ALL plugin pages ---
+        // This block runs if we are on EITHER the cardholder OR property page.
         if ( $screen && in_array( $screen->id, $plugin_admin_pages ) ) {
             wp_enqueue_script('jquery-ui-autocomplete');
             wp_enqueue_style(
@@ -89,67 +92,38 @@ class Fsbhoa_Admin_Menu {
             );
         }
 
-        // Scripts specific to the CARDHOLDER admin page
+        // --- Step 2: Load assets needed ONLY for the Cardholder page ---
+        // This block ONLY runs if we are on the cardholder page.
         if ( $screen && $screen->id === $cardholder_page_hook ) {
-            // ---  Enqueue DataTables library for the admin list view ---
+
+            $app_script_handle = 'fsbhoa-cardholder-admin-script';
+
+            // --- Enqueue STYLES ---
+            wp_enqueue_style('wp-jquery-ui-dialog');
             wp_enqueue_style('datatables-style', 'https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.css');
+            wp_enqueue_style('croppie-style', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.css', array(), '2.6.5');
+    
+            // --- Enqueue SCRIPTS ---
             wp_enqueue_script('datatables-script', 'https://cdn.datatables.net/2.0.8/js/dataTables.js', array('jquery'), '2.0.8', true);
+            wp_enqueue_script('croppie-script', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.js', array('jquery'), '2.6.5', true);
+    
+            // --- Enqueue our custom scripts with the correct dependency chain ---
+            wp_enqueue_script('fsbhoa-photo-croppie', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-photo-croppie.js', array('jquery', 'jquery-ui-dialog', 'croppie-script'), $this->version, true);
+            wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('jquery', 'jquery-ui-autocomplete', 'datatables-script', 'fsbhoa-photo-croppie'), $this->version, true);
 
-            // --- START: RE-ADDING CROPPER CSS ---
-            // This is to test if the "white screen" issue is due to missing styles.
-            wp_enqueue_style(
-                'cropperjs-style',
-                'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/2.0.0/cropper.min.css', 
-                array(),
-                '2.0.0'
+            // --- Localize data (pass data from PHP to our main JS file) ---
+            $photo_settings = array(
+                'width'  => get_option('fsbhoa_ac_photo_width', 640),
+                'height' => get_option('fsbhoa_ac_photo_height', 800)
             );
-            // --- END: RE-ADDING CROPPER CSS ---
+            wp_localize_script($app_script_handle, 'fsbhoa_photo_settings', $photo_settings);
 
-            // Enqueue Cropper.js JavaScript from CDN in the header
-            wp_enqueue_script(
-                'cropperjs-script',
-                'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/2.0.0/cropper.min.js', 
-                array(), 
-                '2.0.0', 
-                false // Load in header
+            $ajax_settings = array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce')
             );
-
-            // Enqueue your custom cardholder admin script
-            wp_enqueue_script(
-                'fsbhoa-cardholder-admin-script',
-                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js',
-                array('jquery', 'jquery-ui-autocomplete', 'cropperjs-script', 'datatables-script'), 
-                $this->version,
-                true
-            );
-
-            // Localize data for the script
-            wp_localize_script(
-                'fsbhoa-cardholder-admin-script',
-                'fsbhoa_ajax_settings',
-                array(
-                    'ajax_url'               => admin_url('admin-ajax.php'),
-                    'property_search_nonce'  => wp_create_nonce('fsbhoa_property_search_nonce'),
-                    'property_search_action' => 'fsbhoa_search_properties'
-                )
-            );
-
-            $photo_width  = get_option('fsbhoa_ac_photo_width', 640);
-            $photo_height = get_option('fsbhoa_ac_photo_height', 800);
-            $aspect_ratio = 16/9; 
-            if ( is_numeric($photo_width) && is_numeric($photo_height) && (int)$photo_height !== 0 && (int)$photo_width !== 0 ) {
-                $aspect_ratio = (int)$photo_width / (int)$photo_height;
-            }
-
-            wp_localize_script(
-                'fsbhoa-cardholder-admin-script',
-                'fsbhoa_photo_settings',
-                array(
-                    'width'        => absint($photo_width),
-                    'height'       => absint($photo_height),
-                    'aspect_ratio' => floatval($aspect_ratio)
-                )
-            );
+            wp_localize_script($app_script_handle, 'fsbhoa_ajax_settings', $ajax_settings);
         }
+
     }
 }?>

@@ -28,6 +28,7 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode ) {
             </div>
             <div id="fsbhoa_webcam_section">
                 <strong><?php esc_html_e('Option 2: Use Webcam', 'fsbhoa-ac'); ?></strong>
+                <p id="fsbhoa_webcam_error_message" style="display:none; color: #d63638; font-weight: bold;"></p>
                 <div id="fsbhoa_webcam_controls" style="margin-top: 5px;">
                     <button type="button" id="fsbhoa_start_webcam_button" class="button"><?php esc_html_e( 'Start Webcam', 'fsbhoa-ac' ); ?></button>
                     <div id="fsbhoa_webcam_active_controls" style="display:none;">
@@ -42,7 +43,8 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode ) {
             </div>
              <?php if ($is_edit_mode && !empty($form_data['photo'])): ?>
                 <label style="display: block; margin-top: 15px;">
-                   <input type="checkbox" name="remove_current_photo" value="1"> <?php esc_html_e('Remove current photo', 'fsbhoa-ac'); ?>
+                    <input type="checkbox" name="remove_current_photo" id="fsbhoa_remove_photo_checkbox" value="1"> <?php esc_html_e('Remove current photo', 'fsbhoa-ac'); ?>
+
                 </label>
             <?php endif; ?>
         </div>
