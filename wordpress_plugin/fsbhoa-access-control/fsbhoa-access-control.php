@@ -55,6 +55,8 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admi
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-actions.php';
 // For Property Display & Actions (already refactored similarly)
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-page.php'; 
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-actions.php';
+
 // List Table classes
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-property-list-table.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
@@ -109,6 +111,13 @@ function run_fsbhoa_access_control_admin() {
     } else {
          add_action('admin_notices', function() {
             echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Admin_Page class is missing. Property management functionality will not work.</p></div>';
+        });
+    }
+    if (class_exists('Fsbhoa_Property_Actions')) {
+        new Fsbhoa_Property_Actions();
+    } else {
+         add_action('admin_notices', function() {
+            echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Actions_Page class is missing. Property management functionality will not work.</p></div>';
         });
     }
 
