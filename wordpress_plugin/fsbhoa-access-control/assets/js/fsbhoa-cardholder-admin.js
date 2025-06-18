@@ -20,9 +20,9 @@ jQuery(function($) {
 
             if (this.vars.cardholderForm && this.vars.cardholderForm.length) {
                 this.initFormLibraries();
- console.log('DEBUG: Attempting to call bindFormEvents...');
                 this.bindFormEvents();
                 this.updateMainPhotoDisplay(this.vars.initialMainPhotoSrc);
+                this.handleResidentTypeChange();
             }
         },
 
@@ -53,7 +53,7 @@ jQuery(function($) {
                 mainPhotoPreviewImg: $('#fsbhoa_photo_preview_main_img'),
                 noPhotoMessage: $('#fsbhoa_no_photo_message'),
                 cropPhotoButton: $('#fsbhoa-crop-photo-btn'),
-                croppedPhotoDataInput: $('#fsbhoa_cropped_photo_data'),
+                photoBase64Input: $('#fsbhoa_photo_base64'),
                 fileUploadSection: $('#fsbhoa_file_upload_section'),
                 fileUploadInput: $('#cardholder_photo_file_input'),
                 startWebcamButton: $('#fsbhoa_start_webcam_button'),
@@ -63,7 +63,7 @@ jQuery(function($) {
                 stopWebcamButton: $('#fsbhoa_stop_webcam_button'),
                 capturePhotoButton: $('#fsbhoa_capture_photo_button'),
                 canvasElement: document.getElementById('fsbhoa_webcam_canvas'),
-                removePhotoCheckbox: $('#fsbhoa_remove_photo_checkbox'),
+                removePhotoButton: $('#fsbhoa_remove_photo_button'),
                 webcamErrorMessage: $('#fsbhoa_webcam_error_message'),
                 stream: null,
                 initialMainPhotoSrc: ($('#fsbhoa_photo_preview_main_img').attr('src') && $('#fsbhoa_photo_preview_main_img').attr('src') !== '#') ? $('#fsbhoa_photo_preview_main_img').attr('src') : null,
@@ -90,9 +90,9 @@ jQuery(function($) {
              this.dataTableInstance = this.vars.cardholderTable.DataTable({
                 "dom": 'tip', // 't' = table, 'i' = info, 'p' = pagination
                 "pageLength": 100,       // Set a default page length
-                "stateSave": true,       //  This makes the setting sticky
-             });
+                "stateSave": false,      //  This makes the setting sticky
 
+             });
         },
 
         //  This function binds events for our custom HTML controls
@@ -114,10 +114,21 @@ jQuery(function($) {
         initFormLibraries: function() {
             if (typeof FSBHOA_Croppie !== 'undefined') {
                 FSBHOA_Croppie.init((croppedImageDataURL) => {
+                                        // --- JAVASCRIPT DEBUG LOGS ---
+                    console.log('DEBUG 1: Croppie callback has fired!');
+                    console.log('DEBUG 2: Received image data (first 50 chars):', croppedImageDataURL.substring(0, 50));                                        
+                    
                     this.updateMainPhotoDisplay(croppedImageDataURL);
-                    if (this.vars.croppedPhotoDataInput.length) {
-                        this.vars.croppedPhotoDataInput.val(croppedImageDataURL.replace(/^data:image\/(png|jpeg|gif);base64,/, ""));
+                    if (this.vars.photoBase64Input.length) {
+                        // Strip the "data:image/jpeg;base64," part before setting the value
+                        const base64Data = croppedImageDataURL.split(',')[1] || "";
+               console.log('DEBUG 3: Setting hidden field with base64 data (first 50 chars):', base64Data.substring(0, 50));
+                        this.vars.photoBase64Input.val(base64Data);
                     }
+                    else {
+      console.error('DEBUG FAILED: Could not find the hidden photo input field (#fsbhoa_photo_base64)!');
+                    }
+
                 });
             }
             this.initPropertyAutocomplete();
@@ -161,11 +172,9 @@ jQuery(function($) {
         },
 
         bindFormEvents: function() {
-console.log('DEBUG: Inside bindFormEvents function.');
             const formContainer = this.vars.cardholderForm;
             if (!formContainer.length) { return; }
 
-console.log('DEBUG: Attaching webcam button listeners...');
 
             formContainer.on('click', '#fsbhoa-crop-photo-btn', () => this.handleCropButtonClick());
             formContainer.on('click', '#fsbhoa_card_status_ui_toggle', () => this.updateStatusDisplayFromCheckbox());
@@ -174,23 +183,32 @@ console.log('DEBUG: Attaching webcam button listeners...');
             formContainer.on('click', '#fsbhoa_capture_photo_button', () => this.captureWebcamPhoto());
             formContainer.on('change', '#cardholder_photo_file_input', (e) => this.handleFileSelect(e));
             formContainer.on('input', '#rfid_id', () => this.handleRfidInputChange());
-            formContainer.on('change', '#fsbhoa_remove_photo_checkbox', () => this.handleRemovePhotoToggle());
+            formContainer.on('click', '#fsbhoa_remove_photo_button', () => this.handleRemovePhotoButtonClick());
+            formContainer.on('change', '#resident_type', () => this.handleResidentTypeChange());
         },
 
-        handleRemovePhotoToggle: function() {
-            const isChecked = this.vars.removePhotoCheckbox.is(':checked');
-            if (isChecked) {
-                this.vars.mainPhotoPreviewImg.hide();
-                this.vars.noPhotoMessage.show();
-                this.vars.fileUploadInput.prop('disabled', true);
-                this.vars.startWebcamButton.prop('disabled', true);
+        handleRemovePhotoButtonClick: function() {
+
+            // 1. Clear the visual preview and hidden data fields
+            this.updateMainPhotoDisplay(null);
+
+            // 2. Clear the visual preview by calling our central display function.
+            //    Passing 'null' clears the image, and 'true' signals this is a new action.
+            this.updateMainPhotoDisplay(null);
+
+            // 3. Hide the "Remove Photo" button itself after it's been clicked.
+            this.vars.removePhotoButton.hide();
+
+        },
+
+        handleResidentTypeChange: function() {
+            if (!this.vars.residentTypeInput) return;
+        
+            const selectedType = this.vars.residentTypeInput.val();
+            if (selectedType === 'Contractor') {
+                this.vars.contractorExpiryContainer.show();
             } else {
-                if (this.vars.initialMainPhotoSrc) {
-                    this.vars.mainPhotoPreviewImg.attr('src', this.vars.initialMainPhotoSrc).show();
-                    this.vars.noPhotoMessage.hide();
-                }
-                this.vars.fileUploadInput.prop('disabled', false);
-                this.vars.startWebcamButton.prop('disabled', false);
+                this.vars.contractorExpiryContainer.hide();
             }
         },
         
@@ -295,6 +313,7 @@ console.log('DEBUG: Attaching webcam button listeners...');
         },
 
         updateMainPhotoDisplay: function(imageDataUrl) {
+            // update the display
             if (imageDataUrl && imageDataUrl !== '#') {
                 this.vars.mainPhotoPreviewImg.attr('src', imageDataUrl).show();
                 if (this.vars.noPhotoMessage) this.vars.noPhotoMessage.hide();
@@ -304,6 +323,10 @@ console.log('DEBUG: Attaching webcam button listeners...');
                 if (this.vars.noPhotoMessage) this.vars.noPhotoMessage.show();
                 if (this.vars.cropPhotoButton) this.vars.cropPhotoButton.hide();
             }
+            // Update the hidden field
+            const base64Data = (imageDataUrl) ? imageDataUrl.split(',')[1] || "" : "";
+            this.vars.photoBase64Input.val(base64Data);
+
         },
 
         updateStatusDisplayFromCheckbox: function() {

@@ -76,6 +76,10 @@ class Fsbhoa_Cardholder_Actions {
         $table_name = 'ac_cardholders';
         $is_update = ( isset($_POST['action']) && $_POST['action'] === 'fsbhoa_do_update_cardholder' );
 
+  // --- NEW DEBUG LOG #1 ---
+        $photo_size = isset($_POST['photo_base64']) ? strlen($_POST['photo_base64']) : '0 (or not set)';
+        error_log("--- ACTIONS: POST received. Size of photo_base64: " . $photo_size);
+
         $form_page_url = wp_get_referer() ? wp_get_referer() : home_url('/');
         $list_page_url = remove_query_arg( array('action', 'cardholder_id', 'message'), $form_page_url );
 
@@ -127,7 +131,7 @@ class Fsbhoa_Cardholder_Actions {
 
         // --- Combine results ---
         $errors = array_merge($profile_results['errors'], $address_results['errors'], $photo_results['errors'], $rfid_results['errors']);
-        $data_to_save = array_merge($profile_results['data'], $address_results['data'], $photo_results['data'], $rfid_results['data']);
+        $data_to_save = array_merge($existing_data, $profile_results['data'], $address_results['data'], $photo_results['data'], $rfid_results['data']);
 
        if ( empty($errors) ) {
             if ( $is_update ) {

@@ -15,22 +15,21 @@ class Fsbhoa_Ac_Settings_Page {
 
     /**
      * The unique identifier of this plugin's settings page.
-     *
-     * @since    1.0.0
-     * @access   private
      * @var      string    $settings_page_slug
      */
     private $settings_page_slug = 'fsbhoa_ac_settings_page';
 
     /**
-     * The option group for photo settings.
-     *
-     * @since    1.0.0
-     * @access   private
-     * @var      string    $photo_option_group
+     * The option group for photo settings and other things.
+     * @var      string    $option_group
      */
-    private $photo_option_group = 'fsbhoa_ac_photo_settings_group';
+    private $option_group = 'fsbhoa_ac_settings_group';
 
+    /**
+     * The option group for import settings.
+     * @var      string    Address sufix to remove.
+     */
+    private $display_option_group = 'fsbhoa_ac_display_settings_group';
 
     /**
      * Initialize the class and set its properties.
@@ -38,7 +37,7 @@ class Fsbhoa_Ac_Settings_Page {
      * @since    1.0.0
      */
     public function __construct() {
-        add_action( 'admin_menu', array( $this, 'add_settings_submenu_page' ) );
+        add_action( 'admin_menu', array( $this, 'add_plugin_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'settings_api_init' ) );
     }
 
@@ -47,14 +46,16 @@ class Fsbhoa_Ac_Settings_Page {
      *
      * @since    1.0.0
      */
-    public function add_settings_submenu_page() {
-        add_submenu_page(
-            'fsbhoa_ac_main_menu',                         // Parent slug (your main plugin menu slug)
-            __( 'FSBHOA Settings', 'fsbhoa-ac' ),          // Page title
-            __( 'Settings', 'fsbhoa-ac' ),                 // Menu title
-            'manage_options',                            // Capability required
-            $this->settings_page_slug,                     // Menu slug for this settings page
-            array( $this, 'render_settings_page_html' )    // Callback function to display page content
+    public function add_plugin_admin_menu() {
+        // Add the main top-level menu page.
+        add_menu_page(
+            __('FSBHOA Settings', 'fsbhoa-ac'),            // Page title
+            __('FSBHOA AC', 'fsbhoa-ac'),                  // Menu title
+            'manage_options',                             // Capability
+            'fsbhoa_ac_main_menu',                        // The unique slug for this menu
+            array( $this, 'render_settings_page_html' ),  // The callback to render the settings page
+            'dashicons-id-alt',                           // Icon
+            25                                            // Position
         );
     }
 
@@ -66,13 +67,13 @@ class Fsbhoa_Ac_Settings_Page {
     public function settings_api_init() {
         // Register the photo settings group
         register_setting(
-            $this->photo_option_group,
+            $this->option_group,
             'fsbhoa_ac_photo_width',
             array( $this, 'sanitize_dimension_callback' )
         );
 
         register_setting(
-            $this->photo_option_group,
+            $this->option_group,
             'fsbhoa_ac_photo_height',
             array( $this, 'sanitize_dimension_callback' )
         );
@@ -104,7 +105,20 @@ class Fsbhoa_Ac_Settings_Page {
             'fsbhoa_ac_photo_editor_section',
             array( 'label_for' => 'fsbhoa_ac_photo_height_input' )
         );
+        // --- Address import Settings Group ---
+        register_setting($this->display_option_group, 'fsbhoa_ac_address_suffix', 'sanitize_text_field');
+
+        add_settings_section('fsbhoa_ac_display_options_section', __('Display Options', 'fsbhoa-ac'), array( $this, 'render_display_section_info' ), $this->settings_page_slug);
+        add_settings_field('fsbhoa_ac_address_suffix_field', __('Address Suffix to Remove', 'fsbhoa-ac'), array( $this, 'render_address_suffix_field' ), $this->settings_page_slug, 'fsbhoa_ac_display_options_section');
         
+        // --- Display Settings Group ---
+        register_setting($this->option_group, 'fsbhoa_ac_address_suffix', 'sanitize_text_field');
+
+        add_settings_section('fsbhoa_ac_display_options_section', __('Display Options', 'fsbhoa-ac'), array( $this, 'render_display_section_info' ), $this->settings_page_slug);
+
+        add_settings_field('fsbhoa_ac_address_suffix_field', __('Address Suffix to Remove', 'fsbhoa-ac'), array( $this, 'render_address_suffix_field' ), $this->settings_page_slug, 'fsbhoa_ac_display_options_section');
+        //
+        //
         // TODO: Add more settings sections and fields here for other plugin options later
     }
 
@@ -148,6 +162,18 @@ class Fsbhoa_Ac_Settings_Page {
         echo '<input type="number" id="fsbhoa_ac_photo_height_input" name="fsbhoa_ac_photo_height" value="' . esc_attr( $height ) . '" class="small-text" min="1" />';
     }
 
+    // ---  RENDER FUNCTIONS FOR IMPORT DISPLAY SECTION ---
+    public function render_display_section_info() {
+        echo '<p>' . esc_html__( 'Settings that control how data is displayed in lists throughout the application.', 'fsbhoa-ac' ) . '</p>';
+    }
+
+
+    public function render_address_suffix_field() {
+        $suffix = get_option( 'fsbhoa_ac_address_suffix', '' );
+        echo '<input type="text" name="fsbhoa_ac_address_suffix" value="' . esc_attr( $suffix ) . '" class="regular-text" placeholder="e.g., Bakersfield, CA 93306" />';
+        echo '<p class="description">' . esc_html__( 'This text will be removed from the end of property addresses in display lists.', 'fsbhoa-ac' ) . '</p>';
+    }
+
     /**
      * Renders the HTML for the settings page.
      *
@@ -163,11 +189,11 @@ class Fsbhoa_Ac_Settings_Page {
             <form action="options.php" method="post">
                 <?php
                 // Output nonce, action, and option_page fields for the photo settings group
-                settings_fields( $this->photo_option_group );
+                settings_fields( $this->option_group );
                 // Print out all sections and fields registered for this page
                 do_settings_sections( $this->settings_page_slug );
                 // Output submit button
-                submit_button( __( 'Save Photo Settings', 'fsbhoa-ac' ) );
+                submit_button( __( 'Save Settings', 'fsbhoa-ac' ) );
                 ?>
             </form>
         </div>

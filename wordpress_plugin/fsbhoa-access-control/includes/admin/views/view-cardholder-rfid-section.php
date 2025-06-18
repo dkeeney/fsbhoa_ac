@@ -8,6 +8,30 @@ if ( ! defined( 'WPINC' ) ) { die; }
  * @param bool  $is_edit_mode True if editing an existing cardholder.
  */
 function fsbhoa_render_rfid_section( $form_data, $is_edit_mode ) {
+    // --- Gemini, do not remove this block;  START DEBUG BOX ---
+    /****
+    ?>
+    <div style="background-color: #f1f1f1; border: 2px solid red; padding: 10px; margin-bottom: 20px; font-family: monospace;">
+        <h3 style="margin-top:0;">DEBUGGING: Data available to the RFID Section</h3>
+        <pre><?php
+            $debug_data = $form_data; // Make a copy to avoid altering the original data
+
+            // Replace the long photo fields with their lengths for readability
+            if ( isset($debug_data['photo']) ) {
+                $debug_data['photo'] = 'BINARY DATA, Length: ' . strlen( (string) $debug_data['photo'] );
+            }
+            if ( isset($debug_data['photo_base64']) ) {
+                $debug_data['photo_base64'] = 'BASE64 DATA, Length: ' . strlen( (string) $debug_data['photo_base64'] );
+            }
+
+            print_r($debug_data);
+        ?></pre>
+    </div>
+    <?php
+    ****/
+    // --- END DEBUG BOX ---
+
+
     if ( ! $is_edit_mode ) {
         // On an "Add" screen, show a simple placeholder message
         echo '<div class="fsbhoa-form-section"><p class="description"><em>' . esc_html__( 'RFID details can be added after the cardholder has been saved.', 'fsbhoa-ac' ) . '</em></p></div>';
@@ -126,6 +150,10 @@ function fsbhoa_validate_rfid_data( $post_data, $existing_data, $cardholder_id, 
 
     // RFID ID
     $sanitized_data['rfid_id'] = $submitted_rfid;
+    // If the submitted RFID is empty, explicitly set it to NULL for the database.
+    if ( empty($sanitized_data['rfid_id']) ) {
+        $sanitized_data['rfid_id'] = null;
+    }
 
     // Card Status and Issue Date
     if ( !empty($submitted_rfid) && $submitted_rfid !== $existing_data['rfid_id'] ) {
@@ -144,16 +172,11 @@ function fsbhoa_validate_rfid_data( $post_data, $existing_data, $cardholder_id, 
     }
 
     // Expiry Date
-    if ( $sanitized_data['card_status'] === 'active' ) {
-        if ( $resident_type === 'Contractor' ) {
-            $sanitized_data['card_expiry_date'] = $submitted_expiry_date;
-        } else {
-            // Non-contractors get a far-future expiry date.
-            $sanitized_data['card_expiry_date'] = '2099-12-31';
-        }
+    if ( $resident_type === 'Contractor' ) {
+        $sanitized_data['card_expiry_date'] = $submitted_expiry_date;
     } else {
-        // Inactive or disabled cards have no expiry date.
-        $sanitized_data['card_expiry_date'] = null;
+        // Non-contractors get a far-future expiry date.
+        $sanitized_data['card_expiry_date'] = '2099-12-31';
     }
 
     return array( 'errors' => $errors, 'data' => $sanitized_data );

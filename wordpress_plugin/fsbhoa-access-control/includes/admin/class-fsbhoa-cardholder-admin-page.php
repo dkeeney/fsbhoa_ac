@@ -32,7 +32,8 @@ class Fsbhoa_Cardholder_Admin_Page {
         $form_data = array(
             'first_name' => '', 'last_name' => '', 'email' => '', 'phone' => '', 'phone_type' => '', 
             'resident_type' => '', 'property_id' => '', 'property_address_display' => '', 'photo' => null, 
-            'rfid_id' => '', 'notes' => '', 'card_status' => 'inactive', 'card_issue_date' => '', 'card_expiry_date' => '',
+            'rfid_id' => '', 'notes' => '', 'card_status' => 'inactive', 'card_issue_date' => '', 
+            'card_expiry_date' => '', 'photo_base64' => '',
         );
         $errors = array();
         $is_edit_mode = ($current_page_action === 'edit_cardholder' && isset($_GET['cardholder_id']));
@@ -43,18 +44,40 @@ class Fsbhoa_Cardholder_Admin_Page {
         $transient_key = 'fsbhoa_form_feedback_' . ($is_edit_mode ? 'edit_' . $item_id_for_edit . '_' : 'add_') . $user_id;
         $feedback = get_transient($transient_key);
 
+
         if ($feedback !== false) {
+            // RECOVERING FROM ERROR
             $form_data = array_merge($form_data, $feedback['data']);
             $errors = $feedback['errors'];
             delete_transient($transient_key);
         
         } elseif ($is_edit_mode) {
-            $cardholder_to_edit = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$cardholder_table_name} WHERE id = %d", $item_id_for_edit), ARRAY_A);
+            // INITIAL LOAD: Get data from the database
+            $cardholder_to_edit = $wpdb->get_row($wpdb->prepare( "SELECT * FROM {$cardholder_table_name} WHERE id = %d", $item_id_for_edit), ARRAY_A);
+            if ($wpdb->last_error) {
+                wp_die(
+                    'Database error: Could not retrieve cardholder data. Please go back and try again. Error: ' . esc_html($wpdb->last_error),
+                    'Database Error',
+                    array('back_link' => true)
+                );
+            }
             if ($cardholder_to_edit) {
                 $form_data = array_merge($form_data, $cardholder_to_edit);
+                if (!empty($cardholder_to_edit['photo'])) {
+                    $form_data['photo_base64'] = base64_encode($cardholder_to_edit['photo']);
+                }
+ 
                 if (!empty($form_data['property_id'])) {
                     $form_data['property_address_display'] = $wpdb->get_var($wpdb->prepare("SELECT street_address FROM {$property_table_name} WHERE property_id = %d", $form_data['property_id']));
                 }
+            }
+            else {   
+                // ---  Handle case where the cardholder ID is not found ---
+                wp_die(
+                    'Error: Cardholder not found. The record may have been deleted by another user.',
+                    'Record Not Found',
+                    array('back_link' => true)
+                );
             }
         }
         
@@ -98,7 +121,7 @@ class Fsbhoa_Cardholder_Admin_Page {
                 fsbhoa_render_rfid_section( $form_data, $is_edit_mode );
 
                 require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-photo-section.php';
-                fsbhoa_render_photo_section( $form_data, $is_edit_mode );
+                fsbhoa_render_photo_section( $form_data, $is_edit_mode, !empty($errors) );
                 ?>
 
                 <p class="submit">
