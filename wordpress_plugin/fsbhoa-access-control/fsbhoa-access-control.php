@@ -48,7 +48,6 @@ register_deactivation_hook( __FILE__, 'fsbhoa_ac_deactivate' );
 /**
  * Load core plugin classes for admin area.
  */
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-admin-menu.php';
 // For Cardholder DISPLAY
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php'; 
 // For Cardholder ACTIONS (new)
@@ -62,6 +61,8 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-pro
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
+
 
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
@@ -78,16 +79,6 @@ if ( ! function_exists( 'get_screen_option' ) ) {
  * Initializes admin menu and action handlers.
  */
 function run_fsbhoa_access_control_admin() {
-    // Setup Admin Menu
-    if (class_exists('Fsbhoa_Admin_Menu')) {
-        $plugin_admin_menu = new Fsbhoa_Admin_Menu();
-        add_action( 'admin_menu', array( $plugin_admin_menu, 'add_admin_menu_pages' ) );
-        // Note: The enqueue_admin_scripts hook is added in Fsbhoa_Admin_Menu's constructor
-    } else {
-        add_action('admin_notices', function() {
-            echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Admin_Menu class is missing. Admin menus may not appear.</p></div>';
-        });
-    }
 
     if ( class_exists( 'Fsbhoa_Ac_Settings_Page' ) ) {
         new Fsbhoa_Ac_Settings_Page(); 
@@ -137,5 +128,8 @@ function run_fsbhoa_ac_shortcodes() {
         new Fsbhoa_Shortcodes();
     }
 }
-run_fsbhoa_ac_shortcodes();
+// Only initialize the shortcodes on the front-end of the site.
+if ( ! is_admin() ) {
+    run_fsbhoa_ac_shortcodes();
+}
 ?>

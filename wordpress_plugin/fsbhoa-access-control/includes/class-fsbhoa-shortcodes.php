@@ -69,7 +69,9 @@ class Fsbhoa_Shortcodes {
         // First, check if we are on a page that is actually displaying our shortcode.
         // This is good practice to prevent loading assets on every single page.
         global $post;
-        if ( ! is_a( $post, 'WP_Post' ) || ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) ) {
+        if ( ! is_a( $post, 'WP_Post' ) 
+           || ( ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) 
+            && ! has_shortcode( $post->post_content, 'fsbhoa_import_form' ) ) ) {
             return;
         }
 

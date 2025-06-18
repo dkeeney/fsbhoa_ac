@@ -55,12 +55,17 @@ var FSBHOA_Croppie = (function($) {
                 buttons: {
                     "Apply Crop": function() {
                         if (croppieInstance) {
+                            console.log('CROPPIE DEBUG [1]: "Apply Crop" button clicked.');
+                            if (typeof onCropCompleteCallback !== 'function') {
+                                console.error('CROPPIE DEBUG [2]: FATAL ERROR - The callback function does not exist!');
+                            }
                             const photoSettings = (typeof fsbhoa_photo_settings !== 'undefined') ? fsbhoa_photo_settings : {};
                             croppieInstance.result({
                                 type: 'base64',
                                 size: { width: photoSettings.width, height: photoSettings.height },
                                 format: 'jpeg'
                             }).then(function(result) {
+                                 console.log('CROPPIE DEBUG [3]: Croppie has generated a result. Firing callback.');
                                 if (typeof onCropCompleteCallback === 'function') {
                                     onCropCompleteCallback(result);
                                 }

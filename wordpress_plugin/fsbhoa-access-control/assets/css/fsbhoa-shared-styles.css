@@ -355,3 +355,25 @@ body.page .entry-title {
 .form-field.phone-type-field select {
     max-width: 100%;
 }
+
+/* Fix for vertical alignment of text in jQuery UI Dialog buttons */
+.ui-dialog .ui-dialog-buttonpane .ui-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* --- Styles for Side-by-Side Import Layout --- */
+.fsbhoa-importers-container {
+    display: flex;
+    flex-wrap: wrap; /* Allows sections to stack on very small screens */
+    gap: 2em;      /* Creates space between the two sections */
+}
+
+.fsbhoa-importers-container .import-section {
+    flex: 1; /* Allows both sections to grow and share the space equally */
+    min-width: 350px; /* Prevents them from getting too squished */
+    padding: 1.5em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
