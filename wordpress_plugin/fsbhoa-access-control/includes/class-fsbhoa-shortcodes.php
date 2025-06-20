@@ -10,6 +10,7 @@ class Fsbhoa_Shortcodes {
 
     public function __construct() {
         add_shortcode( 'fsbhoa_cardholder_management', array( $this, 'render_cardholder_management_shortcode' ) );
+        add_shortcode( 'fsbhoa_print_card', array( $this, 'render_print_card_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
@@ -70,12 +71,14 @@ class Fsbhoa_Shortcodes {
         // This is good practice to prevent loading assets on every single page.
         global $post;
         if ( ! is_a( $post, 'WP_Post' ) 
-           || ( ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) 
-            && ! has_shortcode( $post->post_content, 'fsbhoa_import_form' ) ) ) {
+           || (! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) 
+            && ! has_shortcode( $post->post_content, 'fsbhoa_import_form' )  
+            && ! has_shortcode( $post->post_content, 'fsbhoa_print_card' )) ) {
             return;
         }
 
         // --- Load assets needed for all views ---
+        wp_enqueue_script('jquery');
         wp_enqueue_script('jquery-ui-autocomplete');
         wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_VERSION);
         wp_enqueue_style('datatables-style', 'https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.css');
@@ -91,6 +94,38 @@ class Fsbhoa_Shortcodes {
         wp_enqueue_script('fsbhoa-photo-croppie', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-photo-croppie.js', array('jquery', 'jquery-ui-dialog', 'croppie-script'), FSBHOA_AC_VERSION, true);
         wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('jquery', 'jquery-ui-autocomplete', 'datatables-script', 'fsbhoa-photo-croppie'), FSBHOA_AC_VERSION, true);
             
+
+        // --- PRINT PAGE ---
+        if ( has_shortcode( $post->post_content, 'fsbhoa_print_card' ) ) {
+            // Enqueue our stylesheet
+            wp_enqueue_style(
+                'fsbhoa-print-styles',
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-print-styles.css',
+                array(),
+                FSBHOA_AC_VERSION
+            );
+
+            // Enqueue our new workflow script
+            wp_enqueue_script(
+                'fsbhoa-print-workflow',
+                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-print-workflow.js',
+                array('jquery'),
+                FSBHOA_AC_VERSION,
+                true
+            );
+
+            // Localize the script, passing the AJAX URL and a security nonce
+            wp_localize_script(
+                'fsbhoa-print-workflow',
+                'fsbhoa_print_vars',
+                array(
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'nonce'    => wp_create_nonce('fsbhoa_print_card_nonce'),
+                    'cardholder_page_url' => get_permalink(get_page_by_path('cardholder'))
+                )
+            );
+        }
+
         
         // Localized data for the scripts
         $photo_settings = array('width'  => get_option('fsbhoa_ac_photo_width', 640), 'height' => get_option('fsbhoa_ac_photo_height', 800));
@@ -101,7 +136,42 @@ class Fsbhoa_Shortcodes {
         // --- PROPERTY-SPECIFIC ASSETS ---
         wp_enqueue_style('fsbhoa-property-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-property-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_VERSION);
         wp_enqueue_script('fsbhoa-property-admin', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-property-admin.js', array('jquery', 'datatables-script'), FSBHOA_AC_VERSION, true);
+
+
+        // ---  for Import Styles ---
+        if ( has_shortcode( $post->post_content, 'fsbhoa_import_form' ) ) {
+            wp_enqueue_style(
+                'fsbhoa-import-styles',
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-import-styles.css',
+                array(),
+                FSBHOA_AC_VERSION
+            );
+        }
+    }
+
+
+    /**
+     * Renders the printable ID card view by loading the dedicated view file.
+     *
+     * @param array|string $atts Shortcode attributes.
+     * @return string The HTML output for the printable card.
+     */
+    public function render_print_card_shortcode( $atts ) {
+        // Security check: Only logged-in users with the right capability can view.
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have permission to view this page.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        // Capture the output from our dedicated view file.
+        ob_start();
+    
+        // Include the view file that does all the work.
+        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-print-card.php';
+    
+        // Call the main function from that file.
+        fsbhoa_render_printable_card_view();
+
+        return ob_get_clean();
     }
 
 }
-

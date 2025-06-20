@@ -62,6 +62,7 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-car
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-print-actions.php';
 
 
 // --- Load Admin Dependencies for WP_List_Table ---
@@ -110,6 +111,9 @@ function run_fsbhoa_access_control_admin() {
          add_action('admin_notices', function() {
             echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Actions_Page class is missing. Property management functionality will not work.</p></div>';
         });
+    }
+    if (class_exists('Fsbhoa_Print_Actions')) {
+        new Fsbhoa_Print_Actions();
     }
 
     // Note: Fsbhoa_Cardholder_Admin_Page is instantiated by the menu callback in Fsbhoa_Admin_Menu

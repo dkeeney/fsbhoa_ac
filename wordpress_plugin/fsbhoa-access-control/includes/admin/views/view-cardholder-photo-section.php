@@ -121,7 +121,7 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_
         <!-- Notes Field -->
         <div class="form-field" style="flex-basis: 100%;">
             <label for="notes"><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></label>
-            <textarea name="notes" id="notes" rows="3" class="large-text"><?php echo esc_textarea($form_data['notes']); ?></textarea>
+            <textarea name="notes" id="notes" rows="3" class="large-text"><?php echo esc_textarea($form_data['notes'] ?? ''); ?></textarea>
         </div>
     </div>
 

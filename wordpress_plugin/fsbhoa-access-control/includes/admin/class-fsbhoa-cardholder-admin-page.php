@@ -33,7 +33,7 @@ class Fsbhoa_Cardholder_Admin_Page {
             'first_name' => '', 'last_name' => '', 'email' => '', 'phone' => '', 'phone_type' => '', 
             'resident_type' => '', 'property_id' => '', 'property_address_display' => '', 'photo' => null, 
             'rfid_id' => '', 'notes' => '', 'card_status' => 'inactive', 'card_issue_date' => '', 
-            'card_expiry_date' => '', 'photo_base64' => '',
+            'card_expiry_date' => '',  'origin' => 'manual', 'photo_base64' => '',
         );
         $errors = array();
         $is_edit_mode = ($current_page_action === 'edit_cardholder' && isset($_GET['cardholder_id']));

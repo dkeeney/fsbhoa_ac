@@ -62,6 +62,8 @@ function fsbhoa_render_cardholder_list_view() {
                     <th><?php esc_html_e( 'Name', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Property', 'fsbhoa-ac' ); ?></th>
                     <th class="fsbhoa-status-column"><?php esc_html_e( 'Card Status', 'fsbhoa-ac' ); ?></th>
+                    <th class="no-sort fsbhoa-type-column" title="<?php esc_attr_e( 'Cardholder Type', 'fsbhoa-ac' ); ?>">
+                        <?php esc_html_e( 'Type', 'fsbhoa-ac' ); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -72,9 +74,15 @@ function fsbhoa_render_cardholder_list_view() {
                             $edit_url = add_query_arg(array('action' => 'edit_cardholder', 'cardholder_id' => absint($cardholder['id'])), $current_page_url);
                             $delete_nonce = wp_create_nonce('fsbhoa_delete_cardholder_nonce_' . $cardholder['id']);
                             $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_cardholder', 'cardholder_id' => absint($cardholder['id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
+                            $print_page_url = get_permalink(get_page_by_path('print-photo-id'));
+                            $print_url = add_query_arg(array('action' => 'print_card', 'cardholder_id' => absint($cardholder['id'])), $print_page_url);
+
                             ?>
                             <a href="<?php echo esc_url($edit_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Edit Cardholder', 'fsbhoa-ac'); ?>">
                                 <span class="dashicons dashicons-edit"></span>
+                            </a>
+                            <a href="<?php echo esc_url($print_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Print ID Card', 'fsbhoa-ac'); ?>">
+                               <span class="dashicons dashicons-printer"></span>
                             </a>
                             <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Delete Cardholder', 'fsbhoa-ac'); ?>" onclick="return confirm('Are you sure you want to delete this cardholder?');">
                                 <span class="dashicons dashicons-trash"></span>
@@ -84,10 +92,12 @@ function fsbhoa_render_cardholder_list_view() {
                         <td><strong><?php echo esc_html( $cardholder['first_name'] . ' ' . $cardholder['last_name'] ); ?></strong></td>
                         <td><?php echo isset($cardholder['street_address']) ? esc_html($cardholder['street_address']) : '<em>N/A</em>'; ?></td>
                         <td class="fsbhoa-status-column"><?php echo esc_html( ucwords($cardholder['card_status']) ); ?></td>
-
+                        <td class="fsbhoa-type-column">
+                            <?php echo esc_html( $cardholder['resident_type'] ?? '' ); ?>
+                        </td>
                     </tr>
                 <?php endforeach; else : ?>
-                    <tr><td colspan="4"><?php esc_html_e( 'No cardholders found.', 'fsbhoa-ac' ); ?></td></tr>
+                    <tr><td colspan="5"><?php esc_html_e( 'No cardholders found.', 'fsbhoa-ac' ); ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
