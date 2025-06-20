@@ -1,0 +1,44 @@
+/* /assets/css/fsbhoa-import-styles.css */
+
+.import-section {
+    padding: 1.5em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.import-section h2 {
+    margin-top: 0;
+}
+
+/* Styles for the results box that appears after an import */
+.import-results {
+    padding: 1em;
+    margin-bottom: 1.5em;
+    border: 1px solid;
+    border-radius: 3px;
+}
+
+.import-results ul {
+    margin: 0.5em 0 0 1.5em;
+    padding: 0;
+    list-style-type: disc;
+}
+
+.import-results.notice-success {
+    border-left-width: 4px;
+    border-left-color: #4CAF50;
+    background-color: #f0fff0;
+}
+
+.import-results.notice-warning {
+    border-left-width: 4px;
+    border-left-color: #ffb900;
+    background-color: #fff8e5;
+}
+
+.import-results.notice-error {
+    border-left-width: 4px;
+    border-left-color: #d63638;
+    background-color: #fbeaea;
+}

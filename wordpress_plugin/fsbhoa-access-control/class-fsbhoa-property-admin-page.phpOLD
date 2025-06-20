@@ -129,8 +129,8 @@ class Fsbhoa_Property_Admin_Page {
                                     <span class="dashicons dashicons-trash"></span>
                                 </a>
                             </td>
-                            <td><strong><?php echo esc_html( $property['street_address'] ?? '' ); ?></strong></td>
-                            <td><?php echo esc_html( $property['notes'] ?? '' ); ?></td>
+                            <td><strong><?php echo esc_html( $property['street_address'] ); ?></strong></td>
+                            <td><?php echo esc_html( $property['notes'] ); ?></td>
                         </tr>
                     <?php endforeach; else : ?>
                         <tr><td colspan="3"><?php esc_html_e( 'No properties found.', 'fsbhoa-ac' ); ?></td></tr>
@@ -182,7 +182,7 @@ public function render_add_new_property_form($current_view_action = 'add') {
         $nonce_action = $is_edit_mode ? 'fsbhoa_update_property_action_' . $item_id : 'fsbhoa_add_property_action';
         $properties_list_url = add_query_arg('view', 'properties', get_permalink());
         ?>
-        <div class="fsbhoa-frontend-wrap">
+        <div class="wrap">
             <h1><?php echo esc_html($page_title); ?></h1>
 
             <form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -194,7 +194,7 @@ public function render_add_new_property_form($current_view_action = 'add') {
 
                 <div class="fsbhoa-form-section">
                     <div class="form-row">
-                        <div class="form-field is-full-width" >
+                        <div class="form-field" style="flex-basis: 100%;">
                             <label for="street_address"><?php esc_html_e( 'Street Address', 'fsbhoa-ac' ); ?></label>
                             <input type="text" name="street_address" id="street_address" class="regular-text"
                                    value="<?php echo esc_attr($form_data['street_address']); ?>" required>
@@ -202,19 +202,16 @@ public function render_add_new_property_form($current_view_action = 'add') {
                         </div>
                     </div>
                     <div class="form-row">
-                        <div class="form-field is-full-width">
+                        <div class="form-field" style="flex-basis: 100%;">
                             <label for="notes"><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></label>
-                            <textarea name="notes" id="notes" rows="5" class="large-text"><?php echo esc_textarea($form_data['notes'] ?? ''); ?></textarea>
+                            <textarea name="notes" id="notes" rows="5" class="large-text"><?php echo esc_textarea($form_data['notes']); ?></textarea>
                             <p class="description"><?php esc_html_e( 'Optional notes about the property.', 'fsbhoa-ac' ); ?></p>
                         </div>
                     </div>
                 </div>
-                <p class="submit">
-                    <button type="submit" class="button button-primary"><?php echo esc_html($submit_button_text); ?></button>
-                    <a href="<?php echo esc_url($properties_list_url); ?>" class="button button-secondary"><?php esc_html_e('Cancel', 'fsbhoa-ac'); ?></a>
-                </p>
-
+                <?php submit_button($submit_button_text); ?>
             </form>
+            <p><a href="<?php echo esc_url($properties_list_url); ?>"><?php esc_html_e('&larr; Back to Properties List', 'fsbhoa-ac'); ?></a></p>
         </div>
         <?php
     }
