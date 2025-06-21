@@ -49,23 +49,48 @@ class Fsbhoa_Cardholder_Actions {
     }
 
     public function handle_delete_cardholder_action() {
-        if (!isset($_GET['cardholder_id']) || !is_numeric($_GET['cardholder_id'])) { wp_die(esc_html__('Invalid cardholder ID for deletion.','fsbhoa-ac'), esc_html__('Error','fsbhoa-ac'), array('response'=>400,'back_link'=>true)); }
-        $item_id_to_delete = absint($_GET['cardholder_id']);
-        $nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
-        if (!wp_verify_nonce($nonce, 'fsbhoa_delete_cardholder_nonce_' . $item_id_to_delete)) { wp_die(esc_html__('Security check failed. Could not delete cardholder.','fsbhoa-ac'), esc_html__('Error','fsbhoa-ac'), array('response'=>403,'back_link'=>true)); }
+        if ( ! isset($_GET['cardholder_id']) || ! is_numeric($_GET['cardholder_id']) ) {
+            wp_die( esc_html__( 'Invalid cardholder ID for deletion.', 'fsbhoa-ac' ), esc_html__( 'Error', 'fsbhoa-ac' ), array( 'response' => 400, 'back_link' => true ) );
+        }
 
-        global $wpdb; $table_name = 'ac_cardholders';
-        $result = $wpdb->delete($table_name, array('id' => $item_id_to_delete), array('%d'));
+        $item_id_to_delete = absint( $_GET['cardholder_id'] );
+        $nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
-        $base_redirect_url = admin_url('admin.php');
-        $redirect_url = add_query_arg(array('page' => 'fsbhoa_ac_cardholders'), $base_redirect_url);
+        if ( ! wp_verify_nonce( $nonce, 'fsbhoa_delete_cardholder_nonce_' . $item_id_to_delete ) ) {
+            wp_die( esc_html__( 'Security check failed. Could not delete cardholder.', 'fsbhoa-ac' ), esc_html__( 'Error', 'fsbhoa-ac' ), array( 'response' => 403, 'back_link' => true ) );
+        }
 
-        if ($result === false) { $redirect_url = add_query_arg(array('message' => 'cardholder_delete_error'), $redirect_url); }
-        elseif ($result === 0) { $redirect_url = add_query_arg(array('message' => 'cardholder_delete_not_found'), $redirect_url); }
-        else { $redirect_url = add_query_arg(array('message' => 'cardholder_deleted_successfully', 'deleted_id' => $item_id_to_delete), $redirect_url); }
 
-        wp_redirect(esc_url_raw($redirect_url)); exit;
+        // 1. Call the new global archive function.
+        $result = fsbhoa_archive_and_delete_cardholder( $item_id_to_delete );
+
+        // 2. Build the redirect URL back to the page the user came from.
+        $redirect_url = wp_get_referer();
+        if ( ! $redirect_url ) {
+            // Provide a sensible fallback if the referer is not available for some reason.
+            // You may need to adjust the page slug 'cardholder' if it's different.
+            $redirect_url = get_permalink( get_page_by_path('cardholder') );
+        }
+
+        // Clean up the URL from any action parameters
+        $redirect_url = remove_query_arg( array( 'action', 'cardholder_id', '_wpnonce' ), $redirect_url );
+
+        // 3. Check the result and add the appropriate message to the URL.
+        if ( is_wp_error( $result ) ) {
+            // If the function returned an error, add an error notice.
+            // The error message from the function is already HTML-safe.
+            $error_string = $result->get_error_message();
+            $redirect_url = add_query_arg( array( 'message' => 'cardholder_delete_error', 'error' => urlencode($error_string) ), $redirect_url );
+        } else {
+            // If it returned true, it was successful.
+            $redirect_url = add_query_arg( array( 'message' => 'cardholder_deleted_successfully' ), $redirect_url );
+        }
+
+
+        wp_safe_redirect( $redirect_url );
+        exit;
     }
+
 
 
     /**

@@ -48,6 +48,7 @@ register_deactivation_hook( __FILE__, 'fsbhoa_ac_deactivate' );
 /**
  * Load core plugin classes for admin area.
  */
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-cardholder-functions.php';
 // For Cardholder DISPLAY
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php'; 
 // For Cardholder ACTIONS (new)
@@ -63,7 +64,18 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-pag
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-print-actions.php';
+//
+// For Deleted Cardholder screen
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-deleted-cardholder-list-table.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-deleted-cardholder-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-deleted-cardholder-actions.php';
 
+// For Controller Management
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-actions.php';
+// For Gate Management
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-actions.php';
 
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
@@ -115,6 +127,22 @@ function run_fsbhoa_access_control_admin() {
     if (class_exists('Fsbhoa_Print_Actions')) {
         new Fsbhoa_Print_Actions();
     }
+
+    // Instantiate Deleted Cardholder ACTIONS handler
+    if (class_exists('Fsbhoa_Deleted_Cardholder_Actions')) {
+        new Fsbhoa_Deleted_Cardholder_Actions();
+    }
+
+    // Instantiate Controller Actions handler
+    if (class_exists('Fsbhoa_Controller_Actions')) {
+        new Fsbhoa_Controller_Actions();
+    }
+
+    // Instantiate Gate Actions handler
+    if (class_exists('Fsbhoa_Gate_Actions')) {
+        new Fsbhoa_Gate_Actions();
+    }
+
 
     // Note: Fsbhoa_Cardholder_Admin_Page is instantiated by the menu callback in Fsbhoa_Admin_Menu
     // when its specific page is loaded. If it were missing, the callback would show an error.

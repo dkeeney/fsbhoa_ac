@@ -34,6 +34,9 @@ function fsbhoa_render_cardholder_list_view() {
             <a href="<?php echo esc_url( add_query_arg('action', 'add', $current_page_url) ); ?>" class="button button-primary">
                 <?php echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' ); ?>
             </a>
+            <a href="<?php echo esc_url( add_query_arg('view', 'deleted', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
+                <?php echo esc_html__( 'Restore Deleted', 'fsbhoa-ac' ); ?>
+            </a>
 
             <!-- Right Side: Container for Entries and Search -->
             <div class="fsbhoa-table-right-controls">
