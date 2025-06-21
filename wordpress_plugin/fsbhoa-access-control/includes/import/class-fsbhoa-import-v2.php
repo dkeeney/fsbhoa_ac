@@ -177,7 +177,6 @@ class Fsbhoa_Import_V2
 
             try {
                 $new_cardholders_from_row = $this->parse_cardholders_from_row($row);
-                if (empty($new_cardholders_from_row)) continue;
 
                 $property_address_raw = $this->get_value_from_row($row, ['property address', 'property_address']);
                 $property_id = $this->get_or_create_property($property_address_raw, $address_suffix_to_remove, $stats);
@@ -358,8 +357,16 @@ private function parse_cardholders_from_row($row)
             $existing_full_name = strtolower(trim($db_cardholder->first_name)) . ' ' . strtolower(trim($db_cardholder->last_name));
             if (!in_array($existing_full_name, $new_full_names)) {
                 if ($db_cardholder->origin === 'import') {
-                    $this->move_cardholder_to_deleted_table($db_cardholder->id);
-                    $stats['cardholders_deleted']++;
+                    // Call the robust, global archive function.
+                    $result = fsbhoa_archive_and_delete_cardholder($db_cardholder->id);
+
+                    if (is_wp_error($result)) {
+                        // If archiving fails, log the specific error and do not increment the deleted count.
+                        $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": Could not archive '{$db_cardholder->first_name} {$db_cardholder->last_name}'. Reason: " . $result->get_error_message();
+                    } else {
+                        // Only increment the count if the archive was successful.
+                        $stats['cardholders_deleted']++;
+                    }
                 }
             }
             if ($db_cardholder->origin !== 'import' && in_array($existing_full_name, $new_full_names)) {
@@ -379,12 +386,12 @@ private function parse_cardholders_from_row($row)
             }
         }
         if ($has_tenants) {
-            $landlord_updated = false;
             foreach ($new_cardholders_from_row as &$cardholder) {
-                if ($cardholder['resident_type'] !== 'Tenant') { $cardholder['resident_type'] = 'Landlord'; $landlord_updated = true; }
+                if ($cardholder['resident_type'] !== 'Tenant') { 
+                    $cardholder['resident_type'] = 'Landlord'; 
+                }
             }
             unset($cardholder);
-            if ($landlord_updated) $stats['landlords_identified']++;
         }
     }
 
@@ -413,6 +420,10 @@ private function parse_cardholders_from_row($row)
                 if ($existing_record->resident_type !== $cardholder_data['resident_type']) {
                     $data_to_update['resident_type'] = $cardholder_data['resident_type'];
                     $update_reasons[] = "Resident Type changed from '{$existing_record->resident_type}' to '{$cardholder_data['resident_type']}'";
+                    // Only increment the count if the type is specifically changing TO 'Landlord'.
+                    if ( $cardholder_data['resident_type'] === 'Landlord' ) {
+                        $stats['landlords_identified']++;
+                    }
                 }
                 if(!empty($data_to_update)) {
 
@@ -452,15 +463,12 @@ private function parse_cardholders_from_row($row)
         return $default;
     }
 
-    private function move_cardholder_to_deleted_table($cardholder_id)
-    {
-        $record = $this->wpdb->get_row($this->wpdb->prepare("SELECT * FROM {$this->table_cardholders} WHERE id = %d", $cardholder_id), ARRAY_A);
-        if ($record) {
-            $this->wpdb->insert($this->table_deleted_cardholders, $record);
-            $this->wpdb->delete($this->table_cardholders, ['id' => $cardholder_id], ['%d']);
-        }
-    }
 
-    private function normalize_phone($phone) { $digits = preg_replace('/[^0-9]/', '', $phone); if (strlen($digits) == 11 && substr($digits, 0, 1) == '1') return substr($digits, 1); return (strlen($digits) == 10) ? $digits : $phone; }
+    private function normalize_phone($phone) { 
+        $digits = preg_replace('/[^0-9]/', '', $phone); 
+        if (strlen($digits) == 11 && substr($digits, 0, 1) == '1') 
+            return substr($digits, 1); 
+        return (strlen($digits) == 10) ? $digits : $phone; 
+    }
 }
 

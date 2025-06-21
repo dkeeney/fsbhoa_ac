@@ -28,34 +28,10 @@ function fsbhoa_render_printable_card_view() {
         return '<p>' . esc_html__( 'Cardholder not found.', 'fsbhoa-ac' ) . '</p>';
     }
 
-    // Prepare data for display
-    $full_name = esc_html( $cardholder['first_name'] . ' ' . $cardholder['last_name'] );
-    $photo_src = ! empty( $cardholder['photo'] ) ? 'data:image/jpeg;base64,' . base64_encode( $cardholder['photo'] ) : '';
-    $resident_type = esc_html( $cardholder['resident_type'] );
-    $property_address = isset( $cardholder['street_address'] ) ? esc_html( $cardholder['street_address'] ) : 'N/A';
-    $expiry_date_str = 'None';
-    if (!empty($cardholder['card_expiry_date']) && strpos($cardholder['card_expiry_date'], '2099') === false) {
-        $expiry_date_str = date('m/d/Y', strtotime($cardholder['card_expiry_date']));
-    }
-    ?>
-
-    <div class="id-card-container">
-        <div class="id-card-header">FSBHOA Photo ID</div>
-        <div class="id-card-body">
-            <div class="id-card-photo">
-                <?php if ( $photo_src ) : ?>
-                    <img src="<?php echo $photo_src; ?>" alt="Cardholder Photo">
-                <?php endif; ?>
-            </div>
-            <div class="id-card-info">
-                <p><strong>Name</strong><?php echo $full_name; ?></p>
-                <p><strong>Resident Type</strong><?php echo $resident_type; ?></p>
-                <p><strong>Property</strong><?php echo $property_address; ?></p>
-                <p><strong>Expires</strong><?php echo $expiry_date_str; ?></p>
-            </div>
-        </div>
-    </div>
+    //  Show the preview of the cardholder
+    fsbhoa_render_cardholder_preview_html( $cardholder );
     
+    ?>
     <div class="workflow-container">
         <div id="fsbhoa-initial-section" class="workflow-section">
             <p>Verify the card preview above is correct.</p>

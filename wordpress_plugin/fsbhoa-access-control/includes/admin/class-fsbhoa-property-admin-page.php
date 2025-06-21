@@ -182,7 +182,7 @@ public function render_add_new_property_form($current_view_action = 'add') {
         $nonce_action = $is_edit_mode ? 'fsbhoa_update_property_action_' . $item_id : 'fsbhoa_add_property_action';
         $properties_list_url = add_query_arg('view', 'properties', get_permalink());
         ?>
-        <div class="fsbhoa-frontend-wrap">
+        <div class="fsbhoa-frontend-wrap  is-form-view">
             <h1><?php echo esc_html($page_title); ?></h1>
 
             <form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">

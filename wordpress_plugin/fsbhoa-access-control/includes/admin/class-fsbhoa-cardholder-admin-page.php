@@ -87,7 +87,7 @@ class Fsbhoa_Cardholder_Admin_Page {
         $nonce_action = $is_edit_mode ? ('fsbhoa_update_cardholder_action_' . $item_id_for_edit) : 'fsbhoa_add_cardholder_action';
         $cancel_url = get_permalink(get_page_by_path('cardholder'));
         ?>
-        <div id="fsbhoa-cardholder-management-wrap" class="fsbhoa-frontend-wrap">
+        <div id="fsbhoa-cardholder-management-wrap" class="fsbhoa-frontend-wrap is-form-view" >
             <h1><?php echo esc_html( $page_title ); ?></h1>
 
             <?php if (!empty($errors)) : ?>

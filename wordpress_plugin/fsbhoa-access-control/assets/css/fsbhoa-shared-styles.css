@@ -7,7 +7,7 @@ i/* ==========================================================================
     display: block;         /* Ensure it's treated as a block */
     box-sizing: border-box; /* A good practice for consistent sizing */
     width: 100%;            /* Tell it to be 100% of the available space... */
-    max-width: 420px;       /* But no wider than this */
+    max-width: 860px;       /* But no wider than this */
     margin: 0.5em auto 2em;
 }
 .fsbhoa-frontend-wrap h1 {
@@ -16,6 +16,10 @@ i/* ==========================================================================
     margin-bottom: 5px;
     padding-bottom: 5px;
     border-bottom: 1px solid #ddd;
+}
+/* --- container specifically for form views --- */
+.fsbhoa-frontend-wrap.is-form-view {
+    max-width: 600px; 
 }
 body.page .entry-title {
     display: none !important; /* Hides theme's page title */
@@ -31,6 +35,7 @@ body.page .entry-title {
 .form-field input[type="text"],
 .form-field input[type="email"],
 .form-field input[type="tel"],
+.form-field input[type="number"],
 .form-field input[type="date"],
 .form-field select,
 .form-field textarea,
@@ -64,3 +69,8 @@ body.page .entry-title {
 .dataTables_info { padding-top: 0.8em; font-size: 13px; }
 
 
+/* Make controller and door forms more compact */
+#fsbhoa-controller-form .form-table,
+#fsbhoa-door-form .form-table {
+    max-width: 800px;
+}

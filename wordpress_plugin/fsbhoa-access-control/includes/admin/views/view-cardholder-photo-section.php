@@ -56,7 +56,6 @@ if ( ! defined( 'WPINC' ) ) { die; }
  */
 function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_from_error ) {
     $photo_src = '#';
-    $photo_src = '#';
     $has_photo_to_display = false;
 
     if ( $is_edit_mode && ! empty( $form_data['photo_base64'] ) ) {
@@ -64,13 +63,6 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_
         $has_photo_to_display = true;
     }
 ?>
-<!-- Gemini,keep this for future debugging
-<div style="background-color: #f1f1f1; border: 2px solid red; padding: 10px; margin-bottom: 20px; font-family: monospace;">
-    <h3 style="margin-top:0;">DEBUGGING: Data available to the Photo Section</h3>
-    <p>This box shows the exact contents of the $form_data array right before the preview is displayed.</p>
-    <pre><?php print_r($form_data); ?></pre>
-</div>
- -->
 
 
 <div class="fsbhoa-form-section" id="fsbhoa_photo_section">
