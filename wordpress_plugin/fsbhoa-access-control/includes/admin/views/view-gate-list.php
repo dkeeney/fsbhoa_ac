@@ -35,6 +35,9 @@ function fsbhoa_render_gate_list_view() {
             <a href="<?php echo esc_url( add_query_arg('view', 'controllers', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
                 <?php echo esc_html__( 'Manage Controllers', 'fsbhoa-ac' ); ?>
             </a>
+            <a href="<?php echo esc_url( add_query_arg('view', 'tasks', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
+            <?php echo esc_html__( 'Manage Tasks', 'fsbhoa-ac' ); ?>
+            </a>
         </div>
 
         <table id="fsbhoa-gate-table" class="display" style="width:100%">
