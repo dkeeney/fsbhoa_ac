@@ -19,7 +19,7 @@ i/* ==========================================================================
 }
 /* --- container specifically for form views --- */
 .fsbhoa-frontend-wrap.is-form-view {
-    max-width: 600px; 
+    max-width: 700px; 
 }
 body.page .entry-title {
     display: none !important; /* Hides theme's page title */
@@ -74,3 +74,14 @@ body.page .entry-title {
 #fsbhoa-door-form .form-table {
     max-width: 800px;
 }
+
+/* Wider layout specifically for task list and forms */
+.fsbhoa-frontend-wrap.is-wide-view {
+    max-width: 800px;
+}
+
+/* For wide forms like the task form, be more specific to override the 600px rule */
+.fsbhoa-frontend-wrap.is-form-view.is-wide-view {
+    max-width: 800px;
+}
+

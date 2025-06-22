@@ -302,7 +302,14 @@ class Fsbhoa_Shortcodes {
                 echo '<p>' . esc_html__( 'Error: Gate management class not found.', 'fsbhoa-ac' ) . '</p>';
             }
         }
-
+        elseif ( $current_view === 'tasks' ) {
+            if ( class_exists('Fsbhoa_Task_Admin_Page') ) {
+                $task_page = new Fsbhoa_Task_Admin_Page();
+                $task_page->render_page();
+            } else {
+                echo '<p>' . esc_html__( 'Error: Task List management class not found.', 'fsbhoa-ac' ) . '</p>';
+            }
+        }
         return ob_get_clean();
     }
 }

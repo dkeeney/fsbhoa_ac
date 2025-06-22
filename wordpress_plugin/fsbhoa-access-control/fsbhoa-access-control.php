@@ -76,6 +76,9 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-acti
 // For Gate Management
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-actions.php';
+// For Task List Management
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-actions.php';
 
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
@@ -141,6 +144,11 @@ function run_fsbhoa_access_control_admin() {
     // Instantiate Gate Actions handler
     if (class_exists('Fsbhoa_Gate_Actions')) {
         new Fsbhoa_Gate_Actions();
+    }
+
+    // Instantiate Task Actions handler
+    if (class_exists('Fsbhoa_Task_Actions')) {
+        new Fsbhoa_Task_Actions();
     }
 
 
