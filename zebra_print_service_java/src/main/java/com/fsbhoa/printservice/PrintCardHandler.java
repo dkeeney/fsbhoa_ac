@@ -67,17 +67,23 @@ public class PrintCardHandler implements HttpHandler {
             PrintRequestPayload payload = objectMapper.readValue(requestJson, PrintRequestPayload.class);
             System.out.println("Parsed payload: " + payload.toString());
 
-            // --- 1. TODO: Input Validation (Crucial Step) ---
-            // Example for rfid_id length, expand for other fields
-            if (payload.rfid_id == null || payload.rfid_id.trim().isEmpty() || payload.rfid_id.length() > 8) {
-                responseMessage = "{\"status\": \"error\", \"message\": \"Validation failed: rfid_id must be present and max 8 characters.\"}";
+            // --- 1. Input Validation ---
+            if (payload.first_name == null || payload.first_name.trim().isEmpty() ||
+                payload.last_name == null || payload.last_name.trim().isEmpty()) {
+            
+                responseMessage = "{\"status\": \"error\", \"message\": \"Validation failed: first_name and last_name are required.\"}";
                 statusCode = 400; // Bad Request
                 sendResponse(exchange, responseMessage, statusCode);
                 return;
             }
-            // Add more validations for other fields (first_name, photo_base64 format/size, dates etc.)
-            // If validation fails, set responseMessage, statusCode = 400, and return.
-            System.out.println("Input validation placeholder passed for rfid_id: " + payload.rfid_id);
+
+            if (payload.photo_base64 == null || payload.photo_base64.trim().isEmpty()) {
+                responseMessage = "{\"status\": \"error\", \"message\": \"Validation failed: A photo is required to print a card.\"}";
+                statusCode = 400; // Bad Request
+                sendResponse(exchange, responseMessage, statusCode);
+                return;
+            }
+            System.out.println("Input validation passed.");
 
 
             // --- 2. Call ZebraPrintJobManager to submit job to SDK (stubbed) ---

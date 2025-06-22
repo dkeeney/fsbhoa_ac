@@ -46,4 +46,9 @@ Thumbs.db
 
 # Project specific
 db.properties
-
+project-repo/
+target/
+zebra_print_service/target/
+zebra_print_service/project-repo/
+# Configuration file with secrets
+zebra_print_service/db.properties
