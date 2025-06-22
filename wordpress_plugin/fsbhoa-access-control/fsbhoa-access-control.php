@@ -94,11 +94,8 @@ if ( ! function_exists( 'get_screen_option' ) ) {
  * Begins execution of the plugin's admin parts.
  * Initializes admin menu and action handlers.
  */
-function run_fsbhoa_access_control_admin() {
+function run_fsbhoa_action_handlers() {
 
-    if ( class_exists( 'Fsbhoa_Ac_Settings_Page' ) ) {
-        new Fsbhoa_Ac_Settings_Page(); 
-    }
 
     // Instantiate Cardholder ACTIONS handler (its constructor sets up admin_post_ and ajax hooks)
     if (class_exists('Fsbhoa_Cardholder_Actions')) {
@@ -158,18 +155,27 @@ function run_fsbhoa_access_control_admin() {
 }
 
 
-// Only run this if in the admin area
+// This is the key line: it hooks the handlers into WordPress's initialization process.
+add_action('init', 'run_fsbhoa_action_handlers');
+
+
+/**
+ * Begins execution of the plugin's admin-only UI parts (dashboard pages).
+ */
+function run_fsbhoa_access_control_admin() {
+    if ( class_exists( 'Fsbhoa_Ac_Settings_Page' ) ) {
+        new Fsbhoa_Ac_Settings_Page();
+    }
+    // Any other admin-dashboard specific UI initializations would go here.
+}
+
+// Run admin-specific setup only when in the admin dashboard.
 if ( is_admin() ) {
     run_fsbhoa_access_control_admin();
 }
 
-function run_fsbhoa_ac_shortcodes() {
-    if ( class_exists('Fsbhoa_Shortcodes') ) {
-        new Fsbhoa_Shortcodes();
-    }
-}
-// Only initialize the shortcodes on the front-end of the site.
-if ( ! is_admin() ) {
-    run_fsbhoa_ac_shortcodes();
+// Initialize shortcodes for the front-end.
+if ( ! is_admin() && class_exists('Fsbhoa_Shortcodes') ) {
+    new Fsbhoa_Shortcodes();
 }
 ?>

@@ -16,11 +16,12 @@
                     
                     <text field="lastName" font_id="1" x="50" y="440" width="912" height="50" angle="0" color="0x000000" alignment="center" v_alignment="center"/>
                     
+                    <text field="propertyAddress" font_id="2" x="50" y="490" width="912" height="35" angle="0" color="0x000000" alignment="center" v_alignment="center"/>
 
-                </print_type>
+                    </print_type>
 
                 <print_type type="overlay">
-                </print_type>
+                    </print_type>
             </print_types>
         </side>
     </sides>
