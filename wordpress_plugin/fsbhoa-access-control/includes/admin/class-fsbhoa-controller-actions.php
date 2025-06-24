@@ -20,6 +20,7 @@ class Fsbhoa_Controller_Actions {
         $data = [
             'friendly_name'        => sanitize_text_field($_POST['friendly_name']),
             'uhppoted_device_id'   => absint($_POST['uhppoted_device_id']),
+            'ip_address'           => sanitize_text_field($_POST['ip_address']),
             'location_description' => sanitize_textarea_field($_POST['location_description']),
             'notes'                => sanitize_textarea_field($_POST['notes']),
         ];
