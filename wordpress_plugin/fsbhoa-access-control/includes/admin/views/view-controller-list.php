@@ -36,6 +36,7 @@ function fsbhoa_render_controller_list_view() {
                     <th class="no-sort fsbhoa-actions-column"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Friendly Name', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Device ID (Serial)', 'fsbhoa-ac' ); ?></th>
+                    <th><?php esc_html_e( 'IP Address', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Location', 'fsbhoa-ac' ); ?></th>
                 </tr>
             </thead>
@@ -57,6 +58,7 @@ function fsbhoa_render_controller_list_view() {
                         </td>
                         <td><strong><?php echo esc_html( $controller['friendly_name'] ); ?></strong></td>
                         <td><code><?php echo esc_html( $controller['uhppoted_device_id'] ); ?></code></td>
+                        <td><code><?php echo esc_html( $controller['ip_address'] ?? '' ); ?></code></td>
                         <td><?php echo esc_html( $controller['location_description'] ); ?></td>
                     </tr>
                 <?php endforeach; else : ?>

@@ -31,12 +31,12 @@ class Fsbhoa_Controller_Admin_Page {
         require_once plugin_dir_path(__FILE__) . 'views/view-controller-list.php';
         fsbhoa_render_controller_list_view();
     }
-
     private function render_form_page($action) {
         $form_data = [
             'controller_record_id' => 0,
             'friendly_name' => '',
             'uhppoted_device_id' => '',
+            'ip_address' => '',
             'location_description' => '',
             'notes' => ''
         ];
@@ -44,17 +44,16 @@ class Fsbhoa_Controller_Admin_Page {
         $is_edit_mode = ($action === 'edit');
         $item_id = $is_edit_mode ? absint($_GET['controller_id']) : 0;
 
-        // --- NEW: Check for feedback from a failed submission via transient ---
+        // NOTE: The entire block that called the discovery service has been removed.
+
         $transient_key = 'fsbhoa_controller_feedback_' . ($is_edit_mode ? 'edit_' . $item_id : 'add');
         $feedback = get_transient($transient_key);
 
         if ($feedback !== false) {
-            // Recovering from a validation error
             $form_data = array_merge($form_data, $feedback['data']);
             $errors = $feedback['errors'];
             delete_transient($transient_key);
         } elseif ($is_edit_mode) {
-            // Initial load of an edit form, get data from DB
             global $wpdb;
             $result = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_controllers WHERE controller_record_id = %d", $item_id), ARRAY_A);
             if ($result) {
@@ -62,8 +61,8 @@ class Fsbhoa_Controller_Admin_Page {
             }
         }
         
+        // We no longer pass the $discovered_controllers array.
         require_once plugin_dir_path(__FILE__) . 'views/view-controller-form.php';
         fsbhoa_render_controller_form($form_data, $is_edit_mode, $errors);
     }
 }
-
