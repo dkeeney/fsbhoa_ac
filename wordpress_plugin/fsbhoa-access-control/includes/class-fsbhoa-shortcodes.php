@@ -175,6 +175,25 @@ class Fsbhoa_Shortcodes {
 
             // Attach the inline JavaScript to the page
             wp_add_inline_script( 'datatables-script', $controller_table_js );
+
+
+            // ---  CONTROLLER SYNC SCRIPT ---
+            wp_enqueue_script(
+                'fsbhoa-sync-script',
+                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-sync-admin.js',
+                ['jquery'],
+                FSBHOA_AC_VERSION,
+                true
+            );
+
+            wp_localize_script(
+                'fsbhoa-sync-script',
+                'fsbhoa_sync_vars',
+                [
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'nonce'    => wp_create_nonce('fsbhoa_sync_nonce')
+                ]
+            );
         }
         
         // Localized data for the scripts
@@ -270,6 +289,14 @@ class Fsbhoa_Shortcodes {
         if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
             return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
         }
+
+        // --- NEW: Check if we should render the discovery results page ---
+        if ( isset( $_GET['discovery-results'] ) ) {
+            ob_start();
+            fsbhoa_render_discovery_results_view();
+            return ob_get_clean();
+        }
+        // --- END NEW ---
 
         // Handle the view from the URL first, then the shortcode attribute
         $current_view = 'controllers'; // Default to the controllers view

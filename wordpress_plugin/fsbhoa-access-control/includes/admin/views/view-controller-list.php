@@ -22,6 +22,21 @@ function fsbhoa_render_controller_list_view() {
             <a href="<?php echo esc_url( add_query_arg(['view' => 'controllers', 'action' => 'add'], $current_page_url) ); ?>" class="button button-primary">
                 <?php esc_html_e( 'Add New Controller', 'fsbhoa-ac' ); ?>
             </a>
+            <?php
+                $discover_nonce = wp_create_nonce('fsbhoa_discover_controllers_nonce');
+                $discover_url = add_query_arg([
+                    'action'    => 'fsbhoa_discover_controllers',
+                    '_wpnonce'  => $discover_nonce
+                ], admin_url('admin-post.php'));
+            ?>
+            <a href="<?php echo esc_url($discover_url); ?>" class="button button-secondary" style="margin-left: 5px;">
+                <?php esc_html_e( 'Discover Controllers', 'fsbhoa-ac' ); ?>
+            </a>
+
+            <button id="fsbhoa-sync-all-button" class="button button-secondary" style="margin-left: 5px;">Sync All Controllers</button>
+            <span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
+
+
             <a href="<?php echo esc_url( add_query_arg('view', 'gates', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
                 <?php echo esc_html__( 'Manage Gates', 'fsbhoa-ac' ); ?>
             </a>

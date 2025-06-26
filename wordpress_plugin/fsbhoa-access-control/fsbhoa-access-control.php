@@ -73,9 +73,15 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-deleted-cardhol
 // For Controller Management
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-actions.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-discovery-results.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-discovery.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
+
+//
 // For Gate Management
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-actions.php';
+//
 // For Task List Management
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-actions.php';
