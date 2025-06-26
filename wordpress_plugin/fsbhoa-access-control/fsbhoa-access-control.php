@@ -77,11 +77,6 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-discovery-results
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-discovery.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
 
-//
-// For Gate Management
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-gate-actions.php';
-//
 // For Task List Management
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-actions.php';

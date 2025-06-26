@@ -37,7 +37,8 @@ function fsbhoa_render_task_list_view() {
                 <?php esc_html_e( 'Add New Task', 'fsbhoa-ac' ); ?>
             </a>
             <a href="<?php echo esc_url( add_query_arg('view', 'controllers', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">Manage Controllers</a>
-            <a href="<?php echo esc_url( add_query_arg('view', 'gates', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">Manage Gates</a>
+	        <button id="fsbhoa-sync-all-button" class="button button-secondary" style="margin-left: 5px;">Sync All Controllers</button>
+			<span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
         </div>
 
         <div class="table-wrapper" style="overflow-x: auto;">
@@ -113,7 +114,7 @@ function fsbhoa_render_task_list_view() {
         }
         .task-id-column {
             text-align: center;
-            width: 40px; /* Give a fixed small width */
+            width: 60px; /* Give a fixed small width */
             padding-left: 5px;
             padding-right: 5px;
         }

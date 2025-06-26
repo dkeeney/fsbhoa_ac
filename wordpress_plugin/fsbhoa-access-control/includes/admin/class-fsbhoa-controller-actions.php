@@ -13,70 +13,119 @@ class Fsbhoa_Controller_Actions {
         add_action('wp_ajax_fsbhoa_get_sync_status', [ $this, 'ajax_get_sync_status' ]);
     }
 
-   public function handle_form_submission() {
-        $is_update = ( isset($_POST['action']) && $_POST['action'] === 'fsbhoa_update_controller' );
-        $item_id = $is_update ? absint($_POST['controller_record_id']) : 0;
+public function handle_form_submission() {
+		global $wpdb;
+		$is_update = ( isset($_POST['action']) && $_POST['action'] === 'fsbhoa_update_controller' );
+		$item_id = $is_update ? absint($_POST['controller_record_id']) : 0;
 
-        $nonce_action = $is_update ? 'fsbhoa_update_controller_' . $item_id : 'fsbhoa_add_controller';
-        check_admin_referer($nonce_action, '_wpnonce');
+		$nonce_action = $is_update ? 'fsbhoa_update_controller_' . $item_id : 'fsbhoa_add_controller';
+		check_admin_referer($nonce_action, '_wpnonce');
 
-        $errors = [];
-        $data = [
-            'friendly_name'        => sanitize_text_field($_POST['friendly_name']),
-            'uhppoted_device_id'   => absint($_POST['uhppoted_device_id']),
-            'ip_address'           => sanitize_text_field($_POST['ip_address']),
-            'location_description' => sanitize_textarea_field($_POST['location_description']),
-            'notes'                => sanitize_textarea_field($_POST['notes']),
-        ];
+		$errors = [];
+		$submitted_ip = sanitize_text_field($_POST['ip_address']);
+		$reverting_to_dhcp = ($is_update && (empty($submitted_ip) || $submitted_ip === '0.0.0.0'));
 
-        if (empty($data['friendly_name'])) {
-            $errors[] = 'Friendly Name is required.';
-        }
-        if (empty($data['uhppoted_device_id'])) {
-            $errors[] = 'Device ID is required.';
-        }
+		$controller_data = [
+			'friendly_name'        => sanitize_text_field($_POST['friendly_name']),
+			'uhppoted_device_id'   => absint($_POST['uhppoted_device_id']),
+			'ip_address'           => sanitize_text_field($_POST['ip_address']),
+			'door_count'           => isset($_POST['door_count']) ? absint($_POST['door_count']) : 4,
+			'is_static_ip'         => $reverting_to_dhcp ? 0 : 1, // It's static unless we are reverting to DHCP
+			'notes'                => sanitize_textarea_field($_POST['notes']),
+		];
 
-        // ---  Only proceed if there are no validation errors yet ---
-        if (empty($errors)) {
-            global $wpdb;
-            $table_name = 'ac_controllers';
+		// --- Main Validation for Controller ---
+		if (empty($controller_data['friendly_name'])) { $errors[] = 'Controller Name is required.'; }
+		if (empty($controller_data['uhppoted_device_id'])) { $errors[] = 'Controller Device ID is required.'; }
 
-            if ($is_update) {
-                $result = $wpdb->update($table_name, $data, ['controller_record_id' => $item_id]);
-            } else {
-                $result = $wpdb->insert($table_name, $data);
-            }
+		// --- Start Database Transaction ---
+		$wpdb->query('START TRANSACTION');
 
-            if (false === $result) {
-                // Check for a duplicate key error
-                if (strpos($wpdb->last_error, 'Duplicate entry') !== false) {
-                    $errors[] = 'That Device ID (Serial Number) is already in use by another controller.';
-                } else {
-                    $errors[] = 'A database error occurred. Please try again. Error: ' . esc_html($wpdb->last_error);
-                }
-            }
-        }
+		// --- Save Controller Data ---
+		if (empty($errors)) {
+			if ($is_update) {
+				$result = $wpdb->update('ac_controllers', $controller_data, ['controller_record_id' => $item_id]);
+			} else {
+				$result = $wpdb->insert('ac_controllers', $controller_data);
+				$item_id = $wpdb->insert_id; // Get the new controller ID for the gates
+			}
 
-        // --- Check for errors and redirect accordingly ---
-        $form_page_url = wp_get_referer();
-        if ( ! $form_page_url ) { $form_page_url = get_permalink(); }
+			if ($result === false) {
+				$errors[] = 'Database error saving controller details. ' . $wpdb->last_error;
+			}
+		}
 
-        if (!empty($errors)) {
-            // If there are errors, save data to a transient and redirect back to the form
-            $transient_key = 'fsbhoa_controller_feedback_' . ($is_update ? 'edit_' . $item_id : 'add');
-            set_transient($transient_key, ['errors' => $errors, 'data' => $_POST], MINUTE_IN_SECONDS * 5);
+		// --- Save Associated Gate Data (only in edit mode) ---
+		if ($is_update && empty($errors) && isset($_POST['gates']) && is_array($_POST['gates'])) {
+			foreach ($_POST['gates'] as $slot_number => $gate_data) {
+				$door_record_id = absint($gate_data['door_record_id']);
+				$friendly_name = sanitize_text_field($gate_data['friendly_name']);
+				$notes = sanitize_textarea_field($gate_data['notes']);
 
-            $redirect_url = add_query_arg('message', 'validation_error', $form_page_url);
-            wp_safe_redirect($redirect_url);
-            exit;
-        }
+				if (!empty($friendly_name)) {
+					// This is an INSERT or UPDATE
+					$data_to_save = [
+						'controller_record_id' => $item_id,
+						'door_number_on_controller' => absint($slot_number),
+						'friendly_name' => $friendly_name,
+						'notes' => $notes,
+					];
+					if ($door_record_id > 0) {
+						// Update existing gate
+						$result = $wpdb->update('ac_doors', $data_to_save, ['door_record_id' => $door_record_id]);
+					} else {
+						// Insert new gate
+						$result = $wpdb->insert('ac_doors', $data_to_save);
+					}
+				} elseif ($door_record_id > 0) {
+					// The name is empty but the ID exists, so DELETE it.
+					$result = $wpdb->delete('ac_doors', ['door_record_id' => $door_record_id]);
+				}
 
-        // If successful, redirect to the list page
-        $list_page_url = remove_query_arg( ['action', 'controller_id'], $form_page_url );
-        $redirect_url = add_query_arg('message', $is_update ? 'controller_updated' : 'controller_added', $list_page_url);
-        wp_safe_redirect($redirect_url);
-        exit;
+				// Check for errors on any of the gate operations
+				if (isset($result) && $result === false) {
+					$errors[] = "Database error on Gate Slot #{$slot_number}. " . $wpdb->last_error;
+					break; // Stop processing more gates if one fails
+				}
+			}
+		}
+
+		// --- Interact with hardware if needed to set ip address to DHCP ---
+		if ($is_update && empty($errors) && $reverting_to_dhcp) {
+			if (FSBHOA_DEBUG_MODE) {
+				error_log("CONTROLLER ACTIONS: Reverting device {$controller_data['uhppoted_device_id']} to DHCP.");
+			}
+			// This function is in 'fsbhoa-uhppote-discovery.php'
+			fsbhoa_set_controller_ip($controller_data['uhppoted_device_id'], '0.0.0.0', '0.0.0.0', '0.0.0.0');
+		}
+
+		// --- Finalize Transaction ---
+		if (empty($errors)) {
+			$wpdb->query('COMMIT');
+		} else {
+			$wpdb->query('ROLLBACK');
+			// If there are errors, save data to a transient and redirect back to the form
+			$transient_key = 'fsbhoa_controller_feedback_' . ($is_update ? 'edit_' . $item_id : 'add');
+			set_transient($transient_key, ['errors' => $errors, 'data' => $_POST], MINUTE_IN_SECONDS * 5);
+
+			wp_safe_redirect(add_query_arg('message', 'validation_error', wp_get_referer()));
+			exit;
+		}
+
+		// --- Redirect on Success ---
+		$list_page_url = remove_query_arg(['action', 'controller_id', 'message'], wp_get_referer());
+
+		if ($reverting_to_dhcp) {
+			$message_code = 'controller_set_to_dhcp';
+		} else {
+			$message_code = $is_update ? 'controller_updated' : 'controller_added';
+		}
+
+		$redirect_url = add_query_arg('message', $message_code, $list_page_url);
+		wp_safe_redirect($redirect_url);
+		exit;
     }
+
 
     public function handle_delete_action() {
         $item_id = absint($_GET['controller_id']);
@@ -176,6 +225,7 @@ class Fsbhoa_Controller_Actions {
                 $wpdb->insert($table_name, [
                     'uhppoted_device_id'   => absint($device_id),
                     'ip_address'           => sanitize_text_field($details['ip_address']),
+                    'door_count'           => 4,
                     'friendly_name'        => sanitize_text_field($details['friendly_name']),
                 ]);
             }
