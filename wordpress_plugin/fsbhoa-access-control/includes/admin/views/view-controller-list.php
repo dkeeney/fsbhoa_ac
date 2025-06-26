@@ -37,9 +37,6 @@ function fsbhoa_render_controller_list_view() {
             <span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
 
 
-            <a href="<?php echo esc_url( add_query_arg('view', 'gates', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
-                <?php echo esc_html__( 'Manage Gates', 'fsbhoa-ac' ); ?>
-            </a>
             <a href="<?php echo esc_url( add_query_arg('view', 'tasks', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
                 <?php echo esc_html__( 'Manage Tasks', 'fsbhoa-ac' ); ?>
             </a>
@@ -48,11 +45,11 @@ function fsbhoa_render_controller_list_view() {
         <table id="fsbhoa-controller-table" class="display" style="width:100%">
             <thead>
                 <tr>
-                    <th class="no-sort fsbhoa-actions-column"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
-                    <th><?php esc_html_e( 'Friendly Name', 'fsbhoa-ac' ); ?></th>
-                    <th><?php esc_html_e( 'Device ID (Serial)', 'fsbhoa-ac' ); ?></th>
-                    <th><?php esc_html_e( 'IP Address', 'fsbhoa-ac' ); ?></th>
-                    <th><?php esc_html_e( 'Location', 'fsbhoa-ac' ); ?></th>
+                    <th class="no-sort fsbhoa-actions-column" style="width: 5%;"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
+                    <th  style="width: 20%;"><?php esc_html_e( 'Name', 'fsbhoa-ac' ); ?></th>
+                    <th  style="width: 15%;"><?php esc_html_e( 'Device ID (Serial)', 'fsbhoa-ac' ); ?></th>
+                    <th  style="width: 15%;"><?php esc_html_e( 'IP Address', 'fsbhoa-ac' ); ?></th>
+                    <th><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -72,9 +69,14 @@ function fsbhoa_render_controller_list_view() {
                             </a>
                         </td>
                         <td><strong><?php echo esc_html( $controller['friendly_name'] ); ?></strong></td>
-                        <td><code><?php echo esc_html( $controller['uhppoted_device_id'] ); ?></code></td>
-                        <td><code><?php echo esc_html( $controller['ip_address'] ?? '' ); ?></code></td>
-                        <td><?php echo esc_html( $controller['location_description'] ); ?></td>
+                        <td style="text-align: left;"><code><?php echo esc_html( $controller['uhppoted_device_id'] ); ?></code></td>
+                        <td>
+							<code><?php echo esc_html( $controller['ip_address'] ?? '' ); ?></code>
+							<span style="font-size: 0.5em; color: #777; margin-left: 5px;">
+								(<?php echo !empty($controller['is_static_ip']) ? 'Static' : 'DHCP'; ?>)
+							</span>
+						</td>
+                        <td><?php echo esc_html( $controller['notes'] ); ?></td>
                     </tr>
                 <?php endforeach; else : ?>
                     <tr><td colspan="4"><?php esc_html_e( 'No controllers found.', 'fsbhoa-ac' ); ?></td></tr>

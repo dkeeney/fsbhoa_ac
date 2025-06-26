@@ -146,36 +146,28 @@ class Fsbhoa_Shortcodes {
         }
 
         // --- HARDWARE MANAGEMENT (CONTROLLERS, DOORS) ---
-        if ( has_shortcode( $post->post_content, 'fsbhoa_hardware_management' ) ) {
-            // Enqueue the new controller-specific stylesheet
-            wp_enqueue_style(
-                'fsbhoa-controller-styles',
-                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-controller-styles.css',
-                ['fsbhoa-shared-styles'], // Depends on shared styles
-                FSBHOA_AC_VERSION
-            );
+        if ( has_shortcode( $post->post_content, 'fsbhoa_hardware_management' ) 
+            || has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) ) {
 
-            // This JavaScript initializes the DataTables library on the controller list table
-            $controller_table_js = "
-                jQuery(document).ready(function($) {
-                    if ( $('#fsbhoa-controller-table').length && $('#fsbhoa-controller-table tbody tr td').length > 1 ) {
-                        $('#fsbhoa-controller-table').DataTable({
-                            'paging': false, // As requested, no pagination
-                            'searching': false, // We are not using a search box for this simple list yet
-                            'info': false,
-                            'autoWidth': true,
-                            'order': [[ 1, 'asc' ]], // Default sort by the 2nd column (Friendly Name)
-                            'columnDefs': [
-                                { 'orderable': false, 'targets': 'no-sort' }
-                            ]
-                        });
-                    }
-                });
-            ";
+			if ( has_shortcode( $post->post_content, 'fsbhoa_hardware_management' ) ) {
 
-            // Attach the inline JavaScript to the page
-            wp_add_inline_script( 'datatables-script', $controller_table_js );
+                // Enqueue the new controller-specific stylesheet
+                wp_enqueue_style(
+                    'fsbhoa-controller-styles',
+                    FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-controller-styles.css',
+                    ['fsbhoa-shared-styles'], // Depends on shared styles
+                    FSBHOA_AC_VERSION
+                );
 
+  			    // Enqueue the new dedicated JavaScript file for hardware page formatting.
+			    wp_enqueue_script(
+				    'fsbhoa-hardware-admin',
+				    FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-hardware-admin.js',
+				    ['jquery', 'datatables-script'],
+				    FSBHOA_AC_VERSION,
+				    true
+			    );
+            }
 
             // ---  CONTROLLER SYNC SCRIPT ---
             wp_enqueue_script(

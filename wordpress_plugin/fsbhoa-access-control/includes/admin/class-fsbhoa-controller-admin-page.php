@@ -14,6 +14,7 @@ class Fsbhoa_Controller_Admin_Page {
                 case 'controller_added': $message_text = 'Controller added successfully.'; break;
                 case 'controller_updated': $message_text = 'Controller updated successfully.'; break;
                 case 'controller_deleted': $message_text = 'Controller deleted successfully.'; break;
+                case 'controller_set_to_dhcp': $message_text = 'Controller has been set to DHCP mode. Please use "Discover Controllers" to find its new IP address.'; break;
             }
             if ($message_text) {
                 echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message_text) . '</p></div>';
@@ -31,38 +32,64 @@ class Fsbhoa_Controller_Admin_Page {
         require_once plugin_dir_path(__FILE__) . 'views/view-controller-list.php';
         fsbhoa_render_controller_list_view();
     }
+
+
     private function render_form_page($action) {
-        $form_data = [
-            'controller_record_id' => 0,
-            'friendly_name' => '',
-            'uhppoted_device_id' => '',
-            'ip_address' => '',
-            'location_description' => '',
-            'notes' => ''
-        ];
-        $errors = [];
-        $is_edit_mode = ($action === 'edit');
-        $item_id = $is_edit_mode ? absint($_GET['controller_id']) : 0;
+		$form_data = [
+			'controller_record_id' => 0,
+			'friendly_name' => '',
+			'uhppoted_device_id' => '',
+			'ip_address' => '',
+			'door_count' => 4, // Default
+			'location_description' => '',
+			'notes' => '',
+			'doors' => [] // Add a place to hold door data
+		];
+		$errors = [];
+		$is_edit_mode = ($action === 'edit');
+		$item_id = $is_edit_mode ? absint($_GET['controller_id']) : 0;
 
-        // NOTE: The entire block that called the discovery service has been removed.
+		// --- Check for validation errors from a previous submission ---
+		$transient_key = 'fsbhoa_controller_feedback_' . ($is_edit_mode ? 'edit_' . $item_id : 'add');
+		$feedback = get_transient($transient_key);
 
-        $transient_key = 'fsbhoa_controller_feedback_' . ($is_edit_mode ? 'edit_' . $item_id : 'add');
-        $feedback = get_transient($transient_key);
+		if ($feedback !== false) {
+			$form_data = array_merge($form_data, $feedback['data']);
+			$errors = $feedback['errors'];
+			delete_transient($transient_key);
+		} elseif ($is_edit_mode) {
+			// --- No errors, so fetch fresh data from the DB for editing ---
+			global $wpdb;
+			// Fetch the main controller record
+			$controller_result = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_controllers WHERE controller_record_id = %d", $item_id), ARRAY_A);
 
-        if ($feedback !== false) {
-            $form_data = array_merge($form_data, $feedback['data']);
-            $errors = $feedback['errors'];
-            delete_transient($transient_key);
-        } elseif ($is_edit_mode) {
-            global $wpdb;
-            $result = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_controllers WHERE controller_record_id = %d", $item_id), ARRAY_A);
-            if ($result) {
-                $form_data = $result;
-            }
-        }
-        
-        // We no longer pass the $discovered_controllers array.
-        require_once plugin_dir_path(__FILE__) . 'views/view-controller-form.php';
-        fsbhoa_render_controller_form($form_data, $is_edit_mode, $errors);
+			if ($controller_result) {
+				$form_data = array_merge($form_data, $controller_result);
+
+				// Now, fetch all associated doors for this controller
+				$door_results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ac_doors WHERE controller_record_id = %d ORDER BY door_number_on_controller ASC", $item_id), ARRAY_A);
+
+                // --- Restored DB Error Check ---
+				if ($wpdb->last_error) {
+					wp_die('Database error fetching associated gates. DB Error: ' . esc_html($wpdb->last_error), 'Database Error', ['back_link' => true]);
+				}
+				// Re-key the doors array by their slot number for easy access in the view
+				if ($door_results) {
+					foreach ($door_results as $door) {
+						$form_data['doors'][$door['door_number_on_controller']] = $door;
+					}
+				}
+			} else {
+				if ($wpdb->last_error) {
+					wp_die('Database error fetching controllers. DB Error: ' . esc_html($wpdb->last_error), 'Database Error', ['back_link' => true]);
+				}
+				wp_die('Error: Controller not found.', 'Not Found', ['back_link' => true]);
+			}
+		}
+
+		// Now, call the view and pass it the combined data
+		require_once plugin_dir_path(__FILE__) . 'views/view-controller-form.php';
+		fsbhoa_render_controller_form($form_data, $is_edit_mode, $errors);
     }
+
 }
