@@ -81,6 +81,9 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-actions.php';
 
+// For Live Monitor
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-api.php';
+
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
 // This makes the admin functions available on the front-end for our shortcode.
@@ -147,6 +150,11 @@ function run_fsbhoa_action_handlers() {
     // Instantiate Task Actions handler
     if (class_exists('Fsbhoa_Task_Actions')) {
         new Fsbhoa_Task_Actions();
+    }
+
+    // Instantiate the Monitor REST API handler
+    if (class_exists('Fsbhoa_Monitor_REST_API')) {
+        new Fsbhoa_Monitor_REST_API();
     }
 
 

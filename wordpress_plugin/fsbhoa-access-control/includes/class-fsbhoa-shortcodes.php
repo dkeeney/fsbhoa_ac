@@ -12,6 +12,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_cardholder_management', array( $this, 'render_cardholder_management_shortcode' ) );
         add_shortcode( 'fsbhoa_print_card', array( $this, 'render_print_card_shortcode' ) );
         add_shortcode( 'fsbhoa_hardware_management', array( $this, 'render_hardware_management_shortcode' ) );
+        add_shortcode( 'fsbhoa_live_monitor', array( $this, 'render_live_monitor_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
@@ -91,6 +92,7 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_import_form' )  
             && ! has_shortcode( $post->post_content, 'fsbhoa_print_card' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_hardware_management' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_live_monitor' )
             ) ) {
             return;
         }
@@ -246,6 +248,30 @@ class Fsbhoa_Shortcodes {
             wp_add_inline_script( 'datatables-script', $deleted_table_js );
         }
 
+
+        // --- LIVE MONITOR ASSETS ---
+		if ( has_shortcode( $post->post_content, 'fsbhoa_live_monitor' ) ) {
+			// (We can add a dedicated CSS file here later if needed)
+
+			$script_handle = 'fsbhoa-live-monitor-script';
+			wp_enqueue_script(
+				$script_handle,
+				FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-live-monitor.js',
+				[], // No dependencies
+				FSBHOA_AC_VERSION,
+				true
+			);
+
+			// Pass the configurable WebSocket URL to the script
+			$ws_port = get_option('fsbhoa_ac_event_port', 8083);
+			$ws_url = sprintf('wss://%s:%d/ws', 'NAS.local', $ws_port);
+
+			wp_localize_script(
+				$script_handle,
+				'fsbhoa_monitor_vars',
+				['ws_url' => $ws_url]
+			);
+		}
     }
 
 
@@ -331,4 +357,19 @@ class Fsbhoa_Shortcodes {
         }
         return ob_get_clean();
     }
+
+    /**
+	 * Renders the live activity monitor page.
+	 */
+	public function render_live_monitor_shortcode( $atts ) {
+		if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+			return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
+		}
+
+		ob_start();
+		require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-live-monitor.php';
+		fsbhoa_render_live_monitor_view();
+		return ob_get_clean();
+    }
+
 }

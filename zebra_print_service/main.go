@@ -11,6 +11,7 @@ import "C" // This special import enables cgo
 
 import (
 	"encoding/json"
+    "flag"
 	"fmt"
 	"io"
 	"log"
@@ -211,16 +212,21 @@ func printStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/print_card", printCardHandler)
-	http.HandleFunc("/print-status/", printStatusHandler)
+        // Define a command-line flag for the port number
+        port := flag.Int("port", 8081, "Port number for the print service")
+        flag.Parse()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "FSBHOA Go Printer Service is running!")
-	})
+        http.HandleFunc("/print_card", printCardHandler)
+        http.HandleFunc("/print-status/", printStatusHandler)
 
-	log.Println("Starting Zebra Print Service on port 8081...")
-	if err := http.ListenAndServe(":8081", nil); err != nil {
-		log.Fatal("ListenAndServe: ", err)
-	}
+        http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+                fmt.Fprintf(w, "FSBHOA Go Printer Service is running!")
+        })
+
+        addr := fmt.Sprintf(":%d", *port)
+        log.Printf("Starting Zebra Print Service on port %s...", addr)
+        if err := http.ListenAndServe(addr, nil); err != nil {
+                log.Fatal("ListenAndServe: ", err)
+        }
 }
 

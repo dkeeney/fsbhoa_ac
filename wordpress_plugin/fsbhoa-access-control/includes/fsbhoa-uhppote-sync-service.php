@@ -14,6 +14,8 @@ add_action('fsbhoa_run_background_sync', 'fsbhoa_perform_full_sync');
  * Contains full add, update, delete for cards, and now syncs and validates tasks.
  */
 function fsbhoa_perform_full_sync() {
+    $rest_port = get_option('fsbhoa_ac_rest_port', 8082);
+
     if (FSBHOA_DEBUG_MODE) {
         error_log("SYNC SERVICE: Main sync process started.");
     }
@@ -73,7 +75,7 @@ function fsbhoa_perform_full_sync() {
         // --- Card Deletion Logic ---
         set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking for cards to delete on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
         
-        $cards_on_controller_req = wp_remote_get("http://127.0.0.1:8082/uhppote/device/{$device_id_for_url}/cards", ['timeout' => 20]);
+        $cards_on_controller_req = wp_remote_get("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/cards", ['timeout' => 20]);
         if (!is_wp_error($cards_on_controller_req) && wp_remote_retrieve_response_code($cards_on_controller_req) === 200) {
             $response_body = json_decode(wp_remote_retrieve_body($cards_on_controller_req), true);
             $controller_card_numbers = $response_body['cards'] ?? [];
@@ -87,7 +89,7 @@ function fsbhoa_perform_full_sync() {
                     if (FSBHOA_DEBUG_MODE) {
                         error_log("SYNC SERVICE: >>> Deleting Card #{$card_to_del} from '$friendly_name'");
                     }
-                    wp_remote_request("http://127.0.0.1:8082/uhppote/device/{$device_id_for_url}/card/{$card_to_del}", ['method' => 'DELETE', 'timeout' => 15]);
+                    wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/card/{$card_to_del}", ['method' => 'DELETE', 'timeout' => 15]);
                 }
             } else {
                 if (FSBHOA_DEBUG_MODE) {
@@ -122,7 +124,7 @@ function fsbhoa_perform_full_sync() {
                 error_log("SYNC SERVICE: >>> Pushing update for Card #{$card_number} to '$friendly_name'");
             }
             $card_data_to_push = ['start-date'  => $card_data_for_db['start-date'], 'end-date' => $card_data_for_db['end-date'], 'doors' => ["1" => true, "2" => true, "3" => true, "4" => true]];
-            $request_url = sprintf("http://127.0.0.1:8082/uhppote/device/%s/card/%s", $device_id_for_url, $card_number);
+            $request_url = sprintf("http://127.0.0.1:{$rest_port}/uhppote/device/%s/card/%s", $device_id_for_url, $card_number);
             $response = wp_remote_request($request_url, ['method' => 'PUT', 'headers' => ['Content-Type' => 'application/json'], 'body' => json_encode($card_data_to_push), 'timeout' => 15]);
 
             // Final verification after push. Run verbosely (true)
@@ -146,7 +148,7 @@ function fsbhoa_perform_full_sync() {
             if (FSBHOA_DEBUG_MODE) {
                 error_log("SYNC SERVICE: Clearing all existing tasks from '$friendly_name' before pushing new list.");
             }
-            wp_remote_request("http://127.0.0.1:8082/uhppote/device/{$device_id_for_url}/tasks", ['method' => 'DELETE', 'timeout' => 15]);
+            wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/tasks", ['method' => 'DELETE', 'timeout' => 15]);
 
             $task_count = 0;
             foreach ($tasks as $task) {
@@ -162,7 +164,7 @@ function fsbhoa_perform_full_sync() {
                         error_log("SYNC SERVICE: >>> Pushing Task #{$task->task_type} for door {$task->door_number} to '$friendly_name'");
                     }
                     // The API to put a single task is /task/{task_id}
-                    wp_remote_request("http://127.0.0.1:8082/uhppote/device/{$device_id_for_url}/task/{$task->task_type}", ['method' => 'PUT', 'headers' => ['Content-Type' => 'application/json'], 'body' => json_encode($task_body), 'timeout' => 15]);
+                    wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/task/{$task->task_type}", ['method' => 'PUT', 'headers' => ['Content-Type' => 'application/json'], 'body' => json_encode($task_body), 'timeout' => 15]);
                 }
             }
             // After pushing all tasks, send the 'refresh' command to activate them.
@@ -170,7 +172,7 @@ function fsbhoa_perform_full_sync() {
                 error_log("SYNC SERVICE: >>> Sending 'refresh tasklist' command to '$friendly_name'");
             }
             // A PUT request to the /tasklist endpoint triggers the refresh.
-            wp_remote_request("http://127.0.0.1:8082/uhppote/device/{$device_id_for_url}/tasklist", ['method' => 'PUT', 'timeout' => 15]);
+            wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/tasklist", ['method' => 'PUT', 'timeout' => 15]);
         }
     }
 
@@ -184,8 +186,9 @@ function fsbhoa_perform_full_sync() {
  * Verifies card details on a controller.
  */
 function fsbhoa_verify_card_on_controller($device_id, $card_data, $log_mismatch = true) {
+    $rest_port = get_option('fsbhoa_ac_rest_port', 8082);
     $card_number = $card_data['card-number'];
-    $request_url = sprintf("http://127.0.0.1:8082/uhppote/device/%s/card/%s", rawurlencode($device_id), rawurlencode($card_number));
+    $request_url = sprintf("http://127.0.0.1:{$rest_port}/uhppote/device/%s/card/%s", rawurlencode($device_id), rawurlencode($card_number));
     $response = wp_remote_get($request_url, ['timeout' => 10]);
 
     if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) { 
@@ -237,7 +240,7 @@ function fsbhoa_verify_card_on_controller($device_id, $card_data, $log_mismatch 
  * Verifies the list of tasks on a controller by calling the uhppoted-rest API.
  */
 function fsbhoa_verify_tasks_on_controller($device_id, $expected_tasks) {
-    $request_url = sprintf("http://127.0.0.1:8082/uhppote/device/%s/tasks", rawurlencode($device_id));
+    $request_url = sprintf("http://127.0.0.1:{$rest_port}/uhppote/device/%s/tasks", rawurlencode($device_id));
     $response = wp_remote_get($request_url, ['timeout' => 10]);
 
     if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) { 
