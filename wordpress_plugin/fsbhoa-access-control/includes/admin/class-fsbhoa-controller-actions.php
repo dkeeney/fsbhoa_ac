@@ -102,6 +102,7 @@ public function handle_form_submission() {
 		// --- Finalize Transaction ---
 		if (empty($errors)) {
 			$wpdb->query('COMMIT');
+            $this->write_controllers_file();
 		} else {
 			$wpdb->query('ROLLBACK');
 			// If there are errors, save data to a transient and redirect back to the form
@@ -134,6 +135,7 @@ public function handle_form_submission() {
         global $wpdb;
         $table_name = 'ac_controllers';
         $result = $wpdb->delete($table_name, ['controller_record_id' => $item_id]);
+        $this->write_controllers_file();
 
         // Added database error checking
         if (false === $result) {
@@ -241,6 +243,8 @@ public function handle_form_submission() {
         // Clean up the URL from the discovery-results parameter
         $list_page_url = remove_query_arg( 'discovery-results', $redirect_url );
 
+        $this->write_controllers_file();
+
         // Add a success message to the final URL
         $final_url = add_query_arg('message', 'controller_added', $list_page_url);
 
@@ -306,6 +310,24 @@ public function handle_form_submission() {
         } else {
             error_log("AJAX GET STATUS: <<< In-progress transient NOT found. Sending 'idle'.");
             wp_send_json_success(['status' => 'idle', 'message' => '']);
+        }
+    }
+
+
+/**
+     * Queries the DB for all controller IDs and writes them to a JSON file.
+     */
+    private function write_controllers_file() {
+        global $wpdb;
+        $table_name = 'ac_controllers';
+        $config_path = '/var/lib/fsbhoa/controllers.json';
+
+        $controllers = $wpdb->get_results( "SELECT uhppoted_device_id FROM {$table_name}", ARRAY_A );
+
+        if ( is_array( $controllers ) ) {
+            $json_data = json_encode( $controllers, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+            // This will fail if /var/lib/fsbhoa isn't writable by www-data
+            file_put_contents( $config_path, $json_data );
         }
     }
 }

@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const connectionStatus = document.getElementById('connection-status');
     const statusDot = connectionStatus ? connectionStatus.querySelector('div') : null;
     const statusText = connectionStatus ? connectionStatus.querySelector('span') : null;
+    let lastEventTimestamp = '';
     
     if (!eventList || !connectionStatus) {
         console.error("Live Monitor UI elements not found. Aborting script.");
@@ -113,9 +114,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function addEventToLog(eventData) {
+        // 1. Check if the new event's timestamp is the same as the last one.
+        if (eventData.timestamp === lastEventTimestamp) {
+            return; // If it's the same, stop and ignore the event.
+        }
+
         if (logPlaceholder) {
             logPlaceholder.remove();
-            logPlaceholder = null; 
+            logPlaceholder = null;
         }
 
         const newEventCard = createEventCard(eventData, true);
@@ -130,10 +136,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 cardToCollapse.replaceWith(collapsedCard);
             }
         }
-        
+
         while (eventList.children.length > 50) {
             eventList.removeChild(eventList.lastChild);
         }
+
+        // 2. Update the 'lastEventTimestamp' with the new timestamp.
+        lastEventTimestamp = eventData.timestamp;
     }
 
     connect();
