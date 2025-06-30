@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-    "crypto/tls"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -15,14 +16,38 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uhppoted/uhppote-core/uhppote"
 	"github.com/gorilla/websocket"
+	"github.com/uhppoted/uhppote-core/uhppote"
 	"github.com/uhppoted/uhppote-core/types"
 )
 
-var debug *bool
+// --- Global Variables ---
+var config Config
+var currentControllerSerials []uint32
+var serialsLock sync.Mutex
 
 // --- Data Structs ---
+
+// Config holds all configuration loaded from the JSON file
+type Config struct {
+	BindAddress      string `json:"bindAddress"`
+	BroadcastAddress string `json:"broadcastAddress"`
+	ListenPort       int    `json:"listenPort"`
+	CallbackHost     string `json:"callbackHost"`
+	WebSocketPort    int    `json:"webSocketPort"`
+	WpURL            string `json:"wpURL"`
+	TlsCert          string `json:"tlsCert"`
+	TlsKey           string `json:"tlsKey"`
+	LogFile          string `json:"logFile"`
+	Debug            bool   `json:"debug"`
+	EnableTestStub   bool   `json:"enableTestStub"`
+}
+
+// Controller struct for parsing the list from WordPress/JSON
+type Controller struct {
+	DeviceID uint32 `json:"uhppoted_device_id,string"`
+}
+
 type EnrichedEvent struct {
 	EventType      string `json:"eventType"`
 	CardholderName string `json:"cardholderName"`
@@ -30,7 +55,9 @@ type EnrichedEvent struct {
 	GateName       string `json:"gateName"`
 	Timestamp      string `json:"timestamp"`
 	EventMessage   string `json:"eventMessage"`
+	CardNumber     uint32 `json:"cardNumber"`
 }
+
 type RawHardwareEvent struct {
 	SerialNumber uint32
 	CardNumber   uint32
@@ -38,14 +65,15 @@ type RawHardwareEvent struct {
 	Granted      bool
 	Reason       uint8
 }
+
 type WordPressEnrichmentData struct {
 	CardholderName string `json:"cardholderName"`
 	PhotoURL       string `json:"photoURL"`
 	GateName       string `json:"gateName"`
 }
+
 type EventMonitor struct {
-	hub   *Hub
-	wpURL string
+	hub *Hub
 }
 
 // --- Listener Methods ---
@@ -54,7 +82,7 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 		return
 	}
 	event := status.Event
-	if *debug {
+	if config.Debug {
 		log.Printf("DEBUG: OnEvent received: %+v", event)
 	}
 	rawEvent := RawHardwareEvent{
@@ -64,15 +92,17 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 		Granted:      event.Granted,
 		Reason:       event.Reason,
 	}
-	enriched, _ := enrichEvent(rawEvent, m.wpURL)
+	enriched, _ := enrichEvent(rawEvent)
 	jsonEvent, _ := json.Marshal(enriched)
 	m.hub.broadcast <- jsonEvent
 }
+
 func (m *EventMonitor) OnConnected() {
-	if *debug {
+	if config.Debug {
 		log.Printf("DEBUG: OnConnected callback received.")
 	}
 }
+
 func (m *EventMonitor) OnError(err error) bool {
 	log.Printf("ERROR: uhppote-core library error: %v", err)
 	return true
@@ -100,6 +130,7 @@ func newHub() *Hub {
 		clients:    make(map[*Client]bool),
 	}
 }
+
 func (h *Hub) run() {
 	for {
 		select {
@@ -161,19 +192,15 @@ func (c *Client) writePump() {
 	}
 }
 
-// --- Event Enrichment & Hardware Listener ---
-func enrichEvent(rawEvent RawHardwareEvent, wpURL string) (EnrichedEvent, error) {
+// --- Event Enrichment, Watcher, and Listener Functions ---
+func enrichEvent(rawEvent RawHardwareEvent) (EnrichedEvent, error) {
+	if config.Debug {
+		log.Printf("DEBUG: Enriching event for card %d...", rawEvent.CardNumber)
+	}
 	apiURL := fmt.Sprintf(
 		"%s/wp-json/fsbhoa/v1/monitor/enrich-event?card_number=%d&controller_sn=%d&door_number=%d",
-		wpURL, rawEvent.CardNumber, rawEvent.SerialNumber, rawEvent.Door,
+		config.WpURL, rawEvent.CardNumber, rawEvent.SerialNumber, rawEvent.Door,
 	)
-
-    if *debug {
-        log.Printf("DEBUG: Enriching event for card %d...", rawEvent.CardNumber)
-    }
-
-   	// --- Create a custom HTTP client that skips SSL certificate verification ---
-	// This is safe because we are only calling our own internal server.
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -181,7 +208,6 @@ func enrichEvent(rawEvent RawHardwareEvent, wpURL string) (EnrichedEvent, error)
 		Timeout:   5 * time.Second,
 		Transport: tr,
 	}
-
 	resp, err := client.Get(apiURL)
 	if err != nil {
 		log.Printf("ERROR: Failed to call WordPress API at %s: %v", apiURL, err)
@@ -196,6 +222,7 @@ func enrichEvent(rawEvent RawHardwareEvent, wpURL string) (EnrichedEvent, error)
 		PhotoURL:       wpData.PhotoURL,
 		GateName:       wpData.GateName,
 		Timestamp:      time.Now().Format("3:04:05 PM"),
+		CardNumber:     rawEvent.CardNumber,
 	}
 	if rawEvent.Granted {
 		enriched.EventType = "accessGranted"
@@ -205,13 +232,94 @@ func enrichEvent(rawEvent RawHardwareEvent, wpURL string) (EnrichedEvent, error)
 		enriched.EventMessage = "Access Denied"
 	}
 
-    if *debug {
-        log.Printf("DEBUG: Event enriched successfully: %+v", enriched)
-    }
+	if config.Debug {
+		log.Printf("DEBUG: Event enriched successfully: %+v", enriched)
+	}
 	return enriched, nil
 }
-func listenForHardwareEvents(u uhppote.IUHPPOTE, hub *Hub, wpURL string) error {
-	listener := EventMonitor{hub: hub, wpURL: wpURL}
+
+func watchConfigFile(u uhppote.IUHPPOTE) {
+	configPath := "/var/lib/fsbhoa/controllers.json"
+	var lastModTime time.Time
+
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		stat, err := os.Stat(configPath)
+		if err != nil {
+			if !os.IsNotExist(err) && config.Debug {
+				log.Printf("DEBUG WATCHER: Error checking controller file: %v", err)
+			}
+			continue
+		}
+
+		if stat.ModTime().After(lastModTime) {
+			log.Println("INFO WATCHER: Detected change in controllers.json. Reloading list...")
+			lastModTime = stat.ModTime()
+
+			jsonFile, err := os.Open(configPath)
+			if err != nil {
+				log.Printf("ERROR WATCHER: Could not open changed controller file: %v", err)
+				continue
+			}
+
+			var newControllers []Controller
+			byteValue, _ := io.ReadAll(jsonFile)
+			jsonFile.Close()
+			if err := json.Unmarshal(byteValue, &newControllers); err != nil {
+				log.Printf("ERROR WATCHER: Could not parse changed controller file: %v", err)
+				continue
+			}
+
+			newSerials := []uint32{}
+			for _, c := range newControllers {
+				newSerials = append(newSerials, c.DeviceID)
+			}
+
+			serialsLock.Lock()
+
+			callbackAddrString := fmt.Sprintf("%s:%d", config.CallbackHost, config.ListenPort)
+			callbackAddr, _ := netip.ParseAddrPort(callbackAddrString)
+			nullAddr, _ := netip.ParseAddrPort("0.0.0.0:0")
+
+			for _, newID := range newSerials {
+				found := false
+				for _, oldID := range currentControllerSerials {
+					if newID == oldID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					log.Printf("INFO WATCHER: New controller added (%d). Setting listener.", newID)
+					u.SetListener(newID, callbackAddr, 0)
+				}
+			}
+
+			for _, oldID := range currentControllerSerials {
+				found := false
+				for _, newID := range newSerials {
+					if oldID == newID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					log.Printf("INFO WATCHER: Controller removed (%d). Clearing listener.", oldID)
+					u.SetListener(oldID, nullAddr, 0)
+				}
+			}
+
+			currentControllerSerials = newSerials
+			serialsLock.Unlock()
+			log.Println("INFO WATCHER: Controller list reloaded successfully.")
+		}
+	}
+}
+
+func listenForHardwareEvents(u uhppote.IUHPPOTE, hub *Hub) error {
+	listener := EventMonitor{hub: hub}
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 	log.Println("INFO: Hardware Event Listener started successfully.")
@@ -219,10 +327,13 @@ func listenForHardwareEvents(u uhppote.IUHPPOTE, hub *Hub, wpURL string) error {
 	log.Println("INFO: Hardware Event Listener stopped.")
 	return err
 }
-func testEventHandler(hub *Hub, wpURL string) http.HandlerFunc {
+func testEventHandler(hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if config.Debug {
+			log.Println("DEBUG: Received request on /test_event endpoint.")
+		}
 		rawEvent := RawHardwareEvent{SerialNumber: 425043852, CardNumber: uint32(10000000 + rand.Intn(999999)), Door: uint8(rand.Intn(4) + 1), Granted: rand.Intn(10) > 2}
-		enriched, err := enrichEvent(rawEvent, wpURL)
+		enriched, err := enrichEvent(rawEvent)
 		if err != nil {
 			http.Error(w, "Failed to enrich test event", 500)
 			return
@@ -235,86 +346,97 @@ func testEventHandler(hub *Hub, wpURL string) http.HandlerFunc {
 
 // --- Main Application ---
 func main() {
-	// --- Configuration Flags ---
-	bindAddr := types.MustParseBindAddr("0.0.0.0:0")
-	broadcastAddr := types.MustParseBroadcastAddr("192.168.42.255:60000")
-	listenAddr := types.MustParseListenAddr("0.0.0.0:60001")
-
-	port := flag.Int("port", 8083, "Port for the WebSocket service.")
-	wpProtocol := flag.String("wp-protocol", "https", "Protocol for WordPress API (http or https).")
-	wpHost := flag.String("wp-host", "nas.local", "Hostname of the WordPress server.")
-	wpPort := flag.Int("wp-port", 443, "Port of the WordPress server (e.g., 80 or 443).")
-	callbackHost := flag.String("callback-host", "192.168.42.99", "The specific IP address to be sent to the controller for event callbacks.")
-	logFile := flag.String("logFile", "", "Path to the log file.")
-	tlsCert := flag.String("tls-cert", "", "Path to the TLS certificate file.")
-	tlsKey := flag.String("tls-key", "", "Path to the TLS key file.")
-	enableTestStub := flag.Bool("enable-test-stub", false, "Enable the /test_event endpoint.")
-	debug = flag.Bool("debug", false, "Enable verbose debug logging.")
+	configFile := flag.String("config", "/var/lib/fsbhoa/event_service.conf", "Path to the JSON configuration file.")
 	flag.Parse()
 
-	// --- Assemble WordPress URL from flags ---
-	wpURL := fmt.Sprintf("%s://%s:%d", *wpProtocol, *wpHost, *wpPort)
-	callbackAddrString := fmt.Sprintf("%s:60001", *callbackHost)
+	jsonFile, err := os.Open(*configFile)
+	if err != nil {
+		log.Fatalf("FATAL: Could not open config file '%s': %v", *configFile, err)
+	}
+	defer jsonFile.Close()
 
+	byteValue, _ := io.ReadAll(jsonFile)
+	if err := json.Unmarshal(byteValue, &config); err != nil {
+		log.Fatalf("FATAL: Could not parse config file '%s': %v", *configFile, err)
+	}
 
-	// --- Logging Setup ---
-	if *logFile != "" {
-		f, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if config.LogFile != "" {
+		f, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			log.Fatalf("FATAL: Failed to open log file %s: %v", *logFile, err)
+			log.Fatalf("FATAL: Failed to open log file %s: %v", config.LogFile, err)
 		}
 		defer f.Close()
 		log.SetOutput(f)
 	}
+
 	log.Println("----------------------------------------------------")
 	log.Printf("INFO: FSBHOA Event Service starting...")
-	log.Printf("INFO: WebSocket listening on port: %d", *port)
-    log.Printf("INFO: Setting controller callback address to: %s", callbackAddrString)
-	log.Printf("INFO: WordPress API target: %s", wpURL)
+	log.Printf("INFO: WordPress API target: %s", config.WpURL)
 
-	// --- UHPPOTE Initialization ---
-	u := uhppote.NewUHPPOTE(bindAddr, broadcastAddr, listenAddr, 5*time.Second, nil, *debug)
-
-    controllerListenAddrPort, _ := netip.ParseAddrPort(callbackAddrString)
-	if _, err := u.SetListener(425043852, controllerListenAddrPort, 2); err != nil {
-		log.Printf("WARN: Could not set listener: %v", err)
-	}
-
-    log.Println("INFO: Verifying listener address on controller...")
-	retrievedListener, interval, err := u.GetListener(425043852)
+	log.Println("INFO: Fetching initial controller list...")
+	controllersConfigPath := "/var/lib/fsbhoa/controllers.json"
+	controllersFile, err := os.Open(controllersConfigPath)
 	if err != nil {
-		log.Printf("ERROR: Could not get listener address from controller: %v", err)
+		log.Printf("WARN: Could not open controllers file '%s': %v. Starting with empty list.", controllersConfigPath, err)
 	} else {
-		log.Printf("INFO: Controller reports listener is: Addr(%s), Interval(%v)", retrievedListener, interval)
-		if retrievedListener.String() == controllerListenAddrPort.String() {
-			log.Println("INFO: OK - Listener address appears to be set correctly.")
+		var controllers []Controller
+		byteValue, _ := io.ReadAll(controllersFile)
+		controllersFile.Close()
+		if err := json.Unmarshal(byteValue, &controllers); err != nil {
+			log.Printf("WARN: Could not parse controllers file '%s': %v. Starting with empty list.", controllersConfigPath, err)
 		} else {
-			log.Printf("WARN: MISMATCH - Listener on controller is %s, but we expected %s.", retrievedListener, controllerListenAddrPort)
+			serialsLock.Lock()
+			for _, c := range controllers {
+				currentControllerSerials = append(currentControllerSerials, c.DeviceID)
+			}
+			serialsLock.Unlock()
 		}
 	}
 
-	// --- Graceful Shutdown & Goroutine Management ---
+	listenAddressString := fmt.Sprintf("%s:%d", config.CallbackHost, config.ListenPort)
+	log.Printf("INFO: Service listening for events on %s", listenAddressString)
+
+	bindAddr := types.MustParseBindAddr(config.BindAddress)
+	broadcastAddr := types.MustParseBroadcastAddr(config.BroadcastAddress)
+	listenAddr := types.MustParseListenAddr(listenAddressString)
+	u := uhppote.NewUHPPOTE(bindAddr, broadcastAddr, listenAddr, 5*time.Second, nil, config.Debug)
+
+	callbackAddrString := fmt.Sprintf("%s:%d", config.CallbackHost, config.ListenPort)
+	controllerListenerAddr, err := netip.ParseAddrPort(callbackAddrString)
+	if err != nil {
+		log.Fatalf("FATAL: Invalid callback address '%s': %v", callbackAddrString, err)
+	}
+    log.Printf("INFO: Callback address: %s", callbackAddrString )
+
+	log.Printf("INFO: Configuring %d controllers...", len(currentControllerSerials))
+	for _, deviceID := range currentControllerSerials {
+		log.Printf("INFO: Sending SetListener to device ID %d", deviceID)
+		if _, err := u.SetListener(deviceID, controllerListenerAddr, 0); err != nil {
+			log.Printf("WARN: Could not set listener for %d: %v", deviceID, err)
+		}
+	}
+
 	hub := newHub()
 	errors := make(chan error, 2)
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
 	go hub.run()
-
+	go watchConfigFile(u)
 	go func() {
-		errors <- listenForHardwareEvents(u, hub, wpURL)
+		errors <- listenForHardwareEvents(u, hub)
 	}()
 
-	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", *port)}
+	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", config.WebSocketPort)}
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { serveWs(hub, w, r) })
-	if *enableTestStub {
-		http.HandleFunc("/test_event", testEventHandler(hub, wpURL))
+	if config.EnableTestStub {
+		http.HandleFunc("/test_event", testEventHandler(hub))
 	}
 
 	go func() {
 		var err error
-		if *tlsCert != "" && *tlsKey != "" {
-			err = server.ListenAndServeTLS(*tlsCert, *tlsKey)
+		if config.TlsCert != "" && config.TlsKey != "" {
+			err = server.ListenAndServeTLS(config.TlsCert, config.TlsKey)
 		} else {
 			err = server.ListenAndServe()
 		}

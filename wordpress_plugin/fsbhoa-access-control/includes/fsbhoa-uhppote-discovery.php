@@ -15,18 +15,22 @@ function fsbhoa_discover_controllers_udp() {
     // Execute the command as the current user (which will be www-data).
     $output = shell_exec($command);
 
+    //var_dump($output);
+    //die('DEBUG: Script stopped in fsbhoa_discover_controllers_udp()');
+
     if (empty($output)) {
         // Return an empty array if the command failed or found nothing.
         return [];
     }
+    // ---  Remove any line containing "WARN:" before processing ---
+    $output = preg_replace('/^.*WARN.*$\n?/m', '', $output);
 
     $controllers = [];
     // Split the output into individual lines
     $lines = explode("\n", trim($output));
 
     foreach ($lines as $line) {
-        // Ignore potential warning lines or empty lines
-        if (empty(trim($line)) || str_contains(trim($line), 'WARN:')) {
+        if (empty(trim($line))) {
             continue;
         }
 

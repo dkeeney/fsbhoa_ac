@@ -1,331 +1,161 @@
 <?php
-/**
- * FSBHOA Access Control Settings Page
- *
- * @package    Fsbhoa_Ac
- * @subpackage Fsbhoa_Ac/admin
- * @author     Your Name <you@example.com>
- */
-
-if ( ! defined( 'WPINC' ) ) {
-    die;
-}
+if ( ! defined( 'WPINC' ) ) { die; }
 
 class Fsbhoa_Ac_Settings_Page {
 
-    /**
-     * The unique identifier of this plugin's settings page.
-     * @var      string    $settings_page_slug
-     */
-    private $settings_page_slug = 'fsbhoa_ac_settings_page';
+    private $parent_slug = 'fsbhoa_ac_main_menu';
+    private $config_path = '/var/lib/fsbhoa/event_service.conf';
+    private $event_service_option_group = 'fsbhoa_event_service_options';
 
-    /**
-     * The option group for photo settings and other things.
-     * @var      string    $option_group
-     */
-    private $option_group = 'fsbhoa_ac_settings_group';
-
-    /**
-     * The option group for import settings.
-     * @var      string    Address sufix to remove.
-     */
-    private $display_option_group = 'fsbhoa_ac_display_settings_group';
-
-    /**
-     * Initialize the class and set its properties.
-     *
-     * @since    1.0.0
-     */
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'add_plugin_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'settings_api_init' ) );
+        add_action( 'admin_init', array( $this, 'intercept_event_service_save' ) );
     }
 
-    /**
-     * Adds a submenu page under the main FSBHOA Access menu.
-     *
-     * @since    1.0.0
-     */
-    public function add_plugin_admin_menu() {
-        // Add the main top-level menu page.
-        add_menu_page(
-            __('FSBHOA Settings', 'fsbhoa-ac'),            // Page title
-            __('FSBHOA AC', 'fsbhoa-ac'),                  // Menu title
-            'manage_options',                             // Capability
-            'fsbhoa_ac_main_menu',                        // The unique slug for this menu
-            array( $this, 'render_settings_page_html' ),  // The callback to render the settings page
-            'dashicons-id-alt',                           // Icon
-            25                                            // Position
-        );
-    }
-
-    /**
-     * Initializes the WordPress Settings API for the plugin options.
-     *
-     * @since    1.0.0
-     */
-    public function settings_api_init() {
-        // Register the photo settings group
-        register_setting(
-            $this->option_group,
-            'fsbhoa_ac_photo_width',
-            array( $this, 'sanitize_dimension_callback' )
-        );
-
-        register_setting(
-            $this->option_group,
-            'fsbhoa_ac_photo_height',
-            array( $this, 'sanitize_dimension_callback' )
-        );
-
-        // Add the photo editor settings section
-        add_settings_section(
-            'fsbhoa_ac_photo_editor_section',
-            __( 'Photo Editor Settings', 'fsbhoa-ac' ),
-            array( $this, 'render_photo_editor_section_info' ),
-            $this->settings_page_slug
-        );
-
-        // Add photo width field
-        add_settings_field(
-            'fsbhoa_ac_photo_width_field',
-            __( 'Photo Width (px)', 'fsbhoa-ac' ),
-            array( $this, 'render_photo_width_field' ),
-            $this->settings_page_slug,
-            'fsbhoa_ac_photo_editor_section',
-            array( 'label_for' => 'fsbhoa_ac_photo_width_input' )
-        );
-
-        // Add photo height field
-        add_settings_field(
-            'fsbhoa_ac_photo_height_field',
-            __( 'Photo Height (px)', 'fsbhoa-ac' ),
-            array( $this, 'render_photo_height_field' ),
-            $this->settings_page_slug,
-            'fsbhoa_ac_photo_editor_section',
-            array( 'label_for' => 'fsbhoa_ac_photo_height_input' )
-        );
-        // --- Address import Settings Group ---
-        register_setting($this->display_option_group, 'fsbhoa_ac_address_suffix', 'sanitize_text_field');
-
-        add_settings_section('fsbhoa_ac_display_options_section', __('Display Options', 'fsbhoa-ac'), array( $this, 'render_display_section_info' ), $this->settings_page_slug);
-        add_settings_field('fsbhoa_ac_address_suffix_field', __('Address Suffix to Remove', 'fsbhoa-ac'), array( $this, 'render_address_suffix_field' ), $this->settings_page_slug, 'fsbhoa_ac_display_options_section');
-        
-        // --- Display Settings Group ---
-        register_setting($this->option_group, 'fsbhoa_ac_address_suffix', 'sanitize_text_field');
-
-        add_settings_section('fsbhoa_ac_display_options_section', __('Display Options', 'fsbhoa-ac'), array( $this, 'render_display_section_info' ), $this->settings_page_slug);
-
-        add_settings_field('fsbhoa_ac_address_suffix_field', __('Address Suffix to Remove', 'fsbhoa-ac'), array( $this, 'render_address_suffix_field' ), $this->settings_page_slug, 'fsbhoa_ac_display_options_section');
-        //
-        // ---  Backend Services Settings ---
-
-		// Add the new section to the page
-		add_settings_section(
-			'fsbhoa_ac_services_section',
-			__( 'Backend Service Settings', 'fsbhoa-ac' ),
-			array( $this, 'render_services_section_info' ),
-			$this->settings_page_slug
-		);
-
-		// Register the setting for the Controller REST Port
-		register_setting($this->option_group, 'fsbhoa_ac_rest_port', 'absint');
-		add_settings_field(
-			'fsbhoa_ac_rest_port_field',
-			__( 'Controller REST Service Port', 'fsbhoa-ac' ),
-			array( $this, 'render_rest_port_field' ),
-			$this->settings_page_slug,
-			'fsbhoa_ac_services_section'
-		);
-
-		// Register the setting for the Real-Time Event Port
-		register_setting($this->option_group, 'fsbhoa_ac_event_port', 'absint');
-		add_settings_field(
-			'fsbhoa_ac_event_port_field',
-			__( 'Real-Time Event Service Port', 'fsbhoa-ac' ),
-			array( $this, 'render_event_port_field' ),
-			$this->settings_page_slug,
-			'fsbhoa_ac_services_section'
-		);
-
-		// Register the setting for the Print Service Port
-		register_setting($this->option_group, 'fsbhoa_ac_print_port', 'absint');
-		add_settings_field(
-			'fsbhoa_ac_print_port_field',
-			__( 'Zebra Print Service Port', 'fsbhoa-ac' ),
-			array( $this, 'render_print_port_field' ),
-			$this->settings_page_slug,
-			'fsbhoa_ac_services_section'
-		);
-
-
-        // Register the setting for the Event Service Log Path
-		register_setting($this->option_group, 'fsbhoa_ac_event_log_path', 'sanitize_text_field');
-		add_settings_field(
-			'fsbhoa_ac_event_log_path_field',
-			__( 'Real-Time Event Service Log Path', 'fsbhoa-ac' ),
-			array( $this, 'render_event_log_path_field' ),
-			$this->settings_page_slug,
-			'fsbhoa_ac_services_section'
-		);
-
-		// Register the setting for the Print Service Log Path
-		register_setting($this->option_group, 'fsbhoa_ac_print_log_path', 'sanitize_text_field');
-		add_settings_field(
-			'fsbhoa_ac_print_log_path_field',
-			__( 'Zebra Print Service Log Path', 'fsbhoa-ac' ),
-			array( $this, 'render_print_log_path_field' ),
-			$this->settings_page_slug,
-			'fsbhoa_ac_services_section'
-        );
-
-        // Register the setting for the TLS Certificate Path
-		register_setting($this->option_group, 'fsbhoa_ac_tls_cert_path', 'sanitize_text_field');
-		add_settings_field(
-			'fsbhoa_ac_tls_cert_path_field',
-			__( 'TLS Certificate Path (.crt)', 'fsbhoa-ac' ),
-			array( $this, 'render_tls_cert_path_field' ),
-			$this->settings_page_slug,
-			'fsbhoa_ac_services_section'
-		);
-
-		// Register the setting for the TLS Key Path
-		register_setting($this->option_group, 'fsbhoa_ac_tls_key_path', 'sanitize_text_field');
-		add_settings_field(
-			'fsbhoa_ac_tls_key_path_field',
-			__( 'TLS Key Path (.key)', 'fsbhoa-ac' ),
-			array( $this, 'render_tls_key_path_field' ),
-			$this->settings_page_slug,
-			'fsbhoa_ac_services_section'
-		);
-        //
-        // TODO: Add more settings sections and fields here for other plugin options later
-    }
-
-    /**
-     * Sanitizes the dimension input to ensure it's a positive integer.
-     *
-     * @since    1.0.0
-     * @param    string    $input    The input value.
-     * @return   int                 The sanitized positive integer.
-     */
-    public function sanitize_dimension_callback( $input ) {
-        return absint( $input );
-    }
-
-    /**
-     * Renders the informational text for the photo editor settings section.
-     *
-     * @since    1.0.0
-     */
-    public function render_photo_editor_section_info() {
-        echo '<p>' . esc_html__( 'Configure the output dimensions for photos processed by the ID card editor.', 'fsbhoa-ac' ) . '</p>';
-    }
-
-    /**
-     * Renders the input field for the photo width setting.
-     *
-     * @since    1.0.0
-     */
-    public function render_photo_width_field() {
-        $width = get_option( 'fsbhoa_ac_photo_width', 640 ); // Default to 640
-        echo '<input type="number" id="fsbhoa_ac_photo_width_input" name="fsbhoa_ac_photo_width" value="' . esc_attr( $width ) . '" class="small-text" min="1" />';
-    }
-
-    /**
-     * Renders the input field for the photo height setting.
-     *
-     * @since    1.0.0
-     */
-    public function render_photo_height_field() {
-        $height = get_option( 'fsbhoa_ac_photo_height', 800 ); // Default to 800
-        echo '<input type="number" id="fsbhoa_ac_photo_height_input" name="fsbhoa_ac_photo_height" value="' . esc_attr( $height ) . '" class="small-text" min="1" />';
-    }
-
-    // ---  RENDER FUNCTIONS FOR IMPORT DISPLAY SECTION ---
-    public function render_display_section_info() {
-        echo '<p>' . esc_html__( 'Settings that control how data is displayed in lists throughout the application.', 'fsbhoa-ac' ) . '</p>';
-    }
-
-
-    public function render_address_suffix_field() {
-        $suffix = get_option( 'fsbhoa_ac_address_suffix', '' );
-        echo '<input type="text" name="fsbhoa_ac_address_suffix" value="' . esc_attr( $suffix ) . '" class="regular-text" placeholder="e.g., Bakersfield, CA 93306" />';
-        echo '<p class="description">' . esc_html__( 'This text will be removed from the end of property addresses in display lists.', 'fsbhoa-ac' ) . '</p>';
-    }
-
-    // ---  RENDER FUNCTIONS FOR SERVICE PORTS ---
-
-	public function render_services_section_info() {
-		echo '<p>' . esc_html__( 'Configure the network ports for the backend Go services that this plugin communicates with.', 'fsbhoa-ac' ) . '</p>';
-	}
-
-	public function render_rest_port_field() {
-		$port = get_option( 'fsbhoa_ac_rest_port', 8082 ); // Default to 8082
-		echo '<input type="number" name="fsbhoa_ac_rest_port" value="' . esc_attr( $port ) . '" class="small-text" min="1024" max="65535" />';
-		echo '<p class="description">' . esc_html__( 'The port for the uhppoted-rest service that manages controllers.', 'fsbhoa-ac' ) . '</p>';
-	}
-
-	public function render_event_port_field() {
-		$port = get_option( 'fsbhoa_ac_event_port', 8081 ); // Default to 8083
-		echo '<input type="number" name="fsbhoa_ac_event_port" value="' . esc_attr( $port ) . '" class="small-text" min="1024" max="65535" />';
-		echo '<p class="description">' . esc_html__( 'The WebSocket port for the real-time event service.', 'fsbhoa-ac' ) . '</p>';
-	}
-
-	public function render_print_port_field() {
-		$port = get_option( 'fsbhoa_ac_print_port', 8083 ); // Defaulting to 8081, adjust if needed
-		echo '<input type="number" name="fsbhoa_ac_print_port" value="' . esc_attr( $port ) . '" class="small-text" min="1024" max="65535" />';
-		echo '<p class="description">' . esc_html__( 'The port for the Zebra card printing service.', 'fsbhoa-ac' ) . '</p>';
-	}
-
-    public function render_event_log_path_field() {
-		// Default to a standard log location, but this can be changed by the admin.
-		$path = get_option( 'fsbhoa_ac_event_log_path', '/var/log/fsbhoa_event_service.log' );
-		echo '<input type="text" name="fsbhoa_ac_event_log_path" value="' . esc_attr( $path ) . '" class="regular-text" />';
-		echo '<p class="description">' . esc_html__( 'Absolute path to the log file for the event service. The user running the service needs write permissions to this file/directory.', 'fsbhoa-ac' ) . '</p>';
-	}
-
-	public function render_print_log_path_field() {
-		$path = get_option( 'fsbhoa_ac_print_log_path', '/var/log/fsbhoa_print_service.log' );
-		echo '<input type="text" name="fsbhoa_ac_print_log_path" value="' . esc_attr( $path ) . '" class="regular-text" />';
-		echo '<p class="description">' . esc_html__( 'Absolute path to the log file for the print service.', 'fsbhoa-ac' ) . '</p>';
-	}
-
-    public function render_tls_cert_path_field() {
-		$path = get_option( 'fsbhoa_ac_tls_cert_path', '/etc/ssl/nas.local/nas.local.crt' );
-		echo '<input type="text" name="fsbhoa_ac_tls_cert_path" value="' . esc_attr( $path ) . '" class="regular-text" />';
-		echo '<p class="description">' . esc_html__( 'Absolute path to the SSL/TLS certificate file for secure WebSockets (WSS).', 'fsbhoa-ac' ) . '</p>';
-	}
-
-	public function render_tls_key_path_field() {
-		$path = get_option( 'fsbhoa_ac_tls_key_path', '/etc/ssl/nas.local/nas.local.key' );
-		echo '<input type="text" name="fsbhoa_ac_tls_key_path" value="' . esc_attr( $path ) . '" class="regular-text" />';
-		echo '<p class="description">' . esc_html__( 'Absolute path to the SSL/TLS private key file.', 'fsbhoa-ac' ) . '</p>';
-	}
-
-    /**
-     * Renders the HTML for the settings page.
-     *
-     * @since    1.0.0
-     */
-    public function render_settings_page_html() {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            return;
+    public function intercept_event_service_save() {
+        if ( isset( $_POST['option_page'] ) && $_POST['option_page'] === $this->event_service_option_group ) {
+            $this->save_event_service_config();
         }
+    }
+
+    public function add_plugin_admin_menu() {
+        add_menu_page('FSBHOA General Settings', 'FSBHOA AC', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page' ), 'dashicons-id-alt', 25);
+        add_submenu_page($this->parent_slug, 'General Settings', 'General Settings', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page' ));
+        add_submenu_page($this->parent_slug, 'Event Service Config', 'Event Service', 'manage_options', 'fsbhoa_event_service_settings', array( $this, 'render_event_service_page' ));
+        add_submenu_page($this->parent_slug, 'Print Service Config', 'Print Service', 'manage_options', 'fsbhoa_print_service_settings', array( $this, 'render_print_service_page' ));
+    }
+
+    public function settings_api_init() {
+        // --- GENERAL SETTINGS ---
+        $general_option_group = 'fsbhoa_general_options';
+        $general_page_slug = $this->parent_slug;
+        register_setting($general_option_group, 'fsbhoa_ac_photo_width', 'absint');
+        register_setting($general_option_group, 'fsbhoa_ac_photo_height', 'absint');
+        register_setting($general_option_group, 'fsbhoa_ac_address_suffix', 'sanitize_text_field');
+        add_settings_section('fsbhoa_ac_photo_editor_section', 'Photo Editor Settings', null, $general_page_slug);
+        add_settings_field('fsbhoa_ac_photo_width_field', 'Photo Width (px)', array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_photo_editor_section', ['id' => 'fsbhoa_ac_photo_width', 'type' => 'number', 'default' => 640]);
+        add_settings_field('fsbhoa_ac_photo_height_field', 'Photo Height (px)', array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_photo_editor_section', ['id' => 'fsbhoa_ac_photo_height', 'type' => 'number', 'default' => 800]);
+        add_settings_section('fsbhoa_ac_display_options_section', 'Display Options', null, $general_page_slug);
+        add_settings_field('fsbhoa_ac_address_suffix_field', 'Address Suffix to Remove', array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_display_options_section', ['id' => 'fsbhoa_ac_address_suffix', 'type' => 'text', 'default' => 'Bakersfield, CA 93306', 'desc' => 'This text will be removed from property addresses in display lists.']);
+
+        // --- EVENT SERVICE SETTINGS ---
+        $event_service_page_slug = 'fsbhoa_event_service_settings';
+        add_settings_section('fsbhoa_event_service_section', null, null, $event_service_page_slug);
+        $event_fields = [
+            'fsbhoa_ac_bind_addr' => ['label' => 'Bind Address', 'default' => '0.0.0.0:0'],
+            'fsbhoa_ac_broadcast_addr' => ['label' => 'Broadcast Address', 'default' => '192.168.42.255:60000'],
+            'fsbhoa_ac_listen_port' => ['label' => 'Event Listener Port', 'type' => 'number', 'default' => 60002],
+            'fsbhoa_ac_callback_host' => ['label' => 'Event Callback Host IP', 'default' => '192.168.42.99'],
+            'fsbhoa_ac_websocket_port' => ['label' => 'WebSocket Service Port', 'type' => 'number', 'default' => 8083],
+            'fsbhoa_ac_wp_protocol' => ['label' => 'WordPress API Protocol', 'default' => 'https'],
+            'fsbhoa_ac_wp_host' => ['label' => 'WordPress API Host', 'default' => 'nas.local'],
+            'fsbhoa_ac_wp_port' => ['label' => 'WordPress API Port', 'type' => 'number', 'default' => 443],
+            'fsbhoa_ac_tls_cert_path' => ['label' => 'TLS Certificate Path', 'default' => '/etc/ssl/nas.local/nas.local.crt'],
+            'fsbhoa_ac_tls_key_path' => ['label' => 'TLS Key Path', 'default' => '/etc/ssl/nas.local/nas.local.key'],
+            'fsbhoa_ac_event_log_path' => ['label' => 'Event Service Log Path', 'default' => '', 'desc' => 'Leave empty for console output.'],
+            'fsbhoa_ac_debug_mode' => ['label' => 'Debug Mode', 'type' => 'checkbox', 'default' => 'on'],
+            'fsbhoa_ac_test_stub' => ['label' => 'Enable Test Stub', 'type' => 'checkbox', 'default' => 'on'],
+        ];
+        foreach ($event_fields as $id => $field) {
+            register_setting($this->event_service_option_group, $id, ['sanitize_callback' => 'sanitize_text_field']);
+            add_settings_field($id . '_field', $field['label'], array($this, 'render_field_callback'), $event_service_page_slug, 'fsbhoa_event_service_section', ['id' => $id] + $field);
+        }
+
+        // --- PRINT SERVICE SETTINGS ---
+        $print_service_option_group = 'fsbhoa_print_service_options';
+        $print_service_page_slug = 'fsbhoa_print_service_settings';
+        add_settings_section('fsbhoa_print_service_section', null, null, $print_service_page_slug);
+        add_settings_field('fsbhoa_ac_print_port_field', 'Zebra Print Service Port', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_port', 'type' => 'number', 'default' => 8081]);
+        register_setting($print_service_option_group, 'fsbhoa_ac_print_port', 'absint');
+    }
+
+    public function save_event_service_config() {
+        $config_data = [
+            'bindAddress'      => get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0'),
+            'broadcastAddress' => get_option('fsbhoa_ac_broadcast_addr', '192.168.42.255:60000'),
+            'listenPort'       => (int) get_option('fsbhoa_ac_listen_port', 60002),
+            'callbackHost'     => get_option('fsbhoa_ac_callback_host', '192.168.42.99'),
+            'webSocketPort'    => (int) get_option('fsbhoa_ac_websocket_port', 8083),
+            'wpURL'            => sprintf('%s://%s:%d', get_option('fsbhoa_ac_wp_protocol', 'https'), get_option('fsbhoa_ac_wp_host', 'nas.local'), (int) get_option('fsbhoa_ac_wp_port', 443)),
+            'tlsCert'          => get_option('fsbhoa_ac_tls_cert_path', ''),
+            'tlsKey'           => get_option('fsbhoa_ac_tls_key_path', ''),
+            'logFile'          => get_option('fsbhoa_ac_event_log_path', ''),
+            'debug'            => (get_option('fsbhoa_ac_debug_mode', 'on') === 'on'),
+            'enableTestStub'   => (get_option('fsbhoa_ac_test_stub', 'on') === 'on'),
+        ];
+
+        $json_data = json_encode($config_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        if (!is_dir(dirname($this->config_path))) {
+            mkdir(dirname($this->config_path), 0755, true);
+        }
+        
+        file_put_contents($this->config_path, $json_data);
+    }
+    
+    public function render_field_callback($args) {
+        $id      = $args['id'];
+        $type    = $args['type'] ?? 'text';
+        $default = $args['default'] ?? '';
+        $desc    = $args['desc'] ?? '';
+        $value   = get_option($id, $default);
+
+        if ($type === 'checkbox') {
+            echo "<input type='checkbox' name='{$id}' value='on' " . checked($value, 'on', false) . " />";
+        } else {
+            echo "<input type='{$type}' name='{$id}' value='" . esc_attr($value) . "' class='regular-text' />";
+        }
+
+        if ($desc) {
+            echo "<p class='description'>" . esc_html($desc) . "</p>";
+        }
+    }
+
+    public function render_general_settings_page() {
         ?>
         <div class="wrap">
-            <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+            <h1>General Plugin Settings</h1>
             <form action="options.php" method="post">
                 <?php
-                // Output nonce, action, and option_page fields for the photo settings group
-                settings_fields( $this->option_group );
-                // Print out all sections and fields registered for this page
-                do_settings_sections( $this->settings_page_slug );
-                // Output submit button
-                submit_button( __( 'Save Settings', 'fsbhoa-ac' ) );
+                settings_fields('fsbhoa_general_options');
+                do_settings_sections($this->parent_slug);
+                submit_button('Save General Settings');
+                ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    public function render_event_service_page() {
+        ?>
+        <div class="wrap">
+            <h1>Event Service Configuration</h1>
+            <p>These settings control the `event_service` Go application. The configuration file will be automatically generated at <code><?php echo esc_html($this->config_path); ?></code> when you save changes.</p>
+            <form action="options.php" method="post">
+                <?php
+                settings_fields($this->event_service_option_group);
+                do_settings_sections('fsbhoa_event_service_settings');
+                submit_button('Save Settings');
+                ?>
+            </form>
+        </div>
+        <?php
+    }
+    
+    public function render_print_service_page() {
+        ?>
+        <div class="wrap">
+            <h1>Print Service Configuration</h1>
+            <form action="options.php" method="post">
+                <?php
+                settings_fields('fsbhoa_print_service_options');
+                do_settings_sections('fsbhoa_print_service_settings');
+                submit_button('Save Print Settings');
                 ?>
             </form>
         </div>
         <?php
     }
 }
+
