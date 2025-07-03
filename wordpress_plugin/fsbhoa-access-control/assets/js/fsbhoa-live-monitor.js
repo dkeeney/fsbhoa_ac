@@ -39,9 +39,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
         socket.onmessage = function(event) {
             try {
-                const eventData = JSON.parse(event.data);
-                addEventToLog(eventData);
-                flashGateLight(eventData.Door);
+                const message = JSON.parse(event.data);
+
+                // Route message based on its type
+                switch (message.messageType) {
+                    case 'accessEvent':
+                        addEventToLog(message.payload);
+                        flashGateLight(message.payload.doorRecordId);
+                        break;
+                    case 'gateStatus':
+                        updateGateStatus(message.payload);
+                        break;
+                    default:
+                        // This handles the old, direct event format for backward compatibility
+                        if (message.eventType) {
+                           addEventToLog(message);
+                        } else {
+                           console.warn('Received unknown message type:', message.messageType);
+                        }
+                }
             } catch (e) {
                 console.error('Error parsing incoming message:', e);
             }
@@ -50,6 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
         socket.onclose = function(event) {
             console.log('WebSocket connection closed. Reconnecting in 3 seconds...');
             updateConnectionStatus('disconnected', 'Disconnected');
+            Object.keys(gates).forEach(id => updateGateStatus({ doorRecordId: id, status: 'down' }));
             setTimeout(connect, 3000);
         };
 
@@ -94,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
             li.className = `p-4 flex items-start space-x-4 border-l-4 ${isGranted ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} is-expanded`;
             li.innerHTML = `
                 <img class="h-16 w-16 rounded-lg object-cover" src="${eventData.photoURL}" alt="${eventData.cardholderName}" onerror="this.onerror=null;this.src='https://placehold.co/128x128/ccc/ffffff?text=Error';">
-                <div class="flex-1">
+                <div class="flex-1 event-text-content">
                     <p class="text-lg font-semibold text-gray-900">${eventData.cardholderName}</p>
                     <p class="text-gray-600">Event at <span class="font-medium">${eventData.gateName}</span></p>
                     <p class="text-sm ${isGranted ? 'text-green-700' : 'text-red-700'} font-medium mt-1">${eventData.eventMessage}</p>
@@ -145,7 +162,105 @@ document.addEventListener('DOMContentLoaded', function () {
         lastEventTimestamp = eventData.timestamp;
     }
 
-    connect();
+
+    const GATES_API_URL = '/wp-json/fsbhoa/v1/monitor/gates';
+    const mapContainer = document.getElementById('map-container');
+    let gates = {}; // Store gate data by door_record_id
+
+    async function initializeMap() {
+        if (!mapContainer) return;
+        try {
+            const response = await fetch(GATES_API_URL);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch gates: ${response.statusText}`);
+            }
+            const gatesData = await response.json();
+
+            gatesData.forEach(gate => {
+                gates[gate.door_record_id] = gate;
+
+                const light = document.createElement('div');
+                light.id = `gate-light-${gate.door_record_id}`;
+                light.className = 'gate-light status-down'; // Default to down
+                light.style.left = `${gate.map_x}%`;
+                light.style.top = `${gate.map_y}%`;
+                light.title = gate.friendly_name;
+                mapContainer.appendChild(light);
+            });
+        } catch (error) {
+            console.error("Error initializing map:", error);
+            mapContainer.innerHTML = '<p style="text-align:center; color:red; padding-top:20px;">Could not load gate map data.</p>';
+        }
+    }
+
+    async function loadRecentActivity() {
+        const ACTIVITY_API_URL = '/wp-json/fsbhoa/v1/monitor/recent-activity';
+        try {
+            const response = await fetch(ACTIVITY_API_URL);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch recent activity: ${response.statusText}`);
+            }
+            const events = await response.json();
+
+            // If there are events, add them to the log
+            if (events.length > 0) {
+                // The API returns newest first, so we loop backwards to add oldest first
+                for (let i = events.length - 1; i >= 0; i--) {
+                    addEventToLog(events[i]);
+                }
+            }
+        } catch (error) {
+            console.error("Error loading recent activity:", error);
+            // Optionally, display an error in the log
+            const eventList = document.getElementById('event-list');
+            if (eventList) {
+                const placeholder = document.getElementById('log-placeholder');
+                if (placeholder) {
+                    placeholder.textContent = 'Could not load recent activity.';
+                }
+            }
+        }
+    }
+
+    function updateGateStatus(statusData) {
+        const { doorRecordId, status } = statusData;
+        const light = document.getElementById(`gate-light-${doorRecordId}`);
+        if (light) {
+            light.className = 'gate-light'; // Reset classes
+            switch (status) {
+                case 'locked':
+                    light.classList.add('status-locked');
+                    break;
+                case 'unlocked':
+                    light.classList.add('status-unlocked');
+                    break;
+                case 'intermediate':
+                    light.classList.add('status-intermediate');
+                    break;
+                case 'down':
+                default:
+                    light.classList.add('status-down');
+                    break;
+            }
+        }
+    }
+
+    function flashGateLight(doorRecordId) {
+        const light = document.getElementById(`gate-light-${doorRecordId}`);
+        if (light) {
+            light.classList.add('flash');
+            setTimeout(() => {
+                light.classList.remove('flash');
+            }, 700); // Must match animation duration
+        }
+    }
+
+
+    // Run all initialization tasks, then connect the WebSocket.
+    Promise.all([
+        initializeMap(),
+        loadRecentActivity()
+    ]).then(() => connect());
 });
 
 

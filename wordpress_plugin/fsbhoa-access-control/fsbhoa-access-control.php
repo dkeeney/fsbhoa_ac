@@ -128,9 +128,6 @@ function run_fsbhoa_action_handlers() {
             echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Actions_Page class is missing. Property management functionality will not work.</p></div>';
         });
     }
-    if (class_exists('Fsbhoa_Print_Actions')) {
-        new Fsbhoa_Print_Actions();
-    }
 
     // Instantiate Deleted Cardholder ACTIONS handler
     if (class_exists('Fsbhoa_Deleted_Cardholder_Actions')) {
@@ -152,20 +149,37 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_Task_Actions();
     }
 
-    // Instantiate the Monitor REST API handler
-    if (class_exists('Fsbhoa_Monitor_REST_API')) {
-        new Fsbhoa_Monitor_REST_API();
-    }
 
+    // The Print Actions handler is only needed on its own AJAX calls.
+    // Only instantiate for traditional admin-ajax requests, and explicitly NOT for REST API requests.
+    if ( wp_doing_ajax() && !(defined('REST_REQUEST') && REST_REQUEST) && class_exists('Fsbhoa_Print_Actions') ) {
+        new Fsbhoa_Print_Actions();
+    }
 
     // Note: Fsbhoa_Cardholder_Admin_Page is instantiated by the menu callback in Fsbhoa_Admin_Menu
     // when its specific page is loaded. If it were missing, the callback would show an error.
     // We don't need to instantiate it here just for its hooks if its constructor is now empty of hooks.
 }
 
-
 // This is the key line: it hooks the handlers into WordPress's initialization process.
 add_action('init', 'run_fsbhoa_action_handlers');
+
+
+/**
+ * Initializes all modern REST API handlers.
+ * This function is hooked into 'rest_api_init' to ensure these classes
+ * are only instantiated during a REST API request.
+ */
+function fsbhoa_ac_api_init() {
+    // Instantiate the Monitor REST API handler and manually call its registration method.
+    if (class_exists('Fsbhoa_Monitor_REST_API')) {
+        $monitor_api = new Fsbhoa_Monitor_REST_API();
+        $monitor_api->register_routes();
+    }
+    
+    // Any other true REST API handlers would be initialized here in the future.
+}
+add_action( 'rest_api_init', 'fsbhoa_ac_api_init' );
 
 
 /**
@@ -187,4 +201,39 @@ if ( is_admin() ) {
 if ( ! is_admin() && class_exists('Fsbhoa_Shortcodes') ) {
     new Fsbhoa_Shortcodes();
 }
+
+
+/**
+ * Allow SVG files to be uploaded to the Media Library.
+ *
+ * @param array $mimes Current allowed mime types.
+ * @return array Modified mime types.
+ */
+function fsbhoa_ac_add_svg_to_upload_mimes( $mimes ) {
+    $mimes['svg'] = 'image/svg+xml';
+    return $mimes;
+}
+add_filter( 'upload_mimes', 'fsbhoa_ac_add_svg_to_upload_mimes' );
+
+/**
+ * Ensure SVG thumbnails are displayed correctly in the Media Library.
+ *
+ * @param array $response    The attachment response.
+ * @param object $attachment The attachment object.
+ * @param array $meta        The attachment meta data.
+ * @return array             The modified response.
+ */
+function fsbhoa_ac_fix_svg_thumb_display( $response, $attachment, $meta ) {
+    if ( 'image/svg+xml' === $response['mime'] ) {
+        // Use the full URL for the thumbnail so it displays.
+        $response['sizes']['thumbnail'] = [
+            'url' => $response['url'],
+            'width' => $response['width'],
+            'height' => $response['height'],
+        ];
+    }
+    return $response;
+}
+add_filter( 'wp_prepare_attachment_for_js', 'fsbhoa_ac_fix_svg_thumb_display', 10, 3 );
+
 ?>
