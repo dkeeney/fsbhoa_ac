@@ -11,6 +11,8 @@ class Fsbhoa_Ac_Settings_Page {
         add_action( 'admin_menu', array( $this, 'add_plugin_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'settings_api_init' ) );
         add_action( 'admin_init', array( $this, 'intercept_event_service_save' ) );
+        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_monitor_assets' ) );
+        add_action( 'wp_ajax_fsbhoa_save_gate_positions', array( $this, 'save_gate_positions_callback' ) );
     }
 
     public function intercept_event_service_save() {
@@ -24,6 +26,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_submenu_page($this->parent_slug, 'General Settings', 'General Settings', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page' ));
         add_submenu_page($this->parent_slug, 'Event Service Config', 'Event Service', 'manage_options', 'fsbhoa_event_service_settings', array( $this, 'render_event_service_page' ));
         add_submenu_page($this->parent_slug, 'Print Service Config', 'Print Service', 'manage_options', 'fsbhoa_print_service_settings', array( $this, 'render_print_service_page' ));
+        add_submenu_page($this->parent_slug, 'Live Monitor Settings', 'Monitor Settings', 'manage_options', 'fsbhoa_monitor_settings', array( $this, 'render_monitor_settings_page' ));
     }
 
     public function settings_api_init() {
@@ -68,6 +71,10 @@ class Fsbhoa_Ac_Settings_Page {
         add_settings_section('fsbhoa_print_service_section', null, null, $print_service_page_slug);
         add_settings_field('fsbhoa_ac_print_port_field', 'Zebra Print Service Port', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_port', 'type' => 'number', 'default' => 8081]);
         register_setting($print_service_option_group, 'fsbhoa_ac_print_port', 'absint');
+
+        // --- MONITOR SETTINGS ---
+        $monitor_settings_option_group = 'fsbhoa_monitor_options';
+        register_setting($monitor_settings_option_group, 'fsbhoa_monitor_map_url', 'esc_url_raw');
     }
 
     public function save_event_service_config() {
@@ -84,16 +91,13 @@ class Fsbhoa_Ac_Settings_Page {
             'debug'            => (get_option('fsbhoa_ac_debug_mode', 'on') === 'on'),
             'enableTestStub'   => (get_option('fsbhoa_ac_test_stub', 'on') === 'on'),
         ];
-
         $json_data = json_encode($config_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-
         if (!is_dir(dirname($this->config_path))) {
             mkdir(dirname($this->config_path), 0755, true);
         }
-        
         file_put_contents($this->config_path, $json_data);
     }
-    
+
     public function render_field_callback($args) {
         $id      = $args['id'];
         $type    = $args['type'] ?? 'text';
@@ -106,7 +110,6 @@ class Fsbhoa_Ac_Settings_Page {
         } else {
             echo "<input type='{$type}' name='{$id}' value='" . esc_attr($value) . "' class='regular-text' />";
         }
-
         if ($desc) {
             echo "<p class='description'>" . esc_html($desc) . "</p>";
         }
@@ -142,7 +145,7 @@ class Fsbhoa_Ac_Settings_Page {
         </div>
         <?php
     }
-    
+
     public function render_print_service_page() {
         ?>
         <div class="wrap">
@@ -157,5 +160,103 @@ class Fsbhoa_Ac_Settings_Page {
         </div>
         <?php
     }
-}
 
+    public function render_monitor_settings_page() {
+        ?>
+        <div class="wrap">
+            <h1>Live Monitor Settings</h1>
+            <p>Use this tool to position your gates on the live monitor map.</p>
+            <hr>
+
+            <div id="fsbhoa-editor-area" style="display: flex; gap: 20px; margin-top: 20px;">
+                <div id="fsbhoa-map-editor-container" style="position: relative; border: 2px solid #ccc; flex-basis: 70%; min-height: 400px;">
+                    <img id="fsbhoa-map-editor-bg" src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" style="max-width: 100%; display: block; opacity: 0.7;">
+                </div>
+                <div id="fsbhoa-gate-legend" style="flex-basis: 30%;">
+                    <h3>Gate Legend</h3>
+                    <p class="description">Drag the numbered dots on the map to set their positions.</p>
+                    <ol style="margin-left: 20px; background: #fff; border: 1px solid #ddd; padding: 10px;"></ol>
+                </div>
+            </div>
+
+            <table class="form-table">
+                <tbody>
+                    <tr>
+                        <th scope="row">Upload Map</th>
+                        <td>
+                            <input type="hidden" id="fsbhoa_monitor_map_url" name="fsbhoa_monitor_map_url" value="<?php echo esc_attr(get_option('fsbhoa_monitor_map_url', '')); ?>" />
+                            <button type="button" class="button" id="fsbhoa_monitor_map_url-button">Upload or Change Map Image</button>
+                            <button type="submit" name="submit" id="submit" class="button button-secondary" style="margin-left:10px;">Save Map</button>
+                            <p class="description">Upload your stylized SVG or PNG map file. Click "Save Map" to make it permanent.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p style="margin-top: 15px;">
+                <button type="button" class="button button-primary" id="fsbhoa-save-gate-positions">Save Gate Positions</button>
+                <span id="fsbhoa-save-positions-feedback" style="margin-left: 10px;"></span>
+            </p>
+        </div>
+        <?php
+    }
+
+    public function enqueue_monitor_assets($hook) {
+        if ($hook !== 'fsbhoa-ac_page_fsbhoa_monitor_settings') {
+            return;
+        }
+        wp_enqueue_media();
+        wp_enqueue_style('fsbhoa-monitor-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-monitor.css', array(), FSBHOA_AC_VERSION);
+        
+        $script_handle = 'fsbhoa-monitor-settings-script';
+        wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-monitor-settings.js', array('jquery'), FSBHOA_AC_VERSION, true);
+        
+        wp_localize_script(
+            $script_handle,
+            'fsbhoa_monitor_settings_vars',
+            array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('fsbhoa_monitor_settings_nonce'),
+            )
+        );
+    }
+
+    public function save_gate_positions_callback() {
+        check_ajax_referer('fsbhoa_monitor_settings_nonce', 'nonce');
+        if ( ! current_user_can('manage_options') ) {
+            wp_send_json_error('Permission denied.', 403);
+        }
+        if ( ! isset($_POST['gates']) || ! is_array($_POST['gates']) ) {
+            wp_send_json_error('Invalid data.', 400);
+        }
+        
+        global $wpdb;
+        $doors_table = 'ac_doors';
+        $success = true;
+
+        foreach ( $_POST['gates'] as $gate ) {
+            $door_id = absint($gate['id']);
+            $map_x   = intval($gate['x']);
+            $map_y   = intval($gate['y']);
+
+            if ($door_id > 0) {
+                $result = $wpdb->update(
+                    $doors_table,
+                    array('map_x' => $map_x, 'map_y' => $map_y),
+                    array('door_record_id' => $door_id),
+                    array('%d', '%d'),
+                    array('%d')
+                );
+                if ($result === false) {
+                    $success = false;
+                }
+            }
+        }
+
+        if ($success) {
+            wp_send_json_success('Gate positions saved successfully.');
+        } else {
+            wp_send_json_error('An error occurred while saving some gate positions.');
+        }
+    }
+}

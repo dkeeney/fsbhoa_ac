@@ -13,7 +13,7 @@ class Fsbhoa_Controller_Actions {
         add_action('wp_ajax_fsbhoa_get_sync_status', [ $this, 'ajax_get_sync_status' ]);
     }
 
-public function handle_form_submission() {
+    public function handle_form_submission() {
 		global $wpdb;
 		$is_update = ( isset($_POST['action']) && $_POST['action'] === 'fsbhoa_update_controller' );
 		$item_id = $is_update ? absint($_POST['controller_record_id']) : 0;
@@ -313,22 +313,73 @@ public function handle_form_submission() {
         }
     }
 
-
-/**
-     * Queries the DB for all controller IDs and writes them to a JSON file.
+    /**
+     * Queries the DB for all controller and door data and writes it to a rich JSON file.
      */
     private function write_controllers_file() {
         global $wpdb;
-        $table_name = 'ac_controllers';
+        $controllers_table = 'ac_controllers';
+        $doors_table = 'ac_doors';
         $config_path = '/var/lib/fsbhoa/controllers.json';
 
-        $controllers = $wpdb->get_results( "SELECT uhppoted_device_id FROM {$table_name}", ARRAY_A );
+        // 1. Fetch all controllers and their associated doors, now including map coordinates.
+        $query = "
+            SELECT
+                c.uhppoted_device_id,
+                c.door_count,
+                d.door_record_id,
+                d.door_number_on_controller,
+                d.friendly_name AS door_name,
+                d.map_x,
+                d.map_y
+            FROM {$controllers_table} c
+            LEFT JOIN {$doors_table} d ON c.controller_record_id = d.controller_record_id
+            ORDER BY c.uhppoted_device_id, d.door_number_on_controller
+        ";
 
-        if ( is_array( $controllers ) ) {
-            $json_data = json_encode( $controllers, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
-            // This will fail if /var/lib/fsbhoa isn't writable by www-data
-            file_put_contents( $config_path, $json_data );
+        $results = $wpdb->get_results( $query, ARRAY_A );
+        
+        if ($wpdb->last_error) {
+            error_log("FSBHOA Error: Could not query controllers/doors for config file. DB Error: " . $wpdb->last_error);
+            return;
+        }
+
+        // 2. Restructure the flat database result into a nested array.
+        $structured_data = [];
+        foreach ($results as $row) {
+            $controller_sn = $row['uhppoted_device_id'];
+
+            if (!isset($structured_data[$controller_sn])) {
+                $structured_data[$controller_sn] = [
+                    'controller_sn' => (int)$controller_sn,
+                    'door_count'    => (int)$row['door_count'],
+                    'doors'         => [],
+                ];
+            }
+
+            if (!is_null($row['door_record_id'])) {
+                $structured_data[$controller_sn]['doors'][] = [
+                    'door_id'       => (int)$row['door_record_id'],
+                    'door_number'   => (int)$row['door_number_on_controller'],
+                    'name'          => $row['door_name'],
+                    'map_x'         => (int)$row['map_x'], // Add map_x
+                    'map_y'         => (int)$row['map_y'], // Add map_y
+                ];
+            }
+        }
+        
+        $final_json_data = array_values($structured_data);
+
+        // 3. Write the structured data to the file.
+        if ( is_array( $final_json_data ) ) {
+            $json_output = json_encode( $final_json_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+            
+            if (!is_dir(dirname($config_path))) {
+                mkdir(dirname($config_path), 0755, true);
+            }
+            
+            file_put_contents( $config_path, $json_output );
         }
     }
-}
 
+}

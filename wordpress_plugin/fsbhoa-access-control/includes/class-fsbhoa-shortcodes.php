@@ -251,7 +251,15 @@ class Fsbhoa_Shortcodes {
 
         // --- LIVE MONITOR ASSETS ---
 		if ( has_shortcode( $post->post_content, 'fsbhoa_live_monitor' ) ) {
-			// (We can add a dedicated CSS file here later if needed)
+            // This provides the utility classes (e.g., h-64, relative, flex) needed for the layout.
+            wp_enqueue_style('tailwindcss-cdn', 'https://cdn.tailwindcss.com');
+
+            wp_enqueue_style(
+                'fsbhoa-live-monitor-styles',
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-monitor.css',
+                array(),
+                FSBHOA_AC_VERSION
+            );
 
 			$script_handle = 'fsbhoa-live-monitor-script';
 			wp_enqueue_script(
@@ -308,13 +316,12 @@ class Fsbhoa_Shortcodes {
             return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
         }
 
-        // --- NEW: Check if we should render the discovery results page ---
+        // --- Check if we should render the discovery results page ---
         if ( isset( $_GET['discovery-results'] ) ) {
             ob_start();
             fsbhoa_render_discovery_results_view();
             return ob_get_clean();
         }
-        // --- END NEW ---
 
         // Handle the view from the URL first, then the shortcode attribute
         $current_view = 'controllers'; // Default to the controllers view

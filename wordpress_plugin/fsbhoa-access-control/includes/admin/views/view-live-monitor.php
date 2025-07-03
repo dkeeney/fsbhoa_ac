@@ -6,7 +6,7 @@ if ( ! defined( 'WPINC' ) ) { die; }
  */
 function fsbhoa_render_live_monitor_view() {
     ?>
-    <div class="fsbhoa-frontend-wrap">
+    <div class="fsbhoa-frontend-wrap monitor-page-override">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Live Activity Monitor</h1>
             <div id="connection-status" class="flex items-center space-x-2 px-3 py-1 rounded-full bg-yellow-200 text-yellow-800 text-sm font-medium">
@@ -16,18 +16,12 @@ function fsbhoa_render_live_monitor_view() {
         </div>
 
         <!-- Top Section: Live Map -->
-        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8 max-w-2xl mx-auto">
             <h2 class="text-xl font-semibold mb-4">Community Status Map</h2>
-            <div id="map-container" class="relative w-full h-64 md:h-80 lg:h-96 bg-gray-200 rounded-lg overflow-hidden">
-                <!-- In the real version, this would be a user-uploaded image -->
-                <svg class="absolute w-full h-full" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
-                    <path d="M50 50 H 300 V 200 H 50 Z" fill="#d1d5db" stroke="#a1a1aa" stroke-width="2"/>
-                    <text x="175" y="130" font-family="Inter" font-size="20" text-anchor="middle">Lodge</text>
-                    <path d="M400 150 H 700 V 350 H 400 Z" fill="#d1d5db" stroke="#a1a1aa" stroke-width="2"/>
-                    <text x="550" y="255" font-family="Inter" font-size="20" text-anchor="middle">Pool Area</text>
-                </svg>
-                <!-- Gate light indicators would be dynamically placed via JS and configured in settings -->
-            </div>
+                <div id="map-container" class="relative w-full bg-gray-200 rounded-lg overflow-hidden">
+                    <img src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" alt="Community Map" style="display: block; width: 100%; height: auto;">
+
+                </div>
         </div>
 
         <!-- Bottom Section: Event Log -->

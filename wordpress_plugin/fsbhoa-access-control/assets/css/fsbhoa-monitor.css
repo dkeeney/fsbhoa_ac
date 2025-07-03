@@ -1,0 +1,315 @@
+/* CSS for Gate Position Editor */
+#fsbhoa-map-editor-container {
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: top left;
+}
+/* Custom override to reduce top space on the monitor page */
+
+/* More specific rule to override theme spacing. */
+/* The !important flag ensures this rule wins. */
+.fsbhoa-frontend-wrap.monitor-page-override {
+    margin-top: 0.5em !important;
+}
+
+/* Flexbox utilities for the header */
+.flex {
+    display: flex;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.justify-between {
+    justify-content: space-between;
+}
+
+/* Margin utility for the header */
+.mb-6 {
+    margin-bottom: 1.5rem; /* 24px */
+}
+
+/* Font utilities for the header title */
+.text-3xl {
+    font-size: 1.875rem; /* 30px */
+    line-height: 2.25rem; /* 36px */
+}
+.font-bold {
+    font-weight: 700;
+}
+.text-gray-900 {
+    color: #111827;
+}
+
+.gate-marker {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    background-color: rgba(239, 68, 68, 0.8); /* red-500 with transparency */
+    border: 1px solid rgba(255, 255, 255, 1);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    transition: background-color 0.2s;
+
+    /* Styles for the number inside the dot */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    text-shadow: 1px 1px 1px rgba(0,0,0,0.4);
+}
+
+.gate-marker:active {
+    cursor: grabbing;
+    background-color: rgba(34, 197, 94, 0.8); /* green-500 with transparency */
+    z-index: 10;
+}
+
+/* Styles for the Gate Legend */
+#fsbhoa-gate-legend {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 0 15px 15px 15px;
+}
+#fsbhoa-gate-legend h3 {
+    margin-top: 10px;
+}
+#fsbhoa-gate-legend ol {
+    padding-left: 20px;
+    margin: 0;
+}
+#fsbhoa-gate-legend li {
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+#fsbhoa-gate-legend li:last-child {
+    border-bottom: none;
+}
+
+/*
+ * Styles for the Live Monitor Map and Gate Lights
+ */
+/*
+ * Tailwind Utility Classes needed for the monitor layout
+ */
+/* For constraining the map width */
+.max-w-2xl {
+    max-width: 42rem; /* 672px */
+}
+
+/* For centering the map container */
+.mx-auto {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+
+/* Sets position: relative; */
+.relative {
+    position: relative;
+}
+
+/* Sets width: 100%; */
+.w-full {
+    width: 100%;
+}
+
+/* Sets height: 16rem; (256px) */
+.h-64 {
+    height: 16rem;
+}
+
+/* Responsive height for medium screens (768px and up) */
+@media (min-width: 768px) {
+    .md\:h-80 {
+        height: 20rem; /* 320px */
+    }
+}
+
+/* Responsive height for large screens (1024px and up) */
+@media (min-width: 1024px) {
+    .lg\:h-96 {
+        height: 24rem; /* 384px */
+    }
+}
+
+/*
+ * Tailwind Utility Classes for background and layout
+ */
+
+
+/* For layout and appearance */
+.bg-gray-200 {
+    background-color: #e5e7eb; /* A light gray fallback */
+}
+
+.rounded-lg {
+    border-radius: 0.5rem; /* 8px */
+}
+
+.overflow-hidden {
+    overflow: hidden;
+}
+
+
+.gate-light {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    transform: translate(-50%, -50%); /* Center on coordinates */
+}
+
+/* Add a pulsing animation to the pseudo-element */
+.gate-light::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+    z-index: -1;
+}
+
+/* Keyframes for the pulse animation */
+@keyframes pulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.7);
+    }
+    70% {
+        transform: scale(1.3);
+        box-shadow: 0 0 5px 10px rgba(0, 0, 0, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+    }
+}
+
+/* Gate Status Colors */
+.gate-light.status-locked { background-color: #ef4444; color: #ef4444; } /* red-500 */
+.gate-light.status-unlocked { background-color: #22c55e; color: #22c55e; } /* green-500 */
+.gate-light.status-intermediate { background-color: #f59e0b; color: #f59e0b; } /* amber-500 */
+.gate-light.status-down { background-color: #1f2937; color: #1f2937; animation: none; } /* gray-800, no pulse */
+.gate-light.status-down::after { animation: none; } /* Turn off pulse for down state */
+
+/* Flash effect for access events */
+.gate-light.flash {
+    animation: flash-animation 0.7s ease-out;
+}
+@keyframes flash-animation {
+    0% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 20px 5px #ffffff; }
+    50% { transform: translate(-50%, -50%) scale(1.8); box-shadow: 0 0 35px 15px #ffffff; }
+    100% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 20px 5px #ffffff; }
+}
+
+
+/*
+ * Styles for the Connection Status Indicator
+ */
+.text-sm {
+    font-size: 0.875rem; /* 14px */
+}
+.font-medium {
+    font-weight: 500;
+}
+.px-3 {
+    padding-left: 0.75rem;  /* 12px */
+    padding-right: 0.75rem; /* 12px */
+}
+.py-1 {
+    padding-top: 0.25rem;  /* 4px */
+    padding-bottom: 0.25rem; /* 4px */
+}
+.space-x-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-left: 0.5rem; /* 8px */
+}
+.w-2 {
+    width: 0.5rem; /* 8px */
+}
+.h-2 {
+    height: 0.5rem; /* 8px */
+}
+
+/* Green / Connected State */
+.bg-green-200 {
+    background-color: #dcfce7;
+}
+.text-green-800 {
+    color: #166534;
+}
+.bg-green-500 {
+    background-color: #22c55e;
+}
+
+/* Red / Disconnected State */
+.bg-red-200 {
+    background-color: #fee2e2;
+}
+.text-red-800 {
+    color: #991b1b;
+}
+.bg-red-500 {
+    background-color: #ef4444;
+}
+
+/* Yellow / Connecting State */
+.bg-yellow-200 {
+    background-color: #fef08a;
+}
+.text-yellow-800 {
+    color: #854d0e;
+}
+.bg-yellow-500 {
+    background-color: #eab308;
+}
+
+/*
+ * Styles for the Activity Log Event Card
+ */
+
+/* Container for each event */
+.p-4 { padding: 1rem; }
+.flex { display: flex; }
+.items-start { align-items: flex-start; }
+.space-x-4 > :not([hidden]) ~ :not([hidden]) { margin-left: 1rem; }
+.border-l-4 { border-left-width: 4px; }
+
+/* Image styles */
+.h-16 { height: 6rem; /* 96px */ }
+.w-16 { width: 6rem;  /* 96px */ }
+.object-cover { object-fit: cover; }
+
+/* Text container styles */
+.flex-1 { flex: 1 1 0%; }
+.text-lg { font-size: 1.125rem; }
+.font-semibold { font-weight: 600; }
+.text-gray-600 { color: #4b5563; }
+.mt-1 { margin-top: 0.25rem; }
+.text-green-700 { color: #15803d; }
+.text-red-700 { color: #b91c1c; }
+
+/* Timestamp styles */
+.text-gray-500 { color: #6b7281; }
+
+/* Background colors for granted/denied */
+.bg-green-50 { background-color: #f0fdf4; }
+.bg-red-50 { background-color: #fef2f2; }
+
+#event-list .event-text-content p {
+    margin: 0;
+    padding: 0;
+    line-height: 1.3; /* Adjust this value for more or less spacing */
+}
