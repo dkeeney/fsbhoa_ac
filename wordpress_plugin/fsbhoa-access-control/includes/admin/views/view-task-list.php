@@ -11,14 +11,14 @@ function fsbhoa_render_task_list_view() {
     
     // This is a more complex query to get friendly names for controllers and doors.
     $tasks = $wpdb->get_results(
-        "SELECT 
-            t.*, 
+        "SELECT
+            t.*,
             c.friendly_name as controller_name,
             d.friendly_name as door_name
          FROM ac_task_list t
          LEFT JOIN ac_controllers c ON t.controller_id = c.controller_record_id
-         LEFT JOIN ac_doors d ON t.door_number = d.door_record_id
-         ORDER BY t.id DESC",
+         LEFT JOIN ac_doors d ON t.controller_id = d.controller_record_id AND t.door_number = d.door_number_on_controller
+         ORDER BY t.start_time ASC",
         ARRAY_A
     );
     
@@ -30,9 +30,10 @@ function fsbhoa_render_task_list_view() {
     ?>
     <div class="fsbhoa-frontend-wrap is-wide-view">
         <h1><?php esc_html_e( 'Task List Management', 'fsbhoa-ac' ); ?></h1>
+        <div id="fsbhoa-sync-notice-container">
+        </div>
         
         <div class="fsbhoa-table-controls">
-            <!-- CORRECTED LINK -->
             <a href="<?php echo esc_url( add_query_arg(['view' => 'tasks', 'action' => 'add'], $current_page_url) ); ?>" class="button button-primary">
                 <?php esc_html_e( 'Add New Task', 'fsbhoa-ac' ); ?>
             </a>
@@ -63,13 +64,21 @@ function fsbhoa_render_task_list_view() {
                     <?php if ( ! empty($tasks) ) : foreach ( $tasks as $task ) : ?>
                         <tr>
                             <td class="fsbhoa-actions-column">
-                                <?php
-                                $edit_url = add_query_arg(['view' => 'tasks', 'action' => 'edit', 'task_id' => absint($task['id'])], $current_page_url);
-                                $delete_nonce = wp_create_nonce('fsbhoa_delete_task_nonce_' . $task['id']);
-                                $delete_url = add_query_arg(['action'=> 'fsbhoa_delete_task', 'task_id' => absint($task['id']), '_wpnonce'=> $delete_nonce], admin_url('admin-post.php'));
-                                ?>
-                                <a href="<?php echo esc_url($edit_url); ?>" title="Edit"><span class="dashicons dashicons-edit"></span></a>
-                                <a href="<?php echo esc_url($delete_url); ?>" title="Delete" onclick="return confirm('Are you sure?');"><span class="dashicons dashicons-trash"></span></a>
+                                    <?php
+                                    $edit_url = add_query_arg(['view' => 'tasks', 'action' => 'edit', 'task_id' => absint($task['id'])], $current_page_url);
+                                    $delete_nonce = wp_create_nonce('fsbhoa_delete_task_nonce_' . $task['id']);
+                                    $delete_url = add_query_arg(['action'=> 'fsbhoa_delete_task', 'task_id' => absint($task['id']), '_wpnonce'=> $delete_nonce], admin_url('admin-post.php'));
+                                    $toggle_nonce = wp_create_nonce('fsbhoa_toggle_task_status_' . $task['id']);
+                                    $toggle_url = add_query_arg(['action'=> 'fsbhoa_toggle_task_status', 'task_id' => absint($task['id']), '_wpnonce'=> $toggle_nonce], admin_url('admin-post.php'));
+
+                                    $is_enabled = ($task['enabled'] == 1);
+                                    $toggle_icon = $is_enabled ? 'dashicons-controls-pause' : 'dashicons-controls-play';
+                                    $toggle_title = $is_enabled ? 'Disable Task' : 'Enable Task';
+                                    $toggle_color = $is_enabled ? 'color: #d63638;' : 'color: #2271b1;';
+                                    ?>
+                                    <a href="<?php echo esc_url($edit_url); ?>" title="Edit"><span class="dashicons dashicons-edit"></span></a>
+                                    <a href="<?php echo esc_url($toggle_url); ?>" title="<?php echo esc_attr($toggle_title); ?>"><span class="dashicons <?php echo esc_attr($toggle_icon); ?>" style="<?php echo esc_attr($toggle_color); ?>"></span></a>
+                                    <a href="<?php echo esc_url($delete_url); ?>" title="Delete" onclick="return confirm('Are you sure?');"><span class="dashicons dashicons-trash"></span></a>
                             </td>
                             <td class="task-id-column"><?php echo esc_html( $task['id'] ); ?></td>
                             <td>
@@ -85,7 +94,11 @@ function fsbhoa_render_task_list_view() {
                             </td>
                             <td>
                                 <?php 
-                                    $task_map = [0 => 'Unlock by Card', 1 => 'Unlock', 2 => 'Locked'];
+                                    $task_map = [
+                                            1 => 'Unlock by Card',
+                                            2 => 'Unlock',
+                                            3 => 'Locked'
+                                        ];
                                     echo esc_html($task_map[$task['task_type']] ?? 'Unknown');
                                 ?>
                             </td>
@@ -124,7 +137,7 @@ function fsbhoa_render_task_list_view() {
             padding-right: 5px;
         }
         .fsbhoa-actions-column {
-             width: 50px; /* Give a fixed small width */
+             width: 80px; /* Give a fixed small width */
             padding-left: 5px;
             padding-right: 5px;
         }

@@ -13,9 +13,9 @@ class Fsbhoa_Task_Admin_Page {
             $message_code = sanitize_key($_GET['message']);
             $message_text = '';
             switch ($message_code) {
-                case 'task_added': $message_text = 'Task added successfully.'; break;
-                case 'task_updated': $message_text = 'Task updated successfully.'; break;
-                case 'task_deleted': $message_text = 'Task deleted successfully.'; break;
+                //case 'task_added': $message_text = 'Task added successfully.'; break;
+                //case 'task_updated': $message_text = 'Task updated successfully.'; break;
+                //case 'task_deleted': $message_text = 'Task deleted successfully.'; break;
             }
             if ($message_text) {
                 echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message_text) . '</p></div>';
@@ -51,11 +51,21 @@ class Fsbhoa_Task_Admin_Page {
             if ($result) {
                 $form_data = $result;
                 // Determine the currently selected 'adapt_to' value for the dropdown
-                if ($result['door_number']) {
-                    $form_data['adapt_to_selected'] = 'door-' . $result['door_number'];
+                if ($result['controller_id'] && $result['door_number']) {
+                    // Task is for a specific door. We need to find that door's own database ID.
+                    $door_record_id = $wpdb->get_var($wpdb->prepare(
+                        "SELECT door_record_id FROM ac_doors WHERE controller_record_id = %d AND door_number_on_controller = %d",
+                        $result['controller_id'],
+                        $result['door_number']
+                    ));
+                    if ($door_record_id) {
+                        $form_data['adapt_to_selected'] = 'door-' . $door_record_id;
+                    }
                 } elseif ($result['controller_id']) {
+                    // Task is for a whole controller.
                     $form_data['adapt_to_selected'] = 'controller-' . $result['controller_id'];
                 } else {
+                    // Task is for all controllers.
                     $form_data['adapt_to_selected'] = 'all-0';
                 }
             }

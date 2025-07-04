@@ -4,79 +4,95 @@ jQuery(document).ready(function($) {
     const syncStatus = $('#fsbhoa-sync-status');
     let intervalId = null;
 
-    // Handle the button click
-    syncButton.on('click', function(e) {
-        e.preventDefault();
+    // Check if the URL has our 'sync_started' flag on page load.
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('sync_started')) {
+        startSync(); // This function is created in the next step
 
-        if (syncButton.hasClass('disabled')) {
-            return;
+        // Clean the URL so a refresh doesn't re-trigger the sync
+        urlParams.delete('sync_started');
+        const newUrl = window.location.pathname + '?' + urlParams.toString().replace(/&*$/, '');
+        history.replaceState(null, '', newUrl);
+    }
+
+
+    // Helper function to show the status notice at the top of the page
+    function showNotice(type, message) {
+        const noticeContainer = $('#fsbhoa-sync-notice-container');
+        let noticeClass = 'notice notice-info is-dismissible';
+        if (type === 'success') {
+            noticeClass = 'notice notice-success is-dismissible';
+        } else if (type === 'error') {
+            noticeClass = 'notice notice-error is-dismissible';
         }
 
-        // Using a custom modal is preferred, but confirm is a placeholder
-        if (!confirm('This will push all active cardholders and tasks to all controllers. This may take a minute. Continue?')) {
-            return;
-        }
+        const noticeHTML = `<div class="${noticeClass}"><p><strong>Sync Status:</strong> ${message}</p></div>`;
+        noticeContainer.html(noticeHTML).show();
+    }
 
-        // Disable button and show initial status message
+    // Function to start the sync process (can be called by button or automatically)
+    function startSync() {
+        if (syncButton.hasClass('disabled')) return;
+
         syncButton.addClass('disabled').text('Syncing...');
-        syncStatus.text('Sync process started. Please wait...').show();
+        showNotice('info', 'Sync process started. Please wait...');
         console.log('SYNC: Kicking off sync process...');
 
-        // Start the background sync process
         $.post(fsbhoa_sync_vars.ajax_url, {
             action: 'fsbhoa_sync_all_controllers',
             nonce: fsbhoa_sync_vars.nonce
         }, function(response) {
             if (response.success) {
-                // If the job started successfully, begin polling for status
                 console.log('SYNC: Backend acknowledged start. Beginning to poll for status.');
-                intervalId = setInterval(checkSyncStatus, 5000); // Check every 5 seconds
+                intervalId = setInterval(checkSyncStatus, 5000);
             } else {
                 const errorMessage = response.data.message || 'Could not start sync.';
-                syncStatus.text('Error: ' + errorMessage);
+                showNotice('error', `Error: ${errorMessage}`);
                 syncButton.removeClass('disabled').text('Sync All Controllers');
                 console.error('SYNC: Failed to start sync process.', response);
             }
         }).fail(function(xhr) {
-            // Handle cases where the initial AJAX call fails completely
-            syncStatus.text('Error: Communication with server failed.');
+            showNotice('error', 'Error: Communication with server failed.');
             syncButton.removeClass('disabled').text('Sync All Controllers');
             console.error('SYNC: Initial AJAX request failed.', xhr.responseText);
         });
-    });
+    }
 
-    // Function to poll for the sync status
+    
+
+    // Updated function to poll for the sync status
     function checkSyncStatus() {
         $.post(fsbhoa_sync_vars.ajax_url, {
             action: 'fsbhoa_get_sync_status',
             nonce: fsbhoa_sync_vars.nonce
         }, function(response) {
-            // --- NEW DEBUGGING ---
-            // Log the entire response object to see exactly what we get from the server.
-            console.log('SYNC Polling Response:', response); 
-            // --- END DEBUGGING ---
-
+            console.log('SYNC Polling Response:', response);
             if (response.success && response.data) {
-                // Update the visible status message on the page
-                syncStatus.text(response.data.message);
-                
-                // Check if the status is 'complete'
+                showNotice('info', response.data.message);
+
                 if (response.data.status === 'complete') {
-                    console.log('SYNC: Received "complete" status. Stopping poller and resetting button.');
+                    console.log('SYNC: Received "complete" status. Stopping poller.');
                     clearInterval(intervalId);
                     syncButton.removeClass('disabled').text('Sync All Controllers');
-                    syncStatus.append(' <strong style="color:green;">Done!</strong>');
+                    showNotice('success', `${response.data.message} <strong>Done!</strong>`);
                 }
             } else {
                 console.warn('SYNC: Polling response was not successful or data was missing.', response);
             }
         }).fail(function(xhr){
-            // Handle polling failures
-            console.error('SYNC: Status polling request failed.', xhr.responseText);
-            syncStatus.text('Error: Lost connection while checking status.');
-            clearInterval(intervalId); // Stop polling on error
+            showNotice('error', 'Error: Lost connection while checking status.');
+            clearInterval(intervalId);
             syncButton.removeClass('disabled').text('Sync All Controllers');
+            console.error('SYNC: Status polling request failed.', xhr.responseText);
         });
     }
-});
 
+    // Updated button click handler
+    syncButton.on('click', function(e) {
+        e.preventDefault();
+        if (!confirm('This will push all active cardholders and tasks to all controllers. This may take a minute. Continue?')) {
+            return;
+        }
+        startSync();
+    });
+});

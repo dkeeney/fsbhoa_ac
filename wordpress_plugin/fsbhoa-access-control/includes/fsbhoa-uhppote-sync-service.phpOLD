@@ -148,65 +148,39 @@ function fsbhoa_perform_full_sync() {
                  }
             }
         }
-        
-        
+
+
         // --- Task Synchronization Logic ---
-		// This logic clears all tasks, then uses `uhppote-cli add-task` for each enabled task.
-		if (FSBHOA_DEBUG_MODE) {
-			error_log("SYNC SERVICE: Using uhppote-cli to sync tasks for '$friendly_name'...");
-		}
+        if (!empty($tasks)) {
+            if (FSBHOA_DEBUG_MODE) {
+                error_log("SYNC SERVICE: Clearing all existing tasks from '$friendly_name' before pushing new list.");
+            }
+            wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/tasks", ['method' => 'DELETE', 'timeout' => 15]);
 
-		// 1. Clear all existing tasks from the controller.
-		$clear_command = sprintf('uhppote-cli --debug clear-task-list %s', escapeshellarg($device_id));
-		$clear_output = shell_exec($clear_command . " 2>&1");
-		if (FSBHOA_DEBUG_MODE) {
-			error_log("SYNC SERVICE (clear-task-list): " . $clear_output);
-		}
+            $task_count = 0;
+            foreach ($tasks as $task) {
+                if ($task->controller_id === null || $task->controller_id == $controller_id) {
+                    $task_count++;
+                    set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Syncing task $task_count/" . count($tasks) . " to '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
 
-		// 2. Loop through the enabled tasks from the database and add them one by one.
-		$tasks_pushed_count = 0;
-		foreach ($tasks as $task) {
-			if ($task->controller_id === null || $task->controller_id == $controller_id) {
-				$weekdays = rtrim(
-					($task->on_sun ? 'Su,' : '') .
-					($task->on_mon ? 'Mo,' : '') .
-					($task->on_tue ? 'Tu,' : '') .
-					($task->on_wed ? 'We,' : '') .
-					($task->on_thu ? 'Th,' : '') .
-					($task->on_fri ? 'Fr,' : '') .
-					($task->on_sat ? 'Sa,' : ''),
-				',');
+                    $weekdays = rtrim(($task->on_sun ? 'Sun,' : '') . ($task->on_mon ? 'Mon,' : '') . ($task->on_tue ? 'Tue,' : '') . ($task->on_wed ? 'Wed,' : '') . ($task->on_thu ? 'Thu,' : '') . ($task->on_fri ? 'Fri,' : '') . ($task->on_sat ? 'Sat,' : ''), ',');
+                    // The API for an individual task requires the task body to be at the top level
+                    $task_body = ['door' => intval($task->door_number), 'start-date' => $task->valid_from, 'end-date' => $task->valid_to, 'start-time' => $task->start_time, 'weekdays' => $weekdays];
 
-				// Build the command string with parameters in the correct order from the 'help' output
-				// Usage: add-task <serial-number> <door> <task> <active> <weekdays> <start> <cards>
-				$add_task_command = sprintf(
-					'uhppote-cli --debug add-task %s %d %d %s %s %s %s',
-					escapeshellarg($device_id),
-					escapeshellarg(intval($task->door_number)),
-					escapeshellarg($task->task_type),
-					escapeshellarg($task->valid_from . ':' . $task->valid_to),
-					escapeshellarg($weekdays),
-					escapeshellarg(substr($task->start_time, 0, 5)),
-					escapeshellarg('0') // For the optional 'cards' parameter
-				);
-
-				if (FSBHOA_DEBUG_MODE) {
-					error_log("SYNC SERVICE: Executing: " . $add_task_command);
-				}
-
-				$add_output = shell_exec($add_task_command . " 2>&1");
-				$tasks_pushed_count++;
-
-				if (FSBHOA_DEBUG_MODE) {
-					error_log("SYNC SERVICE (add-task): " . $add_output);
-				}
-			}
-		}
-		if (FSBHOA_DEBUG_MODE) {
-			error_log("SYNC SERVICE: Finished pushing {$tasks_pushed_count} tasks.");
+                    if (FSBHOA_DEBUG_MODE) {
+                        error_log("SYNC SERVICE: >>> Pushing Task #{$task->task_type} for door {$task->door_number} to '$friendly_name'");
+                    }
+                    // The API to put a single task is /task/{task_id}
+                    wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/task/{$task->task_type}", ['method' => 'PUT', 'headers' => ['Content-Type' => 'application/json'], 'body' => json_encode($task_body), 'timeout' => 15]);
+                }
+            }
+            // After pushing all tasks, send the 'refresh' command to activate them.
+            if (FSBHOA_DEBUG_MODE) {
+                error_log("SYNC SERVICE: >>> Sending 'refresh tasklist' command to '$friendly_name'");
+            }
+            // A PUT request to the /tasklist endpoint triggers the refresh.
+            wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/tasklist", ['method' => 'PUT', 'timeout' => 15]);
         }
-
-        // end Task Sychronization logic  //
     }
 
     $final_message = "Sync and verification complete for all " . $total_controllers . " controllers.";

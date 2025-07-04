@@ -102,7 +102,7 @@ class Fsbhoa_Controller_Actions {
 		// --- Finalize Transaction ---
 		if (empty($errors)) {
 			$wpdb->query('COMMIT');
-            $this->write_controllers_file();
+            self::regenerate_config_file();
 		} else {
 			$wpdb->query('ROLLBACK');
 			// If there are errors, save data to a transient and redirect back to the form
@@ -123,6 +123,7 @@ class Fsbhoa_Controller_Actions {
 		}
 
 		$redirect_url = add_query_arg('message', $message_code, $list_page_url);
+        $redirect_url = add_query_arg('sync_started', '1', $redirect_url);
 		wp_safe_redirect($redirect_url);
 		exit;
     }
@@ -135,7 +136,7 @@ class Fsbhoa_Controller_Actions {
         global $wpdb;
         $table_name = 'ac_controllers';
         $result = $wpdb->delete($table_name, ['controller_record_id' => $item_id]);
-        $this->write_controllers_file();
+        self::regenerate_config_file();
 
         // Added database error checking
         if (false === $result) {
@@ -243,7 +244,7 @@ class Fsbhoa_Controller_Actions {
         // Clean up the URL from the discovery-results parameter
         $list_page_url = remove_query_arg( 'discovery-results', $redirect_url );
 
-        $this->write_controllers_file();
+        self::regenerate_config_file();
 
         // Add a success message to the final URL
         $final_url = add_query_arg('message', 'controller_added', $list_page_url);
@@ -314,9 +315,10 @@ class Fsbhoa_Controller_Actions {
     }
 
     /**
-     * Queries the DB for all controller and door data and writes it to a rich JSON file.
+     * Regenerates the rich controllers.json file for the Go services.
+     * This is a static function so it can be called from other action classes.
      */
-    private function write_controllers_file() {
+    public static function regenerate_config_file() {
         global $wpdb;
         $controllers_table = 'ac_controllers';
         $doors_table = 'ac_doors';
