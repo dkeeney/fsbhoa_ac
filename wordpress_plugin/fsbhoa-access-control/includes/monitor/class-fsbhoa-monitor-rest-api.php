@@ -198,7 +198,7 @@ error_log('--- register_routes called ---');
         $params = $request->get_json_params();
 
         // Basic validation
-        if ( !isset($params['SerialNumber']) || !isset($params['Door']) || !isset($params['CardNumber']) ) {
+        if ( !isset($params['SerialNumber']) || !isset($params['Door']) ) {
             return new WP_Error( 'bad_request', 'Missing required event parameters.', array( 'status' => 400 ) );
         }
 

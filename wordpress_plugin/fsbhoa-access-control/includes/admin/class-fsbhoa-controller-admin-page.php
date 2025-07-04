@@ -11,9 +11,9 @@ class Fsbhoa_Controller_Admin_Page {
             $message_code = sanitize_key($_GET['message']);
             $message_text = '';
             switch ($message_code) {
-                case 'controller_added': $message_text = 'Controller added successfully.'; break;
-                case 'controller_updated': $message_text = 'Controller updated successfully.'; break;
-                case 'controller_deleted': $message_text = 'Controller deleted successfully.'; break;
+                //case 'controller_added': $message_text = 'Controller added successfully.'; break;
+                //case 'controller_updated': $message_text = 'Controller updated successfully.'; break;
+                //case 'controller_deleted': $message_text = 'Controller deleted successfully.'; break;
                 case 'controller_set_to_dhcp': $message_text = 'Controller has been set to DHCP mode. Please use "Discover Controllers" to find its new IP address.'; break;
             }
             if ($message_text) {

@@ -45,10 +45,10 @@ function fsbhoa_render_task_form( $form_data, $adapt_to_options, $is_edit_mode, 
                     <div class="form-field">
                         <label for="task_type">Task</label>
                         <select name="task_type" id="task_type" required>
-                             <option value="0" <?php selected($form_data['task_type'], 0); ?>>Unlock by Card</option>
-                             <option value="1" <?php selected($form_data['task_type'], 1); ?>>Unlock</option>
-                             <option value="2" <?php selected($form_data['task_type'], 2); ?>>Locked</option>
-                        </select>
+                             <option value="1" <?php selected($form_data['task_type'], 1); ?>>Unlock by Card (Controlled)</option>
+                             <option value="2" <?php selected($form_data['task_type'], 2); ?>>Unlock (Normally Open)</option>
+                             <option value="3" <?php selected($form_data['task_type'], 3); ?>>Locked (Normally Closed)</option>
+                        </select>
                     </div>
                 </div>
                 <!-- Combined Time and Date Row -->

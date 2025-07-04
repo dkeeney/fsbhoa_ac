@@ -20,13 +20,31 @@ type EventMonitor struct {
 
 // OnEvent is the callback function that gets executed when a controller sends an event.
 func (m *EventMonitor) OnEvent(status *types.Status) {
-	if status.Event.CardNumber == 0 {
-		return
-	}
 	event := status.Event
 	if config.Debug {
 		log.Printf("DEBUG: OnEvent received: %+v", event)
 	}
+
+	// Create a descriptive message based on the event type and reason code.
+	var eventMessage string
+	switch event.Reason {
+	case 1:
+		eventMessage = "Card swipe event" // This will be overwritten by enrichEvent for card swipes
+	case 2:
+		eventMessage = "Door opened"
+	case 3:
+		eventMessage = "Door closed"
+	case 4:
+		eventMessage = "Button pressed"
+	case 5:
+		eventMessage = "Door propped open"
+	case 6:
+		eventMessage = "Door forced open"
+	default:
+		eventMessage = fmt.Sprintf("Unknown event reason: %d", event.Reason)
+	}
+
+	// Create the event struct to be logged
 	rawEvent := RawHardwareEvent{
 		SerialNumber: uint32(status.SerialNumber),
 		CardNumber:   event.CardNumber,
@@ -34,24 +52,30 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 		Granted:      event.Granted,
 		Reason:       event.Reason,
 	}
-    go logEventToWordPress(rawEvent)
 
-	enrichedPayload, err := enrichEvent(rawEvent)
-	if err != nil {
-		log.Printf("ERROR: Could not enrich event: %v", err)
-		return
+	// Log ALL event types to the database in the background
+	go logEventToWordPress(rawEvent, eventMessage)
+
+	// ONLY process card swipes for real-time display and enrichment
+	if event.CardNumber > 0 {
+		enrichedPayload, err := enrichEvent(rawEvent)
+		if err != nil {
+			log.Printf("ERROR: Could not enrich event: %v", err)
+			return
+		}
+		message := WebSocketMessage{
+			MessageType: "accessEvent",
+			Payload:     enrichedPayload,
+		}
+		jsonMessage, err := json.Marshal(message)
+		if err != nil {
+			log.Printf("ERROR: Could not marshal access event message: %v", err)
+			return
+		}
+		m.hub.broadcast <- jsonMessage
 	}
-	message := WebSocketMessage{
-		MessageType: "accessEvent",
-		Payload:     enrichedPayload,
-	}
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("ERROR: Could not marshal access event message: %v", err)
-		return
-	}
-	m.hub.broadcast <- jsonMessage
 }
+
 
 // OnConnected is a callback for when the listener establishes a connection.
 func (m *EventMonitor) OnConnected() {
@@ -141,7 +165,7 @@ func enrichEvent(rawEvent RawHardwareEvent) (AccessEventPayload, error) {
 }
 
 // logEventToWordPress sends the raw event details to a WordPress endpoint to be logged.
-func logEventToWordPress(event RawHardwareEvent) {
+func logEventToWordPress(event RawHardwareEvent, eventMessage string) {
 	apiURL := fmt.Sprintf("%s/wp-json/fsbhoa/v1/monitor/log-event", config.WpURL)
 
     fmt.Println(">>>> logEventToWordPress was called!")
@@ -156,7 +180,7 @@ func logEventToWordPress(event RawHardwareEvent) {
 		"Door":         event.Door,
 		"Granted":      event.Granted,
 		"Reason":       event.Reason,
-		"EventMessage": "Card swipe event",
+		"EventMessage": eventMessage,
 	})
 	if err != nil {
 		log.Printf("ERROR LOGGING: Failed to create JSON for event log: %v", err)

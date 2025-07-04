@@ -17,6 +17,8 @@ function fsbhoa_render_controller_list_view() {
     ?>
     <div class="fsbhoa-frontend-wrap">
         <h1><?php esc_html_e( 'Controller Management', 'fsbhoa-ac' ); ?></h1>
+        <div id="fsbhoa-sync-notice-container">
+        </div>
         
         <div class="fsbhoa-table-controls">
             <a href="<?php echo esc_url( add_query_arg(['view' => 'controllers', 'action' => 'add'], $current_page_url) ); ?>" class="button button-primary">
