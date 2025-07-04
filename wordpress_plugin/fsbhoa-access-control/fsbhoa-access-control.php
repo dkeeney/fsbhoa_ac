@@ -236,4 +236,28 @@ function fsbhoa_ac_fix_svg_thumb_display( $response, $attachment, $meta ) {
 }
 add_filter( 'wp_prepare_attachment_for_js', 'fsbhoa_ac_fix_svg_thumb_display', 10, 3 );
 
+/**
+ * Injects a small JavaScript snippet to remove theme padding on plugin pages.
+ */
+function fsbhoa_remove_theme_padding_script() {
+    ?>
+    <script type="text/javascript" id="fsbhoa-padding-fix">
+        document.addEventListener('DOMContentLoaded', function() {
+            const pluginWrap = document.querySelector('.fsbhoa-frontend-wrap');
+            if (pluginWrap) {
+                const primaryContent = document.getElementById('primary');
+                if (primaryContent) {
+                    primaryContent.style.paddingTop = '0';
+                    primaryContent.style.marginTop = '0';
+                }
+            }
+        });
+    </script>
+    <?php
+}
+// Run this script in the footer of both front-end and admin pages.
+add_action('wp_footer', 'fsbhoa_remove_theme_padding_script');
+add_action('admin_footer', 'fsbhoa_remove_theme_padding_script');
+
+
 ?>

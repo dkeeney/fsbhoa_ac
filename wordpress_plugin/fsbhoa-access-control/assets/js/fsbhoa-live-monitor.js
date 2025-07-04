@@ -98,9 +98,94 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
     
-    function flashGateLight(doorNumber) {
-        // This is a placeholder for future functionality
+
+    function sendDoorStateCommand(doorId, stateCode, lightElement) {
+        // Temporarily make the light pulse to show a command is being sent
+        if (lightElement) {
+            lightElement.classList.add('flash');
+        }
+
+        const apiEndpoint = '/wp-json/fsbhoa/v1/monitor/set-door-state';
+        const postData = {
+            door_id: parseInt(doorId),
+            state: parseInt(stateCode)
+        };
+
+        fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': fsbhoa_monitor_vars.nonce // Add the nonce header
+            },
+            body: JSON.stringify(postData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.message || 'Unknown error'); });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Command successful:', data.message);
+            // The UI will update automatically when the event_service polls the new state.
+            setTimeout(() => {
+                if (lightElement) lightElement.classList.remove('flash');
+            }, 1000);
+        })
+        .catch(error => {
+            console.error('Error setting door state:', error);
+            alert('Error sending command: ' + error.message);
+            if (lightElement) lightElement.classList.remove('flash');
+        });
     }
+
+    function handleGateClick(e) {
+        const light = e.target.closest('.gate-light');
+        if (!light) {
+            return;
+        }
+
+        const doorId = light.id.replace('gate-light-', '');
+        const gateName = light.title;
+
+        // Create and inject the modal HTML
+        const modalHTML = `
+            <div id="door-control-overlay" class="fsbhoa-modal-overlay">
+                <div class="fsbhoa-modal-content">
+                    <h3>Set State for "${gateName}"</h3>
+                    <div id="door-control-buttons" class="fsbhoa-modal-buttons">
+                        <button class="button-yellow" data-state="1">Unlock by Card (Yellow)</button>
+                        <button class="button-green" data-state="2">Unlock (Green)</button>
+                        <button class="button-red" data-state="3">Lock (Red)</button>
+                        <button class="button-secondary" data-state="cancel">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Add a click listener to the new button container
+        const buttonContainer = document.getElementById('door-control-buttons');
+        buttonContainer.addEventListener('click', function(event) {
+            const button = event.target.closest('button');
+            if (!button) return;
+
+            const desiredState = button.getAttribute('data-state');
+
+            // Remove the modal from the screen
+            document.getElementById('door-control-overlay').remove();
+
+            // If not "Cancel", send the command
+            if (desiredState && desiredState !== 'cancel') {
+                sendDoorStateCommand(doorId, desiredState, light);
+            }
+        });
+    }
+
+
+
+
+
 
     function createEventCard(eventData, isExpanded) {
         const li = document.createElement('li');
@@ -113,6 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <img class="h-16 w-16 rounded-lg object-cover" src="${eventData.photoURL}" alt="${eventData.cardholderName}" onerror="this.onerror=null;this.src='https://placehold.co/128x128/ccc/ffffff?text=Error';">
                 <div class="flex-1 event-text-content">
                     <p class="text-lg font-semibold text-gray-900">${eventData.cardholderName}</p>
+                    <p class="text-gray-500">${eventData.streetAddress}</p>
                     <p class="text-gray-600">Event at <span class="font-medium">${eventData.gateName}</span></p>
                     <p class="text-sm ${isGranted ? 'text-green-700' : 'text-red-700'} font-medium mt-1">${eventData.eventMessage}</p>
                 </div>
@@ -255,6 +341,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Add the main event listener to the map container
+    if (mapContainer) {
+        mapContainer.addEventListener('click', handleGateClick);
+    }
 
     // Run all initialization tasks, then connect the WebSocket.
     Promise.all([

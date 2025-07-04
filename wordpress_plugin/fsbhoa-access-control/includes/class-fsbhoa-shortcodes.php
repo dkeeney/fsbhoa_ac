@@ -277,7 +277,10 @@ class Fsbhoa_Shortcodes {
 			wp_localize_script(
 				$script_handle,
 				'fsbhoa_monitor_vars',
-				['ws_url' => $ws_url]
+                [
+                    'ws_url' => $ws_url,
+                    'nonce'  => wp_create_nonce('wp_rest') 
+                ]
 			);
 		}
     }

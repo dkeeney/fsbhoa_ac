@@ -1,8 +1,15 @@
-i/* ==========================================================================
+/* ==========================================================================
    Global & Shared Styles (The "Skin")
    ========================================================================== */
 
 /* --- Main Plugin Wrapper & Title --- */
+/*
+ * Global override to remove extra top padding from the theme's
+ * main content area on all FSBHOA plugin pages.
+ */
+#primary:has(.fsbhoa-frontend-wrap) {
+    padding-top: 0;
+}
 .fsbhoa-frontend-wrap {
     display: block;         /* Ensure it's treated as a block */
     box-sizing: border-box; /* A good practice for consistent sizing */
