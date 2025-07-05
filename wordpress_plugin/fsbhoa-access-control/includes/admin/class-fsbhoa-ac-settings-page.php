@@ -52,10 +52,10 @@ class Fsbhoa_Ac_Settings_Page {
             'fsbhoa_ac_callback_host' => ['label' => 'Event Callback Host IP', 'default' => '192.168.42.99'],
             'fsbhoa_ac_websocket_port' => ['label' => 'WebSocket Service Port', 'type' => 'number', 'default' => 8083],
             'fsbhoa_ac_wp_protocol' => ['label' => 'WordPress API Protocol', 'default' => 'https'],
-            'fsbhoa_ac_wp_host' => ['label' => 'WordPress API Host', 'default' => 'nas.local'],
+            'fsbhoa_ac_wp_host' => ['label' => 'WordPress API Host', 'default' => 'nas.fsbhoa.com'],
             'fsbhoa_ac_wp_port' => ['label' => 'WordPress API Port', 'type' => 'number', 'default' => 443],
-            'fsbhoa_ac_tls_cert_path' => ['label' => 'TLS Certificate Path', 'default' => '/etc/ssl/nas.local/nas.local.crt'],
-            'fsbhoa_ac_tls_key_path' => ['label' => 'TLS Key Path', 'default' => '/etc/ssl/nas.local/nas.local.key'],
+            'fsbhoa_ac_tls_cert_path' => ['label' => 'TLS Certificate Path', 'default' => '/etc/letsencrypt/live/nas.fsbhoa.com/fullchain.pem'],
+            'fsbhoa_ac_tls_key_path' => ['label' => 'TLS Key Path', 'default' => '/etc/letsencrypt/live/nas.fsbhoa.com/privkey.pem'],
             'fsbhoa_ac_event_log_path' => ['label' => 'Event Service Log Path', 'default' => '', 'desc' => 'Leave empty for console output.'],
             'fsbhoa_ac_debug_mode' => ['label' => 'Debug Mode', 'type' => 'checkbox', 'default' => 'on'],
             'fsbhoa_ac_test_stub' => ['label' => 'Enable Test Stub', 'type' => 'checkbox', 'default' => 'on'],
@@ -84,7 +84,7 @@ class Fsbhoa_Ac_Settings_Page {
             'listenPort'       => (int) get_option('fsbhoa_ac_listen_port', 60002),
             'callbackHost'     => get_option('fsbhoa_ac_callback_host', '192.168.42.99'),
             'webSocketPort'    => (int) get_option('fsbhoa_ac_websocket_port', 8083),
-            'wpURL'            => sprintf('%s://%s:%d', get_option('fsbhoa_ac_wp_protocol', 'https'), get_option('fsbhoa_ac_wp_host', 'nas.local'), (int) get_option('fsbhoa_ac_wp_port', 443)),
+            'wpURL'            => sprintf('%s://%s:%d', get_option('fsbhoa_ac_wp_protocol', 'https'), get_option('fsbhoa_ac_wp_host', 'nas.fsbhoa.com'), (int) get_option('fsbhoa_ac_wp_port', 443)),
             'tlsCert'          => get_option('fsbhoa_ac_tls_cert_path', ''),
             'tlsKey'           => get_option('fsbhoa_ac_tls_key_path', ''),
             'logFile'          => get_option('fsbhoa_ac_event_log_path', ''),
@@ -165,33 +165,45 @@ class Fsbhoa_Ac_Settings_Page {
         ?>
         <div class="wrap">
             <h1>Live Monitor Settings</h1>
-            <p>Use this tool to position your gates on the live monitor map.</p>
+            <p>Use this tool to upload your map and position your gates for the live monitor page.</p>
             <hr>
 
-            <div id="fsbhoa-editor-area" style="display: flex; gap: 20px; margin-top: 20px;">
+            <form action="options.php" method="post">
+                <?php
+                // This handles the saving of our 'fsbhoa_monitor_map_url' option
+                settings_fields('fsbhoa_monitor_options');
+                ?>
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row">Monitor Map</th>
+                            <td>
+                                <input type="hidden" id="fsbhoa_monitor_map_url" name="fsbhoa_monitor_map_url" value="<?php echo esc_attr(get_option('fsbhoa_monitor_map_url', '')); ?>" />
+                                <button type="button" class="button" id="fsbhoa_monitor_map_url-button">Upload or Change Map Image</button>
+                                <?php submit_button('Save Map'); ?>
+                                <p class="description">Upload your map, then click "Save Map" to update the URL.</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </form>
+
+            <hr>
+
+            <h2>Gate Position Editor</h2>
+            <p class="description">Drag the gate markers to their correct positions on the map below, then click "Save Gate Positions".</p>
+            <div id="fsbhoa-editor-area" style="display: flex; gap: 20px; margin-top: 1em;">
+
                 <div id="fsbhoa-map-editor-container" style="position: relative; border: 2px solid #ccc; flex-basis: 70%; min-height: 400px;">
                     <img id="fsbhoa-map-editor-bg" src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" style="max-width: 100%; display: block; opacity: 0.7;">
-                </div>
+                    </div>
+
                 <div id="fsbhoa-gate-legend" style="flex-basis: 30%;">
                     <h3>Gate Legend</h3>
-                    <p class="description">Drag the numbered dots on the map to set their positions.</p>
                     <ol style="margin-left: 20px; background: #fff; border: 1px solid #ddd; padding: 10px;"></ol>
                 </div>
-            </div>
 
-            <table class="form-table">
-                <tbody>
-                    <tr>
-                        <th scope="row">Upload Map</th>
-                        <td>
-                            <input type="hidden" id="fsbhoa_monitor_map_url" name="fsbhoa_monitor_map_url" value="<?php echo esc_attr(get_option('fsbhoa_monitor_map_url', '')); ?>" />
-                            <button type="button" class="button" id="fsbhoa_monitor_map_url-button">Upload or Change Map Image</button>
-                            <button type="submit" name="submit" id="submit" class="button button-secondary" style="margin-left:10px;">Save Map</button>
-                            <p class="description">Upload your stylized SVG or PNG map file. Click "Save Map" to make it permanent.</p>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            </div>
 
             <p style="margin-top: 15px;">
                 <button type="button" class="button button-primary" id="fsbhoa-save-gate-positions">Save Gate Positions</button>

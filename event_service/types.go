@@ -47,6 +47,7 @@ type AccessEventPayload struct {
 	EventMessage   string `json:"eventMessage"`
 	CardNumber     uint32 `json:"cardNumber"`
 	DoorRecordID   int    `json:"doorRecordId"`
+    StreetAddress  string `json:"streetAddress"`
 }
 
 // GateStatusPayload is the payload for periodic gate status updates.
@@ -70,5 +71,6 @@ type WordPressEnrichmentData struct {
 	PhotoURL       string `json:"photoURL"`
 	GateName       string `json:"gateName"`
 	DoorRecordID   int    `json:"doorRecordId"`
+    StreetAddress  string `json:"streetAddress"`
 }
 

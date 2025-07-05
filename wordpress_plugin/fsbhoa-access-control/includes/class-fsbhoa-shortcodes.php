@@ -272,7 +272,8 @@ class Fsbhoa_Shortcodes {
 
 			// Pass the configurable WebSocket URL to the script
 			$ws_port = get_option('fsbhoa_ac_event_port', 8083);
-			$ws_url = sprintf('wss://%s:%d/ws', 'NAS.local', $ws_port);
+            $ws_host = get_option('fsbhoa_ac_wp_host', 'localhost');
+			$ws_url = sprintf('wss://%s:%d/ws', $ws_host, $ws_port);
 
 			wp_localize_script(
 				$script_handle,

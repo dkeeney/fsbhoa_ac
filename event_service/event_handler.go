@@ -143,6 +143,7 @@ func enrichEvent(rawEvent RawHardwareEvent) (AccessEventPayload, error) {
 		if err := json.NewDecoder(resp.Body).Decode(&wpData); err == nil {
 			enriched.CardholderName = wpData.CardholderName
 			enriched.PhotoURL = wpData.PhotoURL
+            enriched.StreetAddress = wpData.StreetAddress
 		} else {
 			log.Printf("ERROR: Could not decode enrichment response from WordPress: %v", err)
 		}
