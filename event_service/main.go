@@ -79,6 +79,10 @@ func main() {
 	// 5. Start the WebSocket Server
 	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", config.WebSocketPort)}
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { serveWs(hub, w, r) })
+
+    // Manual state was set for a gate, get the new state for real-time display.
+    http.HandleFunc("/trigger-poll", triggerPollHandler(u, hub))
+
 	if config.EnableTestStub {
 		http.HandleFunc("/test_event", testEventHandler(hub, &listener))
 	}
@@ -111,6 +115,21 @@ func main() {
 		log.Printf("ERROR: HTTP server shutdown error: %v", err)
 	}
 	log.Println("INFO: Shutdown complete.")
+}
+
+func triggerPollHandler(u uhppote.IUHPPOTE, hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if config.Debug {
+			log.Println("DEBUG: Received request on /trigger-poll endpoint.")
+		}
+
+		// Run a single poll in the background
+		go runPoll(u, hub)
+
+		// Immediately respond with success
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Poll triggered.")
+	}
 }
 
 // testEventHandler remains here as it's a specific HTTP handler set up in main.

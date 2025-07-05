@@ -14,8 +14,6 @@ add_action('fsbhoa_run_background_sync', 'fsbhoa_perform_full_sync');
  * Contains full add, update, delete for cards, and now syncs and validates tasks.
  */
 function fsbhoa_perform_full_sync() {
-    $rest_port = get_option('fsbhoa_ac_rest_port', 8082);
-
     if (FSBHOA_DEBUG_MODE) {
         error_log("SYNC SERVICE: Main sync process started.");
     }
@@ -25,27 +23,14 @@ function fsbhoa_perform_full_sync() {
 
     // --- Get all necessary data from the database ---
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers WHERE ip_address IS NOT NULL AND ip_address != ''");
-    if ($wpdb->last_error) { 
-        if (FSBHOA_DEBUG_MODE) {error_log("SYNC SERVICE: DB Error on controllers: ".$wpdb->last_error);} 
-        return; 
-    }
-    
     $cardholders = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status = 'active' AND resident_type != 'Landlord'");
-    if ($wpdb->last_error) { 
-        if (FSBHOA_DEBUG_MODE) {error_log("SYNC SERVICE: DB Error on cardholders: ".$wpdb->last_error);}
-         return; 
-    }
-
     $tasks = $wpdb->get_results("SELECT * FROM ac_task_list WHERE enabled = 1");
-    if ($wpdb->last_error) { 
-        if (FSBHOA_DEBUG_MODE) {error_log("SYNC SERVICE: DB Error on tasks: ".$wpdb->last_error);}
-         return; 
-    }
-    if (FSBHOA_DEBUG_MODE) {
-        error_log("SYNC SERVICE: Found " . count($tasks) . " enabled tasks to sync.");
+
+    if ($wpdb->last_error) {
+        if (FSBHOA_DEBUG_MODE) {error_log("SYNC SERVICE: DB Error on fetching data: ".$wpdb->last_error);}
+        return;
     }
 
-    // Create an associative array of cardholders keyed by their card number for quick lookups
     $db_cards = [];
     foreach ($cardholders as $cardholder) {
         $card_number = intval($cardholder->rfid_id);
@@ -65,44 +50,41 @@ function fsbhoa_perform_full_sync() {
     foreach ($controllers as $controller) {
         $processed_controllers++;
         $device_id = $controller->uhppoted_device_id;
-        $device_id_for_url = rawurlencode($device_id);
         $friendly_name = $controller->friendly_name;
         $controller_id = $controller->controller_record_id;
-        if (FSBHOA_DEBUG_MODE) {
-            error_log("SYNC SERVICE: Processing controller $processed_controllers/$total_controllers: '$friendly_name'");
-        }
+
+        $listen_host = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
+        $listen_port = get_option('fsbhoa_ac_listen_port', '60002');
+        $listen_address = $listen_host . ':' . $listen_port;
+        $base_command = sprintf(
+            'uhppote-cli --bind %s --broadcast %s --listen %s',
+            escapeshellarg(get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0')),
+            escapeshellarg(get_option('fsbhoa_ac_broadcast_addr', '0.0.0.0:0')),
+            escapeshellarg($listen_address)
+        );
 
         // --- Card Deletion Logic ---
         set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking for cards to delete on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
-        
-        $cards_on_controller_req = wp_remote_get("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/cards", ['timeout' => 20]);
-
-        if (is_wp_error($cards_on_controller_req)) {
-            error_log("SYNC SERVICE ERROR: Failed to connect to uhppoted-rest. Error: " . $cards_on_controller_req->get_error_message());
-        } else {
-            error_log("SYNC SERVICE DEBUG: Successfully connected to uhppoted-rest. Status code: " . wp_remote_retrieve_response_code($cards_on_controller_req));
-        }
-
-        if (!is_wp_error($cards_on_controller_req) && wp_remote_retrieve_response_code($cards_on_controller_req) === 200) {
-            $response_body = json_decode(wp_remote_retrieve_body($cards_on_controller_req), true);
-            $controller_card_numbers = $response_body['cards'] ?? [];
-            $cards_to_delete = array_diff($controller_card_numbers, $db_card_numbers);
-
-            if (!empty($cards_to_delete)) {
-                if (FSBHOA_DEBUG_MODE) {
-                    error_log("SYNC SERVICE: Found " . count($cards_to_delete) . " card(s) to delete on '$friendly_name'.");
-                }
-                foreach ($cards_to_delete as $card_to_del) {
-                    if (FSBHOA_DEBUG_MODE) {
-                        error_log("SYNC SERVICE: >>> Deleting Card #{$card_to_del} from '$friendly_name'");
-                    }
-                    wp_remote_request("http://127.0.0.1:{$rest_port}/uhppote/device/{$device_id_for_url}/card/{$card_to_del}", ['method' => 'DELETE', 'timeout' => 15]);
-                }
-            } else {
-                if (FSBHOA_DEBUG_MODE) {
-                    error_log("SYNC SERVICE: No cards need to be deleted from '$friendly_name'.");
-                }
+        $get_cards_command = sprintf('%s get-cards %s', $base_command, escapeshellarg($device_id));
+        $cards_output = shell_exec($get_cards_command . " 2>&1");
+        $controller_card_numbers = [];
+        $lines = explode("\n", trim($cards_output));
+        foreach ($lines as $line) {
+            $parts = preg_split('/\s+/', $line);
+            if (is_numeric($parts[0])) {
+                $controller_card_numbers[] = intval($parts[0]);
             }
+        }
+        $cards_to_delete = array_diff($controller_card_numbers, $db_card_numbers);
+        if (!empty($cards_to_delete)) {
+            if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Found " . count($cards_to_delete) . " card(s) to delete on '$friendly_name'."); }
+            foreach ($cards_to_delete as $card_to_del) {
+                if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: >>> Deleting Card #{$card_to_del} from '$friendly_name'"); }
+                $delete_card_command = sprintf('%s delete-card %s %d', $base_command, escapeshellarg($device_id), $card_to_del);
+                shell_exec($delete_card_command . " 2>&1");
+            }
+        } else {
+            if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: No cards need to be deleted from '$friendly_name'."); }
         }
 
         // --- Card Add/Update Logic ---
@@ -110,103 +92,63 @@ function fsbhoa_perform_full_sync() {
         foreach ($db_cards as $card_number => $cardholder) {
             $card_count++;
             set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking card $card_count/" . count($db_cards) . " on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
-            
-            $card_data_for_db = [
-                'card-number' => $card_number,
-                'start-date'  => $cardholder->card_issue_date ?? '2000-01-01',
-                'end-date'    => $cardholder->card_expiry_date,
-                'permissions' => [1, 2, 3, 4]
-            ];
 
-            // Compare with controller state before pushing. Run silently (false)
-            if (fsbhoa_verify_card_on_controller($device_id, $card_data_for_db, false)) {
-                if (FSBHOA_DEBUG_MODE) {
-                    error_log("SYNC SERVICE: Card #{$card_number} is already up-to-date. Skipping.");
-                }
-                continue; // Move to the next card
-            }
+            // Use time profile '255' for 'always active' access.
+            $permissions_string = '1:Y,2:Y,3:Y,4:Y';
 
-            // If verification failed, it means data is different or card is new. Push the update.
-            if (FSBHOA_DEBUG_MODE) {
-                error_log("SYNC SERVICE: >>> Pushing update for Card #{$card_number} to '$friendly_name'");
-            }
-            $card_data_to_push = ['start-date'  => $card_data_for_db['start-date'], 'end-date' => $card_data_for_db['end-date'], 'doors' => ["1" => true, "2" => true, "3" => true, "4" => true]];
-            $request_url = sprintf("http://127.0.0.1:{$rest_port}/uhppote/device/%s/card/%s", $device_id_for_url, $card_number);
-            $response = wp_remote_request($request_url, ['method' => 'PUT', 'headers' => ['Content-Type' => 'application/json'], 'body' => json_encode($card_data_to_push), 'timeout' => 15]);
+            $put_card_command = sprintf(
+                '%s put-card %s %d %s %s %s',
+                $base_command,
+                escapeshellarg($device_id),
+                $card_number,
+                escapeshellarg($cardholder->card_issue_date ?? '2000-01-01'),
+                escapeshellarg($cardholder->card_expiry_date),
+                escapeshellarg($permissions_string)
+            );
 
-            // Final verification after push. Run verbosely (true)
-            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) < 400) {
-                if (fsbhoa_verify_card_on_controller($device_id, $card_data_for_db, true)) {
-                    if (FSBHOA_DEBUG_MODE) {
-                        error_log("SYNC SERVICE: OK/VERIFIED Card #{$card_number} on '$friendly_name'");
-                    }
-                }
-            } else {
-                 $error_body = is_wp_error($response) ? $response->get_error_message() : wp_remote_retrieve_body($response);
-                 if (FSBHOA_DEBUG_MODE) {
-                    error_log("SYNC SERVICE: ERROR pushing Card #{$card_number}. Response: " . $error_body);
-                 }
+            if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $put_card_command); }
+            $put_output = shell_exec($put_card_command . " 2>&1");
+            if (FSBHOA_DEBUG_MODE && strpos($put_output, 'ERROR') !== false) {
+                error_log("SYNC SERVICE: ERROR pushing Card #{$card_number}. Response: " . $put_output);
             }
         }
-        
-        
+
         // --- Task Synchronization Logic ---
-		// This logic clears all tasks, then uses `uhppote-cli add-task` for each enabled task.
-		if (FSBHOA_DEBUG_MODE) {
-			error_log("SYNC SERVICE: Using uhppote-cli to sync tasks for '$friendly_name'...");
-		}
+        if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Using uhppote-cli to sync tasks for '$friendly_name'..."); }
+        $clear_command = sprintf('uhppote-cli --debug clear-task-list %s', escapeshellarg($device_id));
+        shell_exec($clear_command . " 2>&1");
 
-		// 1. Clear all existing tasks from the controller.
-		$clear_command = sprintf('uhppote-cli --debug clear-task-list %s', escapeshellarg($device_id));
-		$clear_output = shell_exec($clear_command . " 2>&1");
-		if (FSBHOA_DEBUG_MODE) {
-			error_log("SYNC SERVICE (clear-task-list): " . $clear_output);
-		}
+        $tasks_pushed_count = 0;
+        foreach ($tasks as $task) {
+            if ($task->controller_id === null || $task->controller_id == $controller_id) {
+                $weekdays = rtrim(($task->on_sun ? 'Su,' : '') . ($task->on_mon ? 'Mo,' : '') . ($task->on_tue ? 'Tu,' : '') . ($task->on_wed ? 'We,' : '') . ($task->on_thu ? 'Th,' : '') . ($task->on_fri ? 'Fr,' : '') . ($task->on_sat ? 'Sa,' : ''), ',');
 
-		// 2. Loop through the enabled tasks from the database and add them one by one.
-		$tasks_pushed_count = 0;
-		foreach ($tasks as $task) {
-			if ($task->controller_id === null || $task->controller_id == $controller_id) {
-				$weekdays = rtrim(
-					($task->on_sun ? 'Su,' : '') .
-					($task->on_mon ? 'Mo,' : '') .
-					($task->on_tue ? 'Tu,' : '') .
-					($task->on_wed ? 'We,' : '') .
-					($task->on_thu ? 'Th,' : '') .
-					($task->on_fri ? 'Fr,' : '') .
-					($task->on_sat ? 'Sa,' : ''),
-				',');
+                $doors_to_set = [];
+                // Check if door_number is NULL, which means all doors for that controller
+                if ($task->door_number === null) {
+                    $doors_to_set = [1, 2, 3, 4];
+                } else {
+                    $doors_to_set[] = intval($task->door_number);
+                }
 
-				// Build the command string with parameters in the correct order from the 'help' output
-				// Usage: add-task <serial-number> <door> <task> <active> <weekdays> <start> <cards>
-				$add_task_command = sprintf(
-					'uhppote-cli --debug add-task %s %d %d %s %s %s %s',
-					escapeshellarg($device_id),
-					escapeshellarg(intval($task->door_number)),
-					escapeshellarg($task->task_type),
-					escapeshellarg($task->valid_from . ':' . $task->valid_to),
-					escapeshellarg($weekdays),
-					escapeshellarg(substr($task->start_time, 0, 5)),
-					escapeshellarg('0') // For the optional 'cards' parameter
-				);
-
-				if (FSBHOA_DEBUG_MODE) {
-					error_log("SYNC SERVICE: Executing: " . $add_task_command);
-				}
-
-				$add_output = shell_exec($add_task_command . " 2>&1");
-				$tasks_pushed_count++;
-
-				if (FSBHOA_DEBUG_MODE) {
-					error_log("SYNC SERVICE (add-task): " . $add_output);
-				}
-			}
-		}
-		if (FSBHOA_DEBUG_MODE) {
-			error_log("SYNC SERVICE: Finished pushing {$tasks_pushed_count} tasks.");
+                foreach ($doors_to_set as $door) {
+                    $add_task_command = sprintf(
+                        'uhppote-cli --debug add-task %s %d %d %s %s %s %s',
+                        escapeshellarg($device_id),
+                        $door,
+                        intval($task->task_type),
+                        escapeshellarg($task->valid_from . ':' . $task->valid_to),
+                        escapeshellarg($weekdays),
+                        escapeshellarg(substr($task->start_time, 0, 5)),
+                        escapeshellarg('0')
+                    );
+                    if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $add_task_command); }
+                    shell_exec($add_task_command . " 2>&1");
+                }
+                $tasks_pushed_count++;
+            }
         }
-
-        // end Task Sychronization logic  //
+        if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Finished pushing {$tasks_pushed_count} tasks."); }
     }
 
     $final_message = "Sync and verification complete for all " . $total_controllers . " controllers.";
@@ -214,6 +156,7 @@ function fsbhoa_perform_full_sync() {
     delete_transient('fsbhoa_sync_status');
     if (FSBHOA_DEBUG_MODE) error_log("SYNC SERVICE: --- Sync Process Finished ---");
 }
+
 
 /**
  * Verifies card details on a controller.

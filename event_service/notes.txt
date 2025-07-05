@@ -2,6 +2,13 @@
 It's purpose is to capture events issued by the controller
 and get the events displayed on the real-time monitor display.
 
+To build:
+  cd ~/fsbhoa_ac/event_service
+  go build -o event_service_app .
+
+To run manually:
+  ./event_service_app
+
 Check the status:
 sudo systemctl status fsbhoa-event-service
 
