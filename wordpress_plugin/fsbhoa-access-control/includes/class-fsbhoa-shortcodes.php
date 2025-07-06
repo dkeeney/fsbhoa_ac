@@ -14,6 +14,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_hardware_management', array( $this, 'render_hardware_management_shortcode' ) );
         add_shortcode( 'fsbhoa_live_monitor', array( $this, 'render_live_monitor_shortcode' ) );
         add_shortcode( 'fsbhoa_reports', array( $this, 'render_reports_shortcode' ) );
+        add_shortcode( 'fsbhoa_usage_analytics', array( $this, 'render_analytics_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
@@ -95,6 +96,7 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_hardware_management' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_live_monitor' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_reports' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_usage_analytics' )
             ) ) {
             return;
         }
@@ -210,6 +212,23 @@ class Fsbhoa_Shortcodes {
                 array(
                     'rest_nonce'   => wp_create_nonce( 'wp_rest' ),
                     'export_nonce' => wp_create_nonce( 'fsbhoa_export_nonce' )
+                )
+            );
+        }
+        // --- Load assets for the USAGE ANALYTICS report ---
+        if ( has_shortcode( $post->post_content, 'fsbhoa_usage_analytics' ) ) {
+            wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_style('fsbhoa-reports-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-reports-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+
+            $script_handle = 'fsbhoa-analytics-admin';
+            wp_enqueue_script('chart-js', 'https://cdn.jsdelivr.net/npm/chart.js', array(), '4.4.3', true);
+            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-analytics-admin.js', array('jquery', 'chart-js'), FSBHOA_AC_PLUGIN_VERSION, true);
+
+            wp_localize_script(
+                $script_handle,
+                'fsbhoa_reports_vars',
+                array(
+                    'rest_nonce' => wp_create_nonce( 'wp_rest' )
                 )
             );
         }
@@ -427,5 +446,27 @@ class Fsbhoa_Shortcodes {
 
         return ob_get_clean();
     }
+
+    /**
+     * Renders the usage analytics page.
+     * e.g., [fsbhoa_usage_analytics]
+     */
+    public function render_analytics_shortcode( $atts ) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        ob_start();
+    
+        if ( class_exists('Fsbhoa_Analytics_Admin_Page') ) {
+            $analytics_page = new Fsbhoa_Analytics_Admin_Page();
+            $analytics_page->render_page();
+        } else {
+            echo '<p>' . esc_html__( 'Error: Analytics class not found.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        return ob_get_clean();
+    }
+
 
 }

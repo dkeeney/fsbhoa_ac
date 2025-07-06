@@ -97,3 +97,19 @@ th.type-column, td.type-column {
     min-width: initial;
     width: auto;
 }
+
+/* --- Analytics Chart Styles --- */
+.fsbhoa-charts-container {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.chart-wrapper {
+    flex: 1;
+    min-width: 400px;
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+}
