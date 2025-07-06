@@ -88,6 +88,12 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-status-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-actions.php';
 
+// For Reporting
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-rest-api.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-actions.php';
+
+
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
 // This makes the admin functions available on the front-end for our shortcode.
@@ -131,6 +137,11 @@ function run_fsbhoa_action_handlers() {
          add_action('admin_notices', function() {
             echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Actions_Page class is missing. Property management functionality will not work.</p></div>';
         });
+    }
+
+    // Instantiate report actions handler
+    if (class_exists('Fsbhoa_Reports_Actions')) {
+        new Fsbhoa_Reports_Actions();
     }
 
     // Instantiate Deleted Cardholder ACTIONS handler
@@ -183,6 +194,11 @@ function fsbhoa_ac_api_init() {
     if (class_exists('Fsbhoa_Monitor_REST_API')) {
         $monitor_api = new Fsbhoa_Monitor_REST_API();
         $monitor_api->register_routes();
+    }
+    // Instantiate the Reports REST API handler
+    if (class_exists('Fsbhoa_Reports_REST_API')) {
+        $reports_api = new Fsbhoa_Reports_REST_API();
+        $reports_api->register_routes();
     }
     
     // Any other true REST API handlers would be initialized here in the future.
