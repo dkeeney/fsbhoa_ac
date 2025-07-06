@@ -49,4 +49,41 @@ function fsbhoa_discover_controllers_udp() {
     return $controllers;
 }
 
+/**
+ * Sets a controller's IP address details using uhppote-cli.
+ *
+ * @param int    $device_id The controller serial number.
+ * @param string $ip_address The IP address to set.
+ * @param string $netmask The subnet mask to set.
+ * @param string $gateway The gateway address to set.
+ * @return void
+ */
+function fsbhoa_set_controller_ip($device_id, $ip_address, $netmask, $gateway) {
+    // Build the base command with config flags from WordPress options
+    $listen_host = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
+    $listen_port = get_option('fsbhoa_ac_listen_port', '60002');
+    $listen_address = $listen_host . ':' . $listen_port;
+    $base_command = sprintf(
+        'uhppote-cli --bind %s --broadcast %s --listen %s',
+        escapeshellarg(get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0')),
+        escapeshellarg(get_option('fsbhoa_ac_broadcast_addr', '0.0.0.0:0')),
+        escapeshellarg($listen_address)
+    );
 
+    // Build the full set-address command
+    $set_address_command = sprintf(
+        '%s set-address %s %s %s %s',
+        $base_command,
+        escapeshellarg($device_id),
+        escapeshellarg($ip_address),
+        escapeshellarg($netmask),
+        escapeshellarg($gateway)
+    );
+
+    if (FSBHOA_DEBUG_MODE) {
+        error_log("DISCOVERY: Executing: " . $set_address_command);
+    }
+
+    // Execute the command
+    shell_exec($set_address_command . " 2>&1");
+}

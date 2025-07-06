@@ -11,7 +11,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_action( 'admin_menu', array( $this, 'add_plugin_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'settings_api_init' ) );
         add_action( 'admin_init', array( $this, 'intercept_event_service_save' ) );
-        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_monitor_assets' ) );
+        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
         add_action( 'wp_ajax_fsbhoa_save_gate_positions', array( $this, 'save_gate_positions_callback' ) );
     }
 
@@ -213,24 +213,42 @@ class Fsbhoa_Ac_Settings_Page {
         <?php
     }
 
-    public function enqueue_monitor_assets($hook) {
-        if ($hook !== 'fsbhoa-ac_page_fsbhoa_monitor_settings') {
-            return;
+    public function enqueue_admin_assets($hook) {
+        // For Monitor Settings Page
+        if ($hook === 'fsbhoa-ac_page_fsbhoa_monitor_settings') {
+            wp_enqueue_media();
+            wp_enqueue_style('fsbhoa-monitor-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-monitor.css', array(), FSBHOA_AC_VERSION);
+
+            $script_handle = 'fsbhoa-monitor-settings-script';
+            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-monitor-settings.js', array('jquery'), FSBHOA_AC_VERSION, true);
+
+            wp_localize_script(
+                $script_handle,
+                'fsbhoa_monitor_settings_vars',
+                array(
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'nonce'    => wp_create_nonce('fsbhoa_monitor_settings_nonce'),
+                )
+            );
         }
-        wp_enqueue_media();
-        wp_enqueue_style('fsbhoa-monitor-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-monitor.css', array(), FSBHOA_AC_VERSION);
-        
-        $script_handle = 'fsbhoa-monitor-settings-script';
-        wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-monitor-settings.js', array('jquery'), FSBHOA_AC_VERSION, true);
-        
-        wp_localize_script(
-            $script_handle,
-            'fsbhoa_monitor_settings_vars',
-            array(
-                'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce'    => wp_create_nonce('fsbhoa_monitor_settings_nonce'),
-            )
-        );
+
+        // For System Status Page
+        if ($hook === 'fsbhoa-ac_page_fsbhoa_system_status') {
+            // Load the shared styles for the status indicator colors
+            wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_VERSION);
+
+            $script_handle = 'fsbhoa-system-status-script';
+            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-system-status.js', array('jquery'), FSBHOA_AC_VERSION, true);
+
+            wp_localize_script(
+                $script_handle,
+                'fsbhoa_system_vars',
+                array(
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'nonce'    => wp_create_nonce('fsbhoa_system_status_nonce'),
+                )
+            );
+        }
     }
 
     public function save_gate_positions_callback() {
@@ -271,4 +289,6 @@ class Fsbhoa_Ac_Settings_Page {
             wp_send_json_error('An error occurred while saving some gate positions.');
         }
     }
+
+
 }

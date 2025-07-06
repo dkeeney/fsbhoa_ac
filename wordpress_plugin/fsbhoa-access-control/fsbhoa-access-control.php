@@ -84,6 +84,10 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-actions.ph
 // For Live Monitor
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-api.php';
 
+// for System management
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-status-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-actions.php';
+
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
 // This makes the admin functions available on the front-end for our shortcode.
@@ -149,6 +153,10 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_Task_Actions();
     }
 
+    // Instantiate System Actions handler for AJAX calls
+    if ( class_exists('Fsbhoa_System_Actions') ) {
+        new Fsbhoa_System_Actions();
+    }
 
     // The Print Actions handler is only needed on its own AJAX calls.
     // Only instantiate for traditional admin-ajax requests, and explicitly NOT for REST API requests.
@@ -188,6 +196,9 @@ add_action( 'rest_api_init', 'fsbhoa_ac_api_init' );
 function run_fsbhoa_access_control_admin() {
     if ( class_exists( 'Fsbhoa_Ac_Settings_Page' ) ) {
         new Fsbhoa_Ac_Settings_Page();
+    }
+    if ( class_exists( 'Fsbhoa_System_Status_Page' ) ) {
+        new Fsbhoa_System_Status_Page();
     }
     // Any other admin-dashboard specific UI initializations would go here.
 }
