@@ -92,3 +92,34 @@ body.page .entry-title {
     max-width: 800px;
 }
 
+/* For System management screen */
+.wrap .fsbhoa-status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: bold;
+}
+
+.wrap .fsbhoa-status-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #9ca3af; /* Gray for 'checking' */
+}
+
+.wrap .fsbhoa-status-indicator.is-running {
+    color: #166534 !important; /* Green */
+}
+.wrap .fsbhoa-status-indicator.is-running::before {
+    background-color: #22c55e;
+}
+
+.wrap .fsbhoa-status-indicator.is-stopped {
+    color: #991b1b !important; /* Red */
+}
+.wrap .fsbhoa-status-indicator.is-stopped::before {
+    background-color: #ef4444;
+}
+
