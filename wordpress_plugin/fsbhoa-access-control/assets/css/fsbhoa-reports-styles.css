@@ -1,0 +1,99 @@
+/* FSBHOA Reports Page Specific Styles */
+/* Hide the default WordPress page title on plugin pages */
+.page-title {
+    display: none;
+}
+
+/* Filter container */
+.fsbhoa-filter-container {
+    display: flex;
+    align-items: flex-end; /* Align items to the bottom */
+    gap: 15px; /* Space between filter groups */
+    background: #fff;
+    padding: 15px;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.fsbhoa-filter-container .filter-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.fsbhoa-filter-container .filter-group.search-group {
+    flex-grow: 1; /* Allow the search box to take up all available space */
+}
+
+.fsbhoa-filter-container label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    font-size: 12px;
+}
+
+.fsbhoa-filter-container input[type="text"],
+.fsbhoa-filter-container select {
+    min-width: 120px;
+}
+
+/*  style for short date fields */
+.fsbhoa-filter-container .fsbhoa-short-date {
+    width: 160px; /* Widen the field */
+    min-width: 160px;
+    font-size: 13px; /* Use a slightly smaller font */
+    padding: 5px 5px; /* Reduce the  padding */
+}
+
+.fsbhoa-filter-container .search-group input[type="text"] {
+    min-width: 200px; /* Give search a bit more base width */
+}
+
+.fsbhoa-filter-container .checkbox-group {
+    flex-direction: row; /* Align checkbox and label horizontally */
+    align-items: center;
+    padding-bottom: 6px; /* Align with button */
+}
+
+.fsbhoa-filter-container .checkbox-group label {
+    margin-bottom: 0;
+    margin-right: 5px;
+}
+
+/* Table Column specific styles */
+th.photo-column, td.photo-column {
+    width: 50px !important;
+    max-width: 50px !important;
+    padding: 2px !important;
+    text-align: center;
+}
+td.photo-column img {
+    width: 45px;
+    height: auto;
+    border-radius: 3px;
+}
+
+th.type-column, td.type-column {
+    width: 25px !important;
+    text-align: center !important;
+}
+
+/* Status markers in the table */
+.access-granted {
+    color: #228B22; /* ForestGreen */
+    font-weight: bold;
+}
+
+.access-denied {
+    color: #B22222; /* FireBrick */
+    font-weight: bold;
+}
+
+/* DataTables search box alignment */
+.dataTables_filter, .dataTables_length {
+    display: none; /* We use our own custom controls */
+}
+
+.fsbhoa-filter-container .page-length-group select {
+    min-width: initial;
+    width: auto;
+}

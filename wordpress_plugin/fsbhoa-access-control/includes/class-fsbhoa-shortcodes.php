@@ -13,6 +13,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_print_card', array( $this, 'render_print_card_shortcode' ) );
         add_shortcode( 'fsbhoa_hardware_management', array( $this, 'render_hardware_management_shortcode' ) );
         add_shortcode( 'fsbhoa_live_monitor', array( $this, 'render_live_monitor_shortcode' ) );
+        add_shortcode( 'fsbhoa_reports', array( $this, 'render_reports_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
@@ -93,6 +94,7 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_print_card' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_hardware_management' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_live_monitor' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_reports' )
             ) ) {
             return;
         }
@@ -187,6 +189,28 @@ class Fsbhoa_Shortcodes {
                     'ajax_url' => admin_url('admin-ajax.php'),
                     'nonce'    => wp_create_nonce('fsbhoa_sync_nonce')
                 ]
+            );
+        }
+
+        // --- REPORTS-SPECIFIC ASSETS ---
+        if ( has_shortcode( $post->post_content, 'fsbhoa_reports' ) ) {
+            $script_handle = 'fsbhoa-reports-admin'; // Define a handle for our script
+
+            wp_enqueue_style('fsbhoa-reports-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-reports-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-reports-admin.js', array('jquery', 'datatables-script'), FSBHOA_AC_PLUGIN_VERSION, true);
+
+            // Needed for date picker
+            wp_enqueue_script('jquery-ui-datepicker');
+            wp_enqueue_style('jquery-ui-style', 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css');
+
+            // Pass the nonce to the script
+            wp_localize_script(
+                $script_handle,
+                'fsbhoa_reports_vars',
+                array(
+                    'rest_nonce'   => wp_create_nonce( 'wp_rest' ),
+                    'export_nonce' => wp_create_nonce( 'fsbhoa_export_nonce' )
+                )
             );
         }
         
@@ -381,6 +405,27 @@ class Fsbhoa_Shortcodes {
 		require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-live-monitor.php';
 		fsbhoa_render_live_monitor_view();
 		return ob_get_clean();
+    }
+
+/**
+     * Renders the reports page.
+     * e.g., [fsbhoa_reports]
+     */
+    public function render_reports_shortcode( $atts ) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        ob_start();
+
+        if ( class_exists('Fsbhoa_Reports_Admin_Page') ) {
+            $reports_page = new Fsbhoa_Reports_Admin_Page();
+            $reports_page->render_page();
+        } else {
+            echo '<p>' . esc_html__( 'Error: Reports class not found.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        return ob_get_clean();
     }
 
 }
