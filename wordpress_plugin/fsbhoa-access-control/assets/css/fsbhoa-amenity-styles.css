@@ -1,0 +1,45 @@
+/* Scoped Styles for Amenity Page ONLY */
+
+/* Constrain the width of the amenity page */
+.fsbhoa-amenity-page {
+    max-width: 750px;
+}
+
+/* Style for the compact, single-line "Add New" form */
+.fsbhoa-amenity-page .fsbhoa-add-form {
+    display: flex;
+    align-items: flex-end; /* Aligns labels and inputs nicely */
+    gap: 15px; /* Adds space between form elements */
+}
+
+/* Make the container FOR THE FIELDS a flex container too */
+.fsbhoa-amenity-page .fsbhoa-add-form-fields {
+    display: flex;
+    gap: 15px; /* Add a gap between the fields */
+    align-items: flex-end;
+}
+
+.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group label {
+    margin-bottom: 3px;
+    font-size: 12px;
+}
+
+
+.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group {
+    flex-grow: 1; /* Allow fields to grow */
+}
+
+.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group input {
+    width: 100%; /* Make inputs fill their container */
+}
+
+/* Ensure actions column has enough space */
+.fsbhoa-amenity-page .fsbhoa-actions-column {
+    white-space: nowrap;
+    text-align: center;
+}

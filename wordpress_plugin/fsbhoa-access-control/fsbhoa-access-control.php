@@ -94,6 +94,10 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-rest-
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-analytics-admin-page.php';
 
+// For Kiosk Management
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-actions.php';
+
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
 // This makes the admin functions available on the front-end for our shortcode.
@@ -173,6 +177,11 @@ function run_fsbhoa_action_handlers() {
     // Only instantiate for traditional admin-ajax requests, and explicitly NOT for REST API requests.
     if ( wp_doing_ajax() && !(defined('REST_REQUEST') && REST_REQUEST) && class_exists('Fsbhoa_Print_Actions') ) {
         new Fsbhoa_Print_Actions();
+    }
+
+    // Instantiate amenity actions handler
+    if (class_exists('Fsbhoa_Amenity_Actions')) {
+        new Fsbhoa_Amenity_Actions();
     }
 
     // Note: Fsbhoa_Cardholder_Admin_Page is instantiated by the menu callback in Fsbhoa_Admin_Menu

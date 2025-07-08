@@ -15,6 +15,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_live_monitor', array( $this, 'render_live_monitor_shortcode' ) );
         add_shortcode( 'fsbhoa_reports', array( $this, 'render_reports_shortcode' ) );
         add_shortcode( 'fsbhoa_usage_analytics', array( $this, 'render_analytics_shortcode' ) );
+        add_shortcode( 'fsbhoa_amenity_management', array( $this, 'render_amenity_management_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
@@ -97,6 +98,7 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_live_monitor' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_reports' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_usage_analytics' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_amenity_management' )
             ) ) {
             return;
         }
@@ -327,6 +329,16 @@ class Fsbhoa_Shortcodes {
                 ]
 			);
 		}
+
+        // --- Load assets for the AMENITY MANAGEMENT page ---
+        if ( has_shortcode( $post->post_content, 'fsbhoa_amenity_management' ) ) {
+            wp_enqueue_style(
+                'fsbhoa-amenity-styles', 
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-amenity-styles.css', 
+                array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION
+            ); 
+        }
+
     }
 
 
@@ -468,5 +480,24 @@ class Fsbhoa_Shortcodes {
         return ob_get_clean();
     }
 
+/**
+     * Renders the Amenity Management page.
+     * e.g., [fsbhoa_amenity_management]
+     */
+    public function render_amenity_management_shortcode( $atts ) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
+        }
 
+        ob_start();
+
+        if ( class_exists('Fsbhoa_Amenity_Admin_Page') ) {
+            $amenity_page = new Fsbhoa_Amenity_Admin_Page();
+            $amenity_page->render_page();
+        } else {
+            echo '<p>' . esc_html__( 'Error: Amenity admin class not found.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        return ob_get_clean();
+    }
 }
