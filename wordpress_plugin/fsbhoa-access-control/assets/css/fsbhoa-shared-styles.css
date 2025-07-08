@@ -14,7 +14,7 @@
     display: block;         /* Ensure it's treated as a block */
     box-sizing: border-box; /* A good practice for consistent sizing */
     width: 100%;            /* Tell it to be 100% of the available space... */
-    max-width: 860px;       /* But no wider than this */
+    max-width: 850px;       /* But no wider than this */
     margin: 0.5em auto 2em;
 }
 .fsbhoa-frontend-wrap h1 {
