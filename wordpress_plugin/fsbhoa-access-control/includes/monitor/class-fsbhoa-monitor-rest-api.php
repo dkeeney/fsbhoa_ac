@@ -26,7 +26,6 @@ class Fsbhoa_Monitor_REST_API {
      * Registers the REST API routes for the monitor.
      */
     public function register_routes() {
-error_log('--- register_routes called ---');
         // This route is called by the Go service to enrich a specific event
         register_rest_route( $this->namespace, '/monitor/enrich-event', array(
             'methods'               => 'GET',
@@ -179,21 +178,28 @@ error_log('--- register_routes called ---');
         }
 
         // Find the Door/Gate Name
-        $gate_data_query = $wpdb->prepare(
-            "SELECT d.friendly_name, d.door_record_id
-             FROM ac_doors d
-             JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
-             WHERE c.uhppoted_device_id = %d AND d.door_number_on_controller = %d",
-            $controller_sn,
-            $door_number
-        );
-        $gate_data = $wpdb->get_row( $gate_data_query ); // get_row returns an object by default which is fine here
+        if ($controller_sn == 0) {
+            // This is a Kiosk event
+            $response_data['gateName'] = get_option('fsbhoa_kiosk_name', 'Front Desk Kiosk');
+            $gate_data = null; // No physical gate data
+        } else {
+            // This is a physical hardware event
+            $gate_data_query = $wpdb->prepare(
+                "SELECT d.friendly_name, d.door_record_id
+                 FROM ac_doors d
+                 JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
+                 WHERE c.uhppoted_device_id = %d AND d.door_number_on_controller = %d",
+                $controller_sn,
+                $door_number
+            );
+            $gate_data = $wpdb->get_row( $gate_data_query ); // get_row returns an object by default which is fine here
 
-        error_log('Gate data query result: ' . print_r($gate_data, true));
-        error_log('--- enrich_event_callback finished ---');
+            error_log('Gate data query result: ' . print_r($gate_data, true));
+            error_log('--- enrich_event_callback finished ---');
 
-        if ( $wpdb->last_error ) {
-            return new WP_Error( 'db_error', 'Database error fetching gate name.', array( 'status' => 500, 'db_error' => $wpdb->last_error ) );
+            if ( $wpdb->last_error ) {
+                return new WP_Error( 'db_error', 'Database error fetching gate name.', array( 'status' => 500, 'db_error' => $wpdb->last_error ) );
+            }
         }
 
         if ( $gate_data ) {
@@ -221,7 +227,7 @@ error_log('--- register_routes called ---');
 
         // Sanitize the incoming data
         $log_data = [
-            'event_timestamp'       => current_time('mysql', 1), // Use GMT time
+            'event_timestamp'       => current_time('mysql'), // Use local time
             'controller_identifier' => strval($params['SerialNumber']),
             'door_number'           => absint($params['Door']),
             'rfid_id'               => isset($params['CardNumber']) ? sprintf('%08d', absint($params['CardNumber'])) : null,

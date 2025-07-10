@@ -27,6 +27,14 @@ class Fsbhoa_Ac_Settings_Page {
         add_submenu_page($this->parent_slug, 'Event Service Config', 'Event Service', 'manage_options', 'fsbhoa_event_service_settings', array( $this, 'render_event_service_page' ));
         add_submenu_page($this->parent_slug, 'Print Service Config', 'Print Service', 'manage_options', 'fsbhoa_print_service_settings', array( $this, 'render_print_service_page' ));
         add_submenu_page($this->parent_slug, 'Live Monitor Settings', 'Monitor Settings', 'manage_options', 'fsbhoa_monitor_settings', array( $this, 'render_monitor_settings_page' ));
+        add_submenu_page(
+            $this->parent_slug,                     // Parent Slug
+            'Kiosk Settings',                       // Page Title
+            'Kiosk',                                // Menu Title
+            'manage_options',                       // Capability
+            'fsbhoa_kiosk_settings',                // Menu Slug
+            array( $this, 'render_kiosk_settings_page' ) // Page rendering function
+        );
     }
 
     public function settings_api_init() {
@@ -41,6 +49,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_settings_field('fsbhoa_ac_photo_height_field', 'Photo Height (px)', array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_photo_editor_section', ['id' => 'fsbhoa_ac_photo_height', 'type' => 'number', 'default' => 800]);
         add_settings_section('fsbhoa_ac_display_options_section', 'Display Options', null, $general_page_slug);
         add_settings_field('fsbhoa_ac_address_suffix_field', 'Address Suffix to Remove', array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_display_options_section', ['id' => 'fsbhoa_ac_address_suffix', 'type' => 'text', 'default' => 'Bakersfield, CA 93306', 'desc' => 'This text will be removed from property addresses in display lists.']);
+
 
         // --- EVENT SERVICE SETTINGS ---
         $event_service_page_slug = 'fsbhoa_event_service_settings';
@@ -75,6 +84,57 @@ class Fsbhoa_Ac_Settings_Page {
         // --- MONITOR SETTINGS ---
         $monitor_settings_option_group = 'fsbhoa_monitor_options';
         register_setting($monitor_settings_option_group, 'fsbhoa_monitor_map_url', 'esc_url_raw');
+
+        // --- KIOSK SETTINGS ---
+        $kiosk_option_group = 'fsbhoa_kiosk_options';
+        $kiosk_page_slug = 'fsbhoa_kiosk_settings';
+
+        add_settings_section(
+            'fsbhoa_ac_kiosk_logo_section',
+            'Display Settings',
+            null,
+            $kiosk_page_slug
+        );
+
+        add_settings_field(
+            'fsbhoa_kiosk_logo_url_field',
+            'Kiosk Logo URL',
+            array($this, 'render_field_callback'),
+            $kiosk_page_slug,
+            'fsbhoa_ac_kiosk_logo_section',
+            [
+                'id' => 'fsbhoa_kiosk_logo_url',
+                'type' => 'url',
+                'desc' => 'URL for the logo displayed on the kiosk idle screen.'
+            ]
+        );
+
+        register_setting(
+            $kiosk_option_group,
+            'fsbhoa_kiosk_logo_url',
+            'esc_url_raw'
+        );
+
+
+        add_settings_field(
+            'fsbhoa_kiosk_name_field',                  // Field ID
+            'Kiosk Display Name',                       // Field Title
+            array($this, 'render_field_callback'),      // Re-use your existing render function
+            $kiosk_page_slug,                           // Page slug
+            'fsbhoa_ac_kiosk_logo_section',             // Section to display in
+            [                                           // Arguments
+                'id' => 'fsbhoa_kiosk_name', 
+                'type' => 'text', 
+                'default' => 'Front Desk Kiosk',
+                'desc' => 'The name displayed for kiosk events on the Real-time Display.'
+            ]
+        );
+
+        register_setting(
+            $kiosk_option_group,
+            'fsbhoa_kiosk_name',
+            'sanitize_text_field'
+        );
     }
 
     public function save_event_service_config() {
@@ -209,6 +269,21 @@ class Fsbhoa_Ac_Settings_Page {
                 <button type="button" class="button button-primary" id="fsbhoa-save-gate-positions">Save Gate Positions</button>
                 <span id="fsbhoa-save-positions-feedback" style="margin-left: 10px;"></span>
             </p>
+        </div>
+        <?php
+    }
+
+    public function render_kiosk_settings_page() {
+        ?>
+        <div class="wrap">
+            <h1>Kiosk Settings</h1>
+            <form action="options.php" method="post">
+                <?php
+                settings_fields('fsbhoa_kiosk_options');
+                do_settings_sections('fsbhoa_kiosk_settings');
+                submit_button('Save Kiosk Settings');
+                ?>
+            </form>
         </div>
         <?php
     }

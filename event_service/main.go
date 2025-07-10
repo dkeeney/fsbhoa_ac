@@ -83,6 +83,7 @@ func main() {
     // Manual state was set for a gate, get the new state for real-time display.
     http.HandleFunc("/trigger-poll", triggerPollHandler(u, hub))
 
+
 	if config.EnableTestStub {
 		http.HandleFunc("/test_event", testEventHandler(hub, &listener))
 	}
@@ -147,11 +148,11 @@ func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
         status := types.Status{
 			SerialNumber: types.SerialNumber(425043852),
 			Event: types.StatusEvent{ // This is the corrected type name
-				Timestamp:  types.DateTime(time.Now()), // Add the required timestamp
+				Timestamp:  types.DateTime(time.Now().UTC()), // Add the timestamp in utc like hardware.
 				CardNumber: testCardNumber,
 				Door:       testDoorNumber,
 				Granted:    granted,
-				Reason:     2, // A sample reason code
+				Reason:     1, // 1= swipe, 2=door open.  A sample reason code
 			},
 		}
 

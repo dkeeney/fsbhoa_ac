@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSBHOA Kiosk</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <input type="text" id="card-reader-input" style="position: absolute; left: -9999px;">
+    <div id="idle-screen">
+        <img id="logo-image" src="" alt="HOA Logo" style="display: none; max-width: 80%; max-height: 300px; margin: 20px auto;">
+        <h1>Welcome to the Lodge</h1>
+    </div>
+    <h2 id="status-message">Status: Connecting...</h2>
+    <hr>
+    <div id="main-content" style="display: none;">
+        <div id="last-card-swipe" style="font-size: 24px; font-weight: bold; min-height: 30px;"></div>
+        <div id="amenity-buttons"></div>
+        <div id="card-display" class="card-display-hidden">
+            <img id="card-photo" src="" alt="Cardholder Photo">
+            <div id="card-name"></div>
+        </div>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>

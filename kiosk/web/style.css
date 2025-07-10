@@ -1,0 +1,72 @@
+body { font-family: sans-serif; text-align: center; }
+#amenity-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 20px;
+}
+.amenity-button {
+    width: 150px;
+    height: 150px;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    background-color: #f0f0f0;
+    transition: all 0.2s;
+}
+.amenity-button:disabled {
+    cursor: not-allowed;
+    background-color: #e0e0e0;
+    color: #999;
+    border-color: #e0e0e0;
+}
+.amenity-button:not(:disabled):hover {
+    border-color: #0073aa;
+    background-color: #eaf6ff;
+}
+.amenity-button img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    margin-bottom: 10px;
+}
+/* --- ID Card Display --- */
+#card-display {
+    position: fixed;
+    top: 150px;
+    right: 50px;
+    width: 250px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+#card-display.card-display-visible {
+    opacity: 1;
+}
+#card-photo {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    border-radius: 5px;
+    background-color: #eee;
+}
+#card-name {
+    font-size: 22px;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 10px;
+}
+

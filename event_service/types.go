@@ -1,5 +1,9 @@
 package main
 
+import (
+    "time"
+)
+
 // Config holds all configuration loaded from the event_service.conf file
 type Config struct {
 	BindAddress      string `json:"bindAddress"`
@@ -59,6 +63,7 @@ type GateStatusPayload struct {
 // RawHardwareEvent holds the unprocessed event from the controller.
 type RawHardwareEvent struct {
 	SerialNumber uint32
+    Timestamp    time.Time
 	CardNumber   uint32
 	Door         uint8
 	Granted      bool

@@ -40,6 +40,10 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 		eventMessage = "Door propped open"
 	case 6:
 		eventMessage = "Door forced open"
+    case 100:
+        eventMessage = "Sign-in"
+    case 101:
+        eventMessage = "Sign-in Failure"
 	default:
 		eventMessage = fmt.Sprintf("Unknown event reason: %d", event.Reason)
 	}
@@ -47,6 +51,7 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 	// Create the event struct to be logged
 	rawEvent := RawHardwareEvent{
 		SerialNumber: uint32(status.SerialNumber),
+        Timestamp:    time.Time(event.Timestamp),
 		CardNumber:   event.CardNumber,
 		Door:         event.Door,
 		Granted:      event.Granted,
@@ -102,14 +107,14 @@ func enrichEvent(rawEvent RawHardwareEvent) (AccessEventPayload, error) {
 
 	serialsLock.RLock()
 	if controller, ok := controllerInfo[rawEvent.SerialNumber]; ok {
-		for _, door := range controller.Doors {
-			if door.Number == rawEvent.Door {
-				gateName = door.Name
-				doorRecordID = door.ID
-				break
-			}
-		}
-	}
+	    for _, door := range controller.Doors {
+		    if door.Number == rawEvent.Door {
+			    gateName = door.Name
+			    doorRecordID = door.ID
+			    break
+		    }
+	    }
+	   }
 	serialsLock.RUnlock()
 
 	// 2. Call WordPress API to get Cardholder Name and Photo URL.
@@ -131,7 +136,7 @@ func enrichEvent(rawEvent RawHardwareEvent) (AccessEventPayload, error) {
 		CardholderName: "Unknown Card",
 		PhotoURL:       "",
 		GateName:       gateName,
-		Timestamp:      time.Now().Format("3:04:05 PM"),
+		Timestamp:      toLocalTime(rawEvent.Timestamp),
 		CardNumber:     rawEvent.CardNumber,
 		DoorRecordID:   doorRecordID,
 	}
@@ -144,6 +149,10 @@ func enrichEvent(rawEvent RawHardwareEvent) (AccessEventPayload, error) {
 			enriched.CardholderName = wpData.CardholderName
 			enriched.PhotoURL = wpData.PhotoURL
             enriched.StreetAddress = wpData.StreetAddress
+           	// ** If WordPress provided a gate name (for the kiosk), use it.
+			if wpData.GateName != "" && wpData.GateName != "Unknown Door" {
+				enriched.GateName = wpData.GateName
+			}
 		} else {
 			log.Printf("ERROR: Could not decode enrichment response from WordPress: %v", err)
 		}
@@ -215,4 +224,9 @@ func logEventToWordPress(event RawHardwareEvent, eventMessage string) {
 		return
 	}
 	log.Printf("DEBUG LOGGING: Response from Log Endpoint -- Status: %s, Body: %s", resp.Status, string(responseBody))
+}
+
+// toLocalTime converts a UTC time to a formatted string in the server's local time zone.
+func toLocalTime(utcTime time.Time) string {
+	return utcTime.Local().Format("3:04:05 PM")
 }
