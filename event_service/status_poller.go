@@ -24,24 +24,24 @@ func pollGateStatus(u uhppote.IUHPPOTE, hub *Hub) {
 
 // runPoll contains the actual logic for a single polling run.
 func runPoll(u uhppote.IUHPPOTE, hub *Hub) {
-	if config.Debug {
-		log.Println("DEBUG: Polling gate statuses...")
-	}
+//	if config.Debug {
+//		log.Println("DEBUG: Polling gate statuses...")
+//	}
 
 	serialsLock.RLock()
 	currentControllers := controllerInfo
 	serialsLock.RUnlock()
 
-	if config.Debug {
-		log.Printf("DEBUG: Found %d controllers to poll.", len(currentControllers))
-	}
+//	if config.Debug {
+//		log.Printf("DEBUG: Found %d controllers to poll.", len(currentControllers))
+//	}
 
 	for sn, info := range currentControllers {
 		// Loop through the doors configured for this specific controller.
 		for _, door := range info.Doors {
-			if config.Debug {
-				log.Printf("DEBUG: Checking status for controller %d, door %d (%s)...", sn, door.Number, door.Name)
-			}
+//			if config.Debug {
+//				log.Printf("DEBUG: Checking status for controller %d, door %d (%s)...", sn, door.Number, door.Name)
+//			}
 			status := getDoorStatus(u, sn, door.Number)
 			broadcastDoorStatus(hub, door.ID, status)
 		}
@@ -75,16 +75,16 @@ func sendInitialState(c *Client) {
 			c.send <- jsonMessage
 		}
 	}
-	log.Printf("INFO: Finished sending initial status to client %v", c.conn.RemoteAddr())
+//	log.Printf("INFO: Finished sending initial status to client %v", c.conn.RemoteAddr())
 }
 
 // getDoorStatus is a helper function to get a single door's status string.
 func getDoorStatus(u uhppote.IUHPPOTE, controllerSN uint32, door uint8) string {
 	state, err := u.GetDoorControlState(controllerSN, door)
 	if err != nil {
-		if config.Debug {
-			log.Printf("DEBUG: Controller %d unreachable for status poll: %v", controllerSN, err)
-		}
+//		if config.Debug {
+//			log.Printf("DEBUG: Controller %d unreachable for status poll: %v", controllerSN, err)
+//		}
 		return "down"
 	}
 	switch state.ControlState {

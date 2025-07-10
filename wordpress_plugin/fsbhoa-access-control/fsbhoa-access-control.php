@@ -97,6 +97,7 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-analytics-adm
 // For Kiosk Management
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-actions.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-kiosk-rest-api.php';
 
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
@@ -208,6 +209,11 @@ function fsbhoa_ac_api_init() {
     if (class_exists('Fsbhoa_Reports_REST_API')) {
         $reports_api = new Fsbhoa_Reports_REST_API();
         $reports_api->register_routes();
+    }
+    // Instantiate the Kiosk REST API handler
+    if (class_exists('Fsbhoa_Kiosk_REST_API')) {
+        $kiosk_api = new Fsbhoa_Kiosk_REST_API();
+        $kiosk_api->register_routes();
     }
     
     // Any other true REST API handlers would be initialized here in the future.

@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <p class="text-lg font-semibold text-gray-900">${eventData.cardholderName}</p>
                     <p class="text-gray-500">${eventData.streetAddress}</p>
                     <p class="text-gray-600">Event at <span class="font-medium">${eventData.gateName}</span></p>
+                    <p class="text-yellow-700 font-bold event-amenity">${eventData.amenity ? `Amenity: ${eventData.amenity}` : ''}</p>
                     <p class="text-sm ${isGranted ? 'text-green-700' : 'text-red-700'} font-medium mt-1">${eventData.eventMessage}</p>
                 </div>
                 <time class="text-sm text-gray-500">${eventData.timestamp}</time>
@@ -209,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function () {
             li.className = 'px-4 py-2 text-sm text-gray-600';
             li.innerHTML = `
                 <time class="font-mono text-gray-500 mr-2">[${eventData.timestamp}]</time> 
-                ${eventData.cardholderName} at <span class="font-medium">${eventData.gateName}</span> 
+                ${eventData.cardholderName} at <span class="font-medium">${eventData.gateName}</span> ${eventData.amenity ? `(${eventData.amenity})` : ''}
                 (<span class="${isGranted ? 'text-green-600' : 'text-red-600'}">${eventData.eventMessage}</span>)
             `;
         }
