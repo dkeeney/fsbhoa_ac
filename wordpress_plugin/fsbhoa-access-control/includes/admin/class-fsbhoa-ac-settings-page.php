@@ -4,21 +4,17 @@ if ( ! defined( 'WPINC' ) ) { die; }
 class Fsbhoa_Ac_Settings_Page {
 
     private $parent_slug = 'fsbhoa_ac_main_menu';
-    private $config_path = '/var/lib/fsbhoa/event_service.conf';
+    private $event_service_config_path = '/var/lib/fsbhoa/event_service.json';
+    private $monitor_service_config_path = '/var/lib/fsbhoa/monitor_service.json';
     private $event_service_option_group = 'fsbhoa_event_service_options';
+    private $monitor_settings_option_group = 'fsbhoa_monitor_options';
 
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'add_plugin_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'settings_api_init' ) );
-        add_action( 'admin_init', array( $this, 'intercept_event_service_save' ) );
+        add_action( 'admin_init', array( $this, 'intercept_service_saves' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
         add_action( 'wp_ajax_fsbhoa_save_gate_positions', array( $this, 'save_gate_positions_callback' ) );
-    }
-
-    public function intercept_event_service_save() {
-        if ( isset( $_POST['option_page'] ) && $_POST['option_page'] === $this->event_service_option_group ) {
-            $this->save_event_service_config();
-        }
     }
 
     public function add_plugin_admin_menu() {
@@ -27,15 +23,82 @@ class Fsbhoa_Ac_Settings_Page {
         add_submenu_page($this->parent_slug, 'Event Service Config', 'Event Service', 'manage_options', 'fsbhoa_event_service_settings', array( $this, 'render_event_service_page' ));
         add_submenu_page($this->parent_slug, 'Print Service Config', 'Print Service', 'manage_options', 'fsbhoa_print_service_settings', array( $this, 'render_print_service_page' ));
         add_submenu_page($this->parent_slug, 'Live Monitor Settings', 'Monitor Settings', 'manage_options', 'fsbhoa_monitor_settings', array( $this, 'render_monitor_settings_page' ));
-        add_submenu_page(
-            $this->parent_slug,                     // Parent Slug
-            'Kiosk Settings',                       // Page Title
-            'Kiosk',                                // Menu Title
-            'manage_options',                       // Capability
-            'fsbhoa_kiosk_settings',                // Menu Slug
-            array( $this, 'render_kiosk_settings_page' ) // Page rendering function
-        );
+        add_submenu_page($this->parent_slug, 'Kiosk Settings', 'Kiosk', 'manage_options', 'fsbhoa_kiosk_settings', array( $this, 'render_kiosk_settings_page' ));
     }
+
+    public function intercept_service_saves() {
+        if ( ! isset( $_POST['option_page'] ) ) {
+            return;
+        }
+        if ( $_POST['option_page'] === $this->event_service_option_group || $_POST['option_page'] === $this->monitor_settings_option_group ) {
+            $this->_update_and_write_all_configs();
+        }
+    }
+    private function _update_and_write_all_configs() {
+        // Step 1: Get all current values from the database as a baseline.
+        $opts = [
+            'fsbhoa_ac_monitor_port' => get_option('fsbhoa_ac_monitor_port', 8082),
+            'fsbhoa_ac_websocket_port' => get_option('fsbhoa_ac_websocket_port', 8083),
+            'fsbhoa_ac_tls_cert_path' => get_option('fsbhoa_ac_tls_cert_path', '/etc/letsencrypt/live/nas.fsbhoa.com/fullchain.pem'),
+            'fsbhoa_ac_tls_key_path' => get_option('fsbhoa_ac_tls_key_path', '/etc/letsencrypt/live/nas.fsbhoa.com/privkey.pem'),
+            'fsbhoa_ac_bind_addr' => get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0'),
+            'fsbhoa_ac_broadcast_addr' => get_option('fsbhoa_ac_broadcast_addr', '192.168.42.255:60000'),
+            'fsbhoa_ac_listen_port' => get_option('fsbhoa_ac_listen_port', 60002),
+            'fsbhoa_ac_callback_host' => get_option('fsbhoa_ac_callback_host', '192.168.42.99'),
+            'fsbhoa_ac_wp_protocol' => get_option('fsbhoa_ac_wp_protocol', 'https'),
+            'fsbhoa_ac_wp_host' => get_option('fsbhoa_ac_wp_host', 'nas.fsbhoa.com'),
+            'fsbhoa_ac_wp_port' => get_option('fsbhoa_ac_wp_port', 443),
+            'fsbhoa_ac_event_log_path' => get_option('fsbhoa_ac_event_log_path', ''),
+            'fsbhoa_ac_debug_mode' => get_option('fsbhoa_ac_debug_mode', 'on'),
+            'fsbhoa_ac_test_stub' => get_option('fsbhoa_ac_test_stub', 'on'),
+        ];
+
+        // Step 2: Overwrite with any new values from the form that was just submitted.
+        foreach ($opts as $key => $value) {
+            if (isset($_POST[$key])) {
+                $opts[$key] = $_POST[$key];
+            }
+        }
+
+        // Step 3: Write the monitor_service config file
+        $monitor_config = [
+            'listen_addr'       => ':' . absint($opts['fsbhoa_ac_monitor_port']),
+            'wordpress_api'     => get_site_url() . '/wp-json/fsbhoa/v1/monitor/event',
+            'tls_cert_path'     => sanitize_text_field($opts['fsbhoa_ac_tls_cert_path']),
+            'tls_key_path'      => sanitize_text_field($opts['fsbhoa_ac_tls_key_path']),
+            'event_service_url' => sprintf('https://127.0.0.1:%d', absint($opts['fsbhoa_ac_websocket_port'])),
+        ];
+        $this->write_config_file($this->monitor_service_config_path, $monitor_config);
+        
+        // Step 4: Write the event_service config file
+        $event_config = [
+            'bindAddress'       => sanitize_text_field($opts['fsbhoa_ac_bind_addr']),
+            'broadcastAddress'  => sanitize_text_field($opts['fsbhoa_ac_broadcast_addr']),
+            'listenPort'        => absint($opts['fsbhoa_ac_listen_port']),
+            'callbackHost'      => sanitize_text_field($opts['fsbhoa_ac_callback_host']),
+            'webSocketPort'     => absint($opts['fsbhoa_ac_websocket_port']), // Keep this key for backward compatibility if needed
+            'wpURL'             => sprintf('%s://%s:%d', $opts['fsbhoa_ac_wp_protocol'], $opts['fsbhoa_ac_wp_host'], absint($opts['fsbhoa_ac_wp_port'])),
+            'tlsCert'           => sanitize_text_field($opts['fsbhoa_ac_tls_cert_path']),
+            'tlsKey'            => sanitize_text_field($opts['fsbhoa_ac_tls_key_path']),
+            'logFile'           => sanitize_text_field($opts['fsbhoa_ac_event_log_path']),
+            'debug'             => ($opts['fsbhoa_ac_debug_mode'] === 'on'),
+            'enableTestStub'    => ($opts['fsbhoa_ac_test_stub'] === 'on'),
+            'monitorServiceURL' => sprintf('https://127.0.0.1:%d', absint($opts['fsbhoa_ac_monitor_port'])),
+        ];
+        $this->write_config_file($this->event_service_config_path, $event_config);
+    }
+    
+    // Helper function to write JSON config files
+    private function write_config_file($path, $data) {
+        $json_data = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        $config_dir = dirname($path);
+        if (!is_dir($config_dir)) {
+            mkdir($config_dir, 0755, true);
+        }
+        file_put_contents($path, $json_data);
+    }
+
+
 
     public function settings_api_init() {
         // --- GENERAL SETTINGS ---
@@ -68,6 +131,7 @@ class Fsbhoa_Ac_Settings_Page {
             'fsbhoa_ac_event_log_path' => ['label' => 'Event Service Log Path', 'default' => '', 'desc' => 'Leave empty for console output.'],
             'fsbhoa_ac_debug_mode' => ['label' => 'Debug Mode', 'type' => 'checkbox', 'default' => 'on'],
             'fsbhoa_ac_test_stub' => ['label' => 'Enable Test Stub', 'type' => 'checkbox', 'default' => 'on'],
+
         ];
         foreach ($event_fields as $id => $field) {
             register_setting($this->event_service_option_group, $id, ['sanitize_callback' => 'sanitize_text_field']);
@@ -82,8 +146,11 @@ class Fsbhoa_Ac_Settings_Page {
         register_setting($print_service_option_group, 'fsbhoa_ac_print_port', 'absint');
 
         // --- MONITOR SETTINGS ---
-        $monitor_settings_option_group = 'fsbhoa_monitor_options';
-        register_setting($monitor_settings_option_group, 'fsbhoa_monitor_map_url', 'esc_url_raw');
+
+        register_setting($this->monitor_settings_option_group, 'fsbhoa_monitor_map_url', 'esc_url_raw');
+        register_setting($this->monitor_settings_option_group, 'fsbhoa_ac_monitor_port', 'absint');
+
+
 
         // --- KIOSK SETTINGS ---
         $kiosk_option_group = 'fsbhoa_kiosk_options';
@@ -138,6 +205,9 @@ class Fsbhoa_Ac_Settings_Page {
     }
 
     public function save_event_service_config() {
+        // If the monitor port was submitted on this page, use it. Otherwise, get it from the DB.
+        $monitor_service_port = isset($_POST['fsbhoa_ac_monitor_port']) ? absint($_POST['fsbhoa_ac_monitor_port']) : get_option('fsbhoa_ac_monitor_port', 8082);
+
         $config_data = [
             'bindAddress'      => get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0'),
             'broadcastAddress' => get_option('fsbhoa_ac_broadcast_addr', '192.168.42.255:60000'),
@@ -150,6 +220,7 @@ class Fsbhoa_Ac_Settings_Page {
             'logFile'          => get_option('fsbhoa_ac_event_log_path', ''),
             'debug'            => (get_option('fsbhoa_ac_debug_mode', 'on') === 'on'),
             'enableTestStub'   => (get_option('fsbhoa_ac_test_stub', 'on') === 'on'),
+            'monitorServiceURL' => sprintf('https://127.0.0.1:%d', $monitor_service_port),
         ];
         $json_data = json_encode($config_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         if (!is_dir(dirname($this->config_path))) {
@@ -194,7 +265,7 @@ class Fsbhoa_Ac_Settings_Page {
         ?>
         <div class="wrap">
             <h1>Event Service Configuration</h1>
-            <p>These settings control the `event_service` Go application. The configuration file will be automatically generated at <code><?php echo esc_html($this->config_path); ?></code> when you save changes.</p>
+            <p>These settings control the `event_service` Go application. The configuration file will be automatically generated at <code><?php echo esc_html($this->event_service_config_path); ?></code> when you save changes.</p>
             <form action="options.php" method="post">
                 <?php
                 settings_fields($this->event_service_option_group);
@@ -221,57 +292,57 @@ class Fsbhoa_Ac_Settings_Page {
         <?php
     }
 
-    public function render_monitor_settings_page() {
+public function render_monitor_settings_page() {
         ?>
         <div class="wrap">
             <h1>Live Monitor Settings</h1>
-            <p>Use this tool to upload your map and position your gates for the live monitor page.</p>
-            <hr>
-
-            <form action="options.php" method="post">
-                <?php
-                // This handles the saving of our 'fsbhoa_monitor_map_url' option
-                settings_fields('fsbhoa_monitor_options');
-                ?>
-                <table class="form-table">
-                    <tbody>
-                        <tr>
-                            <th scope="row">Monitor Map</th>
-                            <td>
-                                <input type="hidden" id="fsbhoa_monitor_map_url" name="fsbhoa_monitor_map_url" value="<?php echo esc_attr(get_option('fsbhoa_monitor_map_url', '')); ?>" />
-                                <button type="button" class="button" id="fsbhoa_monitor_map_url-button">Upload or Change Map Image</button>
-                                <?php submit_button('Save Map'); ?>
-                                <p class="description">Upload your map, then click "Save Map" to update the URL.</p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </form>
-
+            <p>Use these tools to configure the Live Monitor service and its map display.</p>
             <hr>
 
             <h2>Gate Position Editor</h2>
-            <p class="description">Drag the gate markers to their correct positions on the map below, then click "Save Gate Positions".</p>
+            <p class="description">Upload a map image, then drag the gate markers to their correct positions. All settings will be saved with the button at the bottom.</p>
             <div id="fsbhoa-editor-area" style="display: flex; gap: 20px; margin-top: 1em;">
-
                 <div id="fsbhoa-map-editor-container" style="position: relative; border: 2px solid #ccc; flex-basis: 70%; min-height: 400px;">
                     <img id="fsbhoa-map-editor-bg" src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" style="max-width: 100%; display: block; opacity: 0.7;">
-                    </div>
-
+                </div>
                 <div id="fsbhoa-gate-legend" style="flex-basis: 30%;">
                     <h3>Gate Legend</h3>
                     <ol style="margin-left: 20px; background: #fff; border: 1px solid #ddd; padding: 10px;"></ol>
                 </div>
-
             </div>
-
             <p style="margin-top: 15px;">
-                <button type="button" class="button button-primary" id="fsbhoa-save-gate-positions">Save Gate Positions</button>
-                <span id="fsbhoa-save-positions-feedback" style="margin-left: 10px;"></span>
+                <button type="button" class="button" id="fsbhoa_monitor_map_url-button">Upload/Change Map</button>
             </p>
+
+            <hr style="margin: 2em 0;">
+
+            <form action="options.php" method="post">
+                <?php
+                settings_fields($this->monitor_settings_option_group);
+                ?>
+                <h2>Monitor Service Settings</h2>
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row">
+                                <label for="fsbhoa_ac_monitor_port">Monitor Service Port (WSS)</label>
+                            </th>
+                            <td>
+                                <input name="fsbhoa_ac_monitor_port" type="number" id="fsbhoa_ac_monitor_port" value="<?php echo esc_attr(get_option('fsbhoa_ac_monitor_port', 8082)); ?>" class="regular-text" />
+                                <p class="description">The port the monitor_service listens on for secure WebSocket (WSS) connections.</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <input type="hidden" id="fsbhoa_monitor_map_url" name="fsbhoa_monitor_map_url" value="<?php echo esc_attr(get_option('fsbhoa_monitor_map_url', '')); ?>" />
+
+                <?php submit_button('Save All Monitor Settings'); ?>
+            </form>
         </div>
         <?php
     }
+
 
     public function render_kiosk_settings_page() {
         ?>

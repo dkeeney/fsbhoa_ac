@@ -58,27 +58,10 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 		Reason:       event.Reason,
 	}
 
-	// Log ALL event types to the database in the background
-	go logEventToWordPress(rawEvent, eventMessage)
+	// Log event  to the database in the background
+    // this will also result in a notification being sent to monitor.
+    logEventToWordPress(rawEvent, eventMessage);
 
-	// ONLY process card swipes for real-time display and enrichment
-	if event.CardNumber > 0 {
-		enrichedPayload, err := enrichEvent(rawEvent)
-		if err != nil {
-			log.Printf("ERROR: Could not enrich event: %v", err)
-			return
-		}
-		message := WebSocketMessage{
-			MessageType: "accessEvent",
-			Payload:     enrichedPayload,
-		}
-		jsonMessage, err := json.Marshal(message)
-		if err != nil {
-			log.Printf("ERROR: Could not marshal access event message: %v", err)
-			return
-		}
-		m.hub.broadcast <- jsonMessage
-	}
 }
 
 
@@ -95,84 +78,6 @@ func (m *EventMonitor) OnError(err error) bool {
 	return true
 }
 
-// enrichEvent combines local config data with a WordPress API call for cardholder info.
-func enrichEvent(rawEvent RawHardwareEvent) (AccessEventPayload, error) {
-	if config.Debug {
-		log.Printf("DEBUG: Enriching event for card %d at controller %d...", rawEvent.CardNumber, rawEvent.SerialNumber)
-	}
-
-	// 1. Get Gate Name and ID from our local config first.
-	gateName := "Unknown Door"
-	doorRecordID := 0
-
-	serialsLock.RLock()
-	if controller, ok := controllerInfo[rawEvent.SerialNumber]; ok {
-	    for _, door := range controller.Doors {
-		    if door.Number == rawEvent.Door {
-			    gateName = door.Name
-			    doorRecordID = door.ID
-			    break
-		    }
-	    }
-	   }
-	serialsLock.RUnlock()
-
-	// 2. Call WordPress API to get Cardholder Name and Photo URL.
-	apiURL := fmt.Sprintf(
-		"%s/wp-json/fsbhoa/v1/monitor/enrich-event?card_number=%d&controller_sn=%d&door_number=%d",
-		config.WpURL, rawEvent.CardNumber, rawEvent.SerialNumber, rawEvent.Door,
-	)
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := http.Client{
-		Timeout:   5 * time.Second,
-		Transport: tr,
-	}
-	resp, err := client.Get(apiURL)
-
-	// 3. Build the final payload
-	enriched := AccessEventPayload{
-		CardholderName: "Unknown Card",
-		PhotoURL:       "",
-		GateName:       gateName,
-		Timestamp:      toLocalTime(rawEvent.Timestamp),
-		CardNumber:     rawEvent.CardNumber,
-		DoorRecordID:   doorRecordID,
-	}
-
-	// If the API call was successful, use the data from WordPress
-	if err == nil {
-		defer resp.Body.Close()
-		var wpData WordPressEnrichmentData
-		if err := json.NewDecoder(resp.Body).Decode(&wpData); err == nil {
-			enriched.CardholderName = wpData.CardholderName
-			enriched.PhotoURL = wpData.PhotoURL
-            enriched.StreetAddress = wpData.StreetAddress
-           	// ** If WordPress provided a gate name (for the kiosk), use it.
-			if wpData.GateName != "" && wpData.GateName != "Unknown Door" {
-				enriched.GateName = wpData.GateName
-			}
-		} else {
-			log.Printf("ERROR: Could not decode enrichment response from WordPress: %v", err)
-		}
-	} else {
-		log.Printf("ERROR: Failed to call WordPress API at %s: %v", apiURL, err)
-	}
-
-	if rawEvent.Granted {
-		enriched.EventType = "accessGranted"
-		enriched.EventMessage = "Access Granted"
-	} else {
-		enriched.EventType = "accessDenied"
-		enriched.EventMessage = "Access Denied"
-	}
-
-	if config.Debug {
-		log.Printf("DEBUG: Event enriched successfully: %+v", enriched)
-	}
-	return enriched, nil
-}
 
 // logEventToWordPress sends the raw event details to a WordPress endpoint to be logged.
 func logEventToWordPress(event RawHardwareEvent, eventMessage string) {
@@ -224,6 +129,7 @@ func logEventToWordPress(event RawHardwareEvent, eventMessage string) {
 		return
 	}
 	log.Printf("DEBUG LOGGING: Response from Log Endpoint -- Status: %s, Body: %s", resp.Status, string(responseBody))
+
 }
 
 // toLocalTime converts a UTC time to a formatted string in the server's local time zone.

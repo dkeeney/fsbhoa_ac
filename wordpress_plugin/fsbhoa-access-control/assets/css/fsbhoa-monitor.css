@@ -75,7 +75,7 @@
     margin-top: 10px;
 }
 #fsbhoa-gate-legend ol {
-    padding-left: 20px;
+   list-style-type: none; /* This will remove the browser's automatic numbering */
     margin: 0;
 }
 #fsbhoa-gate-legend li {

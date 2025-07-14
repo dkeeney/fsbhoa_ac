@@ -11,7 +11,7 @@ class Fsbhoa_Kiosk_REST_API {
     private $namespace = 'fsbhoa/v1';
 
     public function register_routes() {
-        register_rest_route( $this->namespace, '/kiosk/config', array( // Renamed for clarity
+        register_rest_route( $this->namespace, '/kiosk/config', array(
             'methods'             => 'GET',
             'callback'            => array( $this, 'get_kiosk_config_callback' ),
             'permission_callback' => '__return_true',
@@ -43,13 +43,16 @@ class Fsbhoa_Kiosk_REST_API {
         if ($wpdb->last_error) { return new WP_Error( 'db_error', 'Database error getting amenities.', ['status' => 500] ); }
 
         $response_data = [
-            'logo_url' => get_option('fsbhoa_kiosk_logo_url', ''), // Get logo from WP options
+            'logo_url' => get_option('fsbhoa_kiosk_logo_url', ''),
             'amenities' => $amenities,
         ];
 
         return new WP_REST_Response( $response_data, 200 );
     }
 
+    /**
+     * This is called when kiosk has collected an amenity for a valid cardholder.
+     */
     public function log_signin_callback( WP_REST_Request $request ) {
         global $wpdb;
         $params = $request->get_json_params();
@@ -66,49 +69,35 @@ class Fsbhoa_Kiosk_REST_API {
         }
 
         $log_data = [
-            'event_timestamp'       => current_time('mysql'),  // local time
+            'event_timestamp'       => current_time('mysql'),
             'controller_identifier' => 'kiosk',
             'door_number'           => 0,
             'rfid_id'               => $rfid,
             'cardholder_id'         => $cardholder_id ? (int)$cardholder_id : null,
-            'event_type_code'       => 100,
-            'event_description'     => 'Amenity Sign-in: ' . $amenity_name,
+            'event_type_code'       => 100, // Kiosk Sign-in Success
+            'event_description'     => 'Amenity: ' . $amenity_name,
             'access_granted'        => 1,
         ];
 
-        $result = $wpdb->insert('ac_access_log', $log_data);
-        if ($result === false) {
-            return new WP_Error( 'db_error', 'Failed to insert sign-in into access log.', ['status' => 500, 'db_error' => $wpdb->last_error] );
+        // CORRECTED: Use insert_id to get the new record ID.
+        $wpdb->insert('ac_access_log', $log_data);
+        $record_id = $wpdb->insert_id;
+
+        if ($record_id === 0) { // Check if insert failed
+            return new WP_Error( 'db_error', 'Failed to insert kiosk sign-in into access log.', ['status' => 500, 'db_error' => $wpdb->last_error] );
         }
 
-        // After successfully logging, notify the event_service to broadcast the event
-        $port = get_option('fsbhoa_ac_websocket_port', 8083);
-        $event_service_url = sprintf('https://127.0.0.1:%d/inject-event', $port);
-        $post_body = [
-            'rfid'              => $rfid,
-            'event_description' => 'Amenity Sign-in: ' . $amenity_name,
-            'granted'           => true,
-        ];
-
-        $injection_response = wp_remote_post($event_service_url, [
-            'method'    => 'POST',
-            'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
-            'body'      => json_encode($post_body),
-            'sslverify' => false,
-            'timeout'   => 5,
-        ]);
-
-        if( is_wp_error( $injection_response)){
-            error_log('KIOSK-INJECT-ERROR: Failed to inject event into event_service. Reason:' . $injection_response->get_error_message());
-        } else {
-            error_log('KIOSK-INJECT-SUCCESS: Successfully sent event injection request to event_service.');
-        }
-
+        // After successfully logging, notify the monitor to display the event
+        $this->send_notification_to_monitor($record_id);
 
         return new WP_REST_Response( ['status' => 'success', 'message' => 'Sign-in logged.'], 200 );
     }
 
 
+    /**
+     * This is called when kiosk has had a card swipe.
+     * The card id should be checked against the database and confirm this cardholder is valid.
+     */
     public function validate_card_callback( WP_REST_Request $request ) {
         global $wpdb;
         $rfid = sanitize_text_field($request['rfid']);
@@ -117,7 +106,7 @@ class Fsbhoa_Kiosk_REST_API {
             "SELECT first_name, last_name, photo, card_status, card_expiry_date FROM ac_cardholders WHERE rfid_id = %s",
             $rfid
         ));
-        if ($wpdb->last_error) { return new WP_Error('db_error', 'Database error validating card.', ['status' => 500]); } 
+        if ($wpdb->last_error) { return new WP_Error('db_error', 'Database error validating card.', ['status' => 500]); }
 
         $is_valid = true;
         $message = 'Card is valid.';
@@ -133,29 +122,51 @@ class Fsbhoa_Kiosk_REST_API {
             $message = 'Card has expired.';
         }
 
-        // Always log the event, whether it's a success or failure
-        $this->_log_kiosk_event($rfid, 'Kiosk Validation: ' . $message, $is_valid);
-
+        // CORRECTED LOGIC:
         if ($is_valid) {
+            // If the card is valid, send the cardholder data to the kiosk UI
             $cardholder_data = [
                 'name'  => trim($cardholder->first_name . ' ' . $cardholder->last_name),
                 'photo' => !empty($cardholder->photo) ? base64_encode($cardholder->photo) : null,
             ];
             $response = ['isValid' => true, 'message' => $message, 'cardholder' => $cardholder_data];
         } else {
-            // For invalid cards, also notify the event_service so it appears on the live monitor
-            $port = get_option('fsbhoa_ac_websocket_port', 8083);
-            $event_service_url = sprintf('https://127.0.0.1:%d/inject-event', $port);
-            wp_remote_post($event_service_url, [
-                'body'      => json_encode(['rfid' => $rfid, 'granted' => false, 'event_description' => 'Kiosk Failure: ' . $message, 'amenity' => '']),
-                'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
-                'sslverify' => false,
-                'timeout'   => 5,
-            ]);
+            // If the card is NOT valid, log the failure and notify the monitor
+            $log_id = $this->_log_kiosk_event($rfid, 'Kiosk Validation: ' . $message, false);
+            if ($log_id > 0) {
+                 $this->send_notification_to_monitor($log_id);
+            }
             $response = ['isValid' => false, 'message' => $message];
         }
 
         return new WP_REST_Response($response, 200);
+    }
+
+    /**
+     * Private helper to send notifications to monitor
+     */
+    private function send_notification_to_monitor($log_id){
+        // Port for the new monitor_service
+        $port = 8082; 
+        $monitor_url = sprintf('https://127.0.0.1:%d/notify', $port);
+        $post_body = [
+            'event_id' => $log_id,
+        ];
+        
+        // Note: Using http, so sslverify is not needed.
+        $monitor_response = wp_remote_post($monitor_url, [
+            'method'    => 'POST',
+            'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
+            'body'      => json_encode($post_body),
+            'timeout'   => 5,
+            'sslverify' => false,
+        ]);
+
+        if( is_wp_error( $monitor_response ) ){
+            error_log('KIOSK-NOTIFY-ERROR: Failed to notify monitor_service. Reason: ' . $monitor_response->get_error_message());
+        } else {
+            error_log('KIOSK-NOTIFY-SUCCESS: Successfully sent notification to monitor_service for event_id: ' . $log_id);
+        }
     }
 
     /**
@@ -167,7 +178,7 @@ class Fsbhoa_Kiosk_REST_API {
         $cardholder_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM ac_cardholders WHERE rfid_id = %s", $rfid));
 
         $log_data = [
-            'event_timestamp'       => current_time('mysql', 1),
+            'event_timestamp'       => current_time('mysql'),
             'controller_identifier' => 'kiosk',
             'door_number'           => 0,
             'rfid_id'               => $rfid,
@@ -177,6 +188,9 @@ class Fsbhoa_Kiosk_REST_API {
             'access_granted'        => $is_granted ? 1 : 0,
         ];
 
+        // CORRECTED: Use insert_id to get the new record ID.
         $wpdb->insert('ac_access_log', $log_data);
+        return $wpdb->insert_id;
     }
 }
+

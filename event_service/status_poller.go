@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/uhppoted/uhppote-core/types"
@@ -10,81 +14,38 @@ import (
 )
 
 // pollGateStatus runs in a loop, periodically checking the status of each configured door.
-func pollGateStatus(u uhppote.IUHPPOTE, hub *Hub) {
-	ticker := time.NewTicker(30 * time.Second)
+func pollGateStatus(u uhppote.IUHPPOTE) {
+	// Run an initial poll immediately on startup, then start the ticker.
+	runPoll(u)
+
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	// Run an initial poll immediately, then wait for subsequent ticks.
-	runPoll(u, hub)
-
 	for range ticker.C {
-		runPoll(u, hub)
+		runPoll(u)
 	}
 }
 
 // runPoll contains the actual logic for a single polling run.
-func runPoll(u uhppote.IUHPPOTE, hub *Hub) {
-//	if config.Debug {
-//		log.Println("DEBUG: Polling gate statuses...")
-//	}
-
+func runPoll(u uhppote.IUHPPOTE) {
 	serialsLock.RLock()
 	currentControllers := controllerInfo
 	serialsLock.RUnlock()
-
-//	if config.Debug {
-//		log.Printf("DEBUG: Found %d controllers to poll.", len(currentControllers))
-//	}
 
 	for sn, info := range currentControllers {
 		// Loop through the doors configured for this specific controller.
 		for _, door := range info.Doors {
-//			if config.Debug {
-//				log.Printf("DEBUG: Checking status for controller %d, door %d (%s)...", sn, door.Number, door.Name)
-//			}
 			status := getDoorStatus(u, sn, door.Number)
-			broadcastDoorStatus(hub, door.ID, status)
+			// Send the status update to the monitor service in the background.
+			go sendGateStatusToMonitor(door.ID, status)
 		}
 	}
-}
-
-// sendInitialState gets the status of all doors and sends it ONLY to a new client.
-func sendInitialState(c *Client) {
-	time.Sleep(250 * time.Millisecond)
-
-	serialsLock.RLock()
-	currentControllers := controllerInfo
-	serialsLock.RUnlock()
-
-	if config.Debug {
-		log.Printf("DEBUG sendInitialState: Found %d configured controllers.", len(currentControllers))
-	}
-
-	for sn, info := range currentControllers {
-		for _, door := range info.Doors {
-			status := getDoorStatus(c.hub.u, sn, door.Number)
-			payload := GateStatusPayload{
-				DoorRecordID: door.ID,
-				Status:       status,
-			}
-			message := WebSocketMessage{
-				MessageType: "gateStatus",
-				Payload:     payload,
-			}
-			jsonMessage, _ := json.Marshal(message)
-			c.send <- jsonMessage
-		}
-	}
-//	log.Printf("INFO: Finished sending initial status to client %v", c.conn.RemoteAddr())
 }
 
 // getDoorStatus is a helper function to get a single door's status string.
 func getDoorStatus(u uhppote.IUHPPOTE, controllerSN uint32, door uint8) string {
 	state, err := u.GetDoorControlState(controllerSN, door)
 	if err != nil {
-//		if config.Debug {
-//			log.Printf("DEBUG: Controller %d unreachable for status poll: %v", controllerSN, err)
-//		}
 		return "down"
 	}
 	switch state.ControlState {
@@ -99,17 +60,43 @@ func getDoorStatus(u uhppote.IUHPPOTE, controllerSN uint32, door uint8) string {
 	}
 }
 
-// broadcastDoorStatus is a helper function to send a status message to the hub.
-func broadcastDoorStatus(hub *Hub, doorRecordID int, status string) {
+// sendGateStatusToMonitor sends a single door's status to the monitor service.
+func sendGateStatusToMonitor(doorRecordID int, status string) {
+	if config.MonitorServiceURL == "" {
+		return // Do nothing if the URL isn't configured
+	}
+
+	endpoint := fmt.Sprintf("%s/update-gate-status", config.MonitorServiceURL)
+
 	payload := GateStatusPayload{
 		DoorRecordID: doorRecordID,
 		Status:       status,
 	}
-	message := WebSocketMessage{
-		MessageType: "gateStatus",
-		Payload:     payload,
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("ERROR POLLER: Failed to marshal gate status payload: %v", err)
+		return
 	}
-	jsonMessage, _ := json.Marshal(message)
-	hub.broadcast <- jsonMessage
+
+	// Create a custom HTTP client that skips TLS verification for the internal call
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: tr,
+	}
+
+	resp, err := client.Post(endpoint, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("ERROR POLLER: Failed to send status to monitor service: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("ERROR POLLER: Monitor service returned non-200 status: %s", resp.Status)
+	}
 }
 

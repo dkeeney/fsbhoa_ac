@@ -1,0 +1,15 @@
+[Unit]
+Description=FSBHOA Monitor WebSocket Service
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/fsbhoa_ac/monitor_service
+ExecStart=/home/pi/fsbhoa_ac/monitor_service/monitor_service_app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

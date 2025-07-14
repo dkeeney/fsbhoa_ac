@@ -45,8 +45,6 @@ func (h *Hub) run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
-			log.Println("INFO: WebSocket client connected. Sending initial gate status.")
-			go sendInitialState(client)
 
 		case client := <-h.unregister:
 			h.mu.Lock()

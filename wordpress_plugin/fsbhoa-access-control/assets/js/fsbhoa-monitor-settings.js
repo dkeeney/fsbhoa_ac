@@ -109,10 +109,18 @@ jQuery(document).ready(function($) {
         });
     }
 
-    $('#fsbhoa-save-gate-positions').on('click', function() {
+
+    // Find the main Save button in the form. The ID is 'submit' by default.
+    const mainSaveButton = $('#submit');
+
+    mainSaveButton.on('click', function(e) {
+        e.preventDefault(); // Stop the form from submitting immediately
+
         const feedback = $('#fsbhoa-save-positions-feedback');
         feedback.text('Saving...').css('color', 'blue').show();
-        const dataToSend = {
+
+        // Step 1: Prepare and send the gate positions via AJAX.
+        const gateData = {
             action: 'fsbhoa_save_gate_positions',
             nonce: fsbhoa_monitor_settings_vars.nonce,
             gates: Object.keys(gatePositions).map(id => ({
@@ -121,20 +129,22 @@ jQuery(document).ready(function($) {
                 y: Math.round(gatePositions[id].y)
             }))
         };
-        $.post(fsbhoa_monitor_settings_vars.ajax_url, dataToSend, function(response) {
+
+        $.post(fsbhoa_monitor_settings_vars.ajax_url, gateData)
+            .done(function(response) {
                 if (response.success) {
-                    feedback.text(response.data).css('color', 'green');
+                    console.log('Gate positions saved successfully.');
+                    // Step 2: Gate positions saved, now submit the main form for other settings.
+                    $('form[action="options.php"]').submit();
                 } else {
-                    feedback.text('Error: ' + response.data).css('color', 'red');
+                    feedback.text('Error saving gate positions: ' + response.data).css('color', 'red');
                 }
             })
             .fail(function() {
-                feedback.text('Request failed. Check server logs.').css('color', 'red');
-            })
-            .always(function() {
-                setTimeout(() => feedback.fadeOut(), 5000);
+                feedback.text('Request failed while saving gate positions.').css('color', 'red');
             });
     });
+
 
     initializeGateEditor();
 });
