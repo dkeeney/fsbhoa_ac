@@ -1,0 +1,23 @@
+    /**
+     *  Private helper to send notifications to monior
+     */
+    private function send_notification_to_monitor($log_id){
+        // After successfully logging, notify the monitor to display the event
+        //$port = get_option('fsbhoa_ac_websocket_port', 8082);
+        $port = 8082;
+        $monitor_url = sprintf('https://127.0.0.1:%d/notify', $port);
+        $post_body = [
+            'event_id' => $log_id,
+        ];
+        $monitor_response = wp_remote_post($monitor_url, [
+            'method'    => 'POST',
+            'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
+            'body'      => json_encode($post_body),
+            'sslverify' => false,
+
+        if( is_wp_error( $monitor_response)){
+            error_log('KIOSK-INJECT-ERROR: Failed to notifiy monitor of event. Reason:' . $monitor_response->get_error_message());
+        } else {
+            error_log('KIOSK-INJECT-SUCCESS: Successfully sent notification to monitor.');
+        }
+    }

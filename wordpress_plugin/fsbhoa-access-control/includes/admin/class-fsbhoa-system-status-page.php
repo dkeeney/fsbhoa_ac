@@ -57,6 +57,15 @@ class Fsbhoa_System_Status_Page {
                             <button class="button button-primary service-command-btn" data-command="restart" data-service="zebra_print_service.service">Restart</button>
                         </td>
                     </tr>
+                    <tr>
+                          <td><strong>Monitor Service</strong><br><em style="font-size:12px;">(monitor_service.service)</em></td>
+                          <td><span id="status-monitor_service.service" class="fsbhoa-status-indicator">Checking...</span></td>
+                          <td>
+                              <button class="button service-command-btn" data-command="start" data-service="monitor_service.service">Start</button>
+                              <button class="button service-command-btn" data-command="stop" data-service="monitor_service.service">Stop</button>
+                              <button class="button button-primary service-command-btn" data-command="restart" data-service="monitor_service.service">Restart</button>
+                          </td>
+                      </tr>
                 </tbody>
             </table>
         </div>

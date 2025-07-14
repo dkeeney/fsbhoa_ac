@@ -17,6 +17,7 @@ type Config struct {
 	LogFile          string `json:"logFile"`
 	Debug            bool   `json:"debug"`
 	EnableTestStub   bool   `json:"enableTestStub"`
+    MonitorServiceURL   string `json:"monitorServiceURL"`
 }
 
 // DoorConfig matches a single door object within the new config file.
@@ -78,4 +79,6 @@ type WordPressEnrichmentData struct {
 	DoorRecordID   int    `json:"doorRecordId"`
     StreetAddress  string `json:"streetAddress"`
 }
+
+
 

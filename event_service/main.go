@@ -26,7 +26,7 @@ var serialsLock sync.RWMutex
 
 func main() {
 	// 1. Load Configuration
-	configFile := flag.String("config", "/var/lib/fsbhoa/event_service.conf", "Path to the JSON configuration file.")
+	configFile := flag.String("config", "/var/lib/fsbhoa/event_service.json", "Path to the JSON configuration file.")
 	flag.Parse()
 	jsonFile, err := os.Open(*configFile)
 	if err != nil {
@@ -67,7 +67,7 @@ func main() {
 
 	go hub.run()
 	go watchConfigFile(u) // This will do the initial load and set listeners
-	go pollGateStatus(u, hub)
+	go pollGateStatus(u)
 	go func() {
 		log.Println("INFO: Hardware Event Listener starting...")
 		if err := u.Listen(&listener, interrupt); err != nil {
@@ -125,7 +125,7 @@ func triggerPollHandler(u uhppote.IUHPPOTE, hub *Hub) http.HandlerFunc {
 		}
 
 		// Run a single poll in the background
-		go runPoll(u, hub)
+		go runPoll(u)
 
 		// Immediately respond with success
 		w.WriteHeader(http.StatusOK)
@@ -159,26 +159,7 @@ func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
 		// Manually call the OnEvent function to trigger the full pipeline
 		listener.OnEvent(&status)
 
-		// The rest of this function now only needs to write a response
-		// The event processing and broadcasting happens in OnEvent
-		enrichedPayload, err := enrichEvent(RawHardwareEvent{
-			SerialNumber: 425043852,
-			CardNumber:   testCardNumber,
-			Door:         testDoorNumber,
-			Granted:      granted,
-		})
-
-		if err != nil {
-			http.Error(w, "Failed to enrich test event", 500)
-			return
-		}
-		message := WebSocketMessage{
-			MessageType: "accessEvent",
-			Payload:     enrichedPayload,
-		}
-		jsonMessage, _ := json.Marshal(message)
-		hub.broadcast <- jsonMessage
-		fmt.Fprintln(w, "Test event generated and broadcast.")
+		fmt.Fprintln(w, "Test event generated and logged.")
 	}
 }
 
