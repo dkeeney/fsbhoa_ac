@@ -135,31 +135,47 @@ func triggerPollHandler(u uhppote.IUHPPOTE, hub *Hub) http.HandlerFunc {
 
 // testEventHandler remains here as it's a specific HTTP handler set up in main.
 func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if config.Debug {
-			log.Println("DEBUG: Received request on /test_event endpoint.")
-		}
-		// TODO: Replace with a REAL card number and door number from your database
-		const testCardNumber uint32 = 15364678
-		const testDoorNumber uint8 = 1
+    return func(w http.ResponseWriter, r *http.Request) {
+        if config.Debug {
+            log.Println("DEBUG: Received request on /test_event endpoint.")
+        }
+
+        // Define a struct to hold our expected JSON payload
+        var payload struct {
+            CardNumber   uint32 `json:"card_number"`
+            SerialNumber uint32 `json:"serial_number"` // <-- Add serial number field
+        }
+
+        // Default values if payload is missing/invalid
+        testCardNumber := uint32(15364678)
+        testSerialNumber := uint32(425043852) // Default serial number
+
+        // Try to decode the JSON from the request body
+        if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+            if payload.CardNumber != 0 {
+                testCardNumber = payload.CardNumber
+            }
+            if payload.SerialNumber != 0 {
+                testSerialNumber = payload.SerialNumber // Use provided serial number
+            }
+        }
+
+        const testDoorNumber uint8 = 1
         granted := rand.Intn(10) > 2
 
-		// Create a mock status object, just like the real listener receives
         status := types.Status{
-			SerialNumber: types.SerialNumber(425043852),
-			Event: types.StatusEvent{ // This is the corrected type name
-				Timestamp:  types.DateTime(time.Now().UTC()), // Add the timestamp in utc like hardware.
-				CardNumber: testCardNumber,
-				Door:       testDoorNumber,
-				Granted:    granted,
-				Reason:     1, // 1= swipe, 2=door open.  A sample reason code
-			},
-		}
+            SerialNumber: types.SerialNumber(testSerialNumber), // Use the variable serial number
+            Event: types.StatusEvent{
+                Timestamp:  types.DateTime(time.Now().UTC()),
+                CardNumber: testCardNumber,
+                Door:       testDoorNumber,
+                Granted:    granted,
+                Reason:     1,
+            },
+        }
 
-		// Manually call the OnEvent function to trigger the full pipeline
-		listener.OnEvent(&status)
-
-		fmt.Fprintln(w, "Test event generated and logged.")
-	}
+        listener.OnEvent(&status)
+        fmt.Fprintf(w, "Test event generated for card %d on controller %d.", testCardNumber, testSerialNumber)
+    }
 }
 

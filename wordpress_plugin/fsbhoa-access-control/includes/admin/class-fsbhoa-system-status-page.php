@@ -66,6 +66,15 @@ class Fsbhoa_System_Status_Page {
                               <button class="button button-primary service-command-btn" data-command="restart" data-service="monitor_service.service">Restart</button>
                           </td>
                       </tr>
+                      <tr>
+                          <td><strong>Kiosk Service</strong><br><em style="font-size:12px;">(kiosk_service.service)</em></td>
+                          <td><span id="status-kiosk_service.service" class="fsbhoa-status-indicator">Checking...</span></td>
+                          <td>
+                              <button class="button service-command-btn" data-command="start" data-service="kiosk_service.service">Start</button>
+                              <button class="button service-command-btn" data-command="stop" data-service="kiosk_service.service">Stop</button>
+                              <button class="button button-primary service-command-btn" data-command="restart" data-service="kiosk_service.service">Restart</button>
+                          </td>
+                      </tr>
                 </tbody>
             </table>
         </div>

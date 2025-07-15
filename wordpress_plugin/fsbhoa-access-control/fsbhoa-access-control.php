@@ -88,6 +88,11 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-status-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-actions.php';
 
+// for test Suite
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-test-suite-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-test-suite-actions.php';
+
+
 // For Reporting
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-rest-api.php';
@@ -174,6 +179,12 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_System_Actions();
     }
 
+    // Add this to your run_fsbhoa_action_handlers() function
+    if (class_exists('Fsbhoa_Test_Suite_Actions')) {
+        new Fsbhoa_Test_Suite_Actions();
+    }
+
+
     // The Print Actions handler is only needed on its own AJAX calls.
     // Only instantiate for traditional admin-ajax requests, and explicitly NOT for REST API requests.
     if ( wp_doing_ajax() && !(defined('REST_REQUEST') && REST_REQUEST) && class_exists('Fsbhoa_Print_Actions') ) {
@@ -230,6 +241,9 @@ function run_fsbhoa_access_control_admin() {
     }
     if ( class_exists( 'Fsbhoa_System_Status_Page' ) ) {
         new Fsbhoa_System_Status_Page();
+    }
+    if (class_exists('Fsbhoa_Test_Suite_Actions')) {
+        new Fsbhoa_Test_Suite_Page();
     }
     // Any other admin-dashboard specific UI initializations would go here.
 }

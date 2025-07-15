@@ -19,7 +19,12 @@ public function ajax_manage_service() {
         error_log("--- SYSTEM ACTION DEBUG ---");
         error_log("1. Received request for service: '{$service}', command: '{$command}'");
 
-        $allowed_services = ['fsbhoa-event-service.service', 'zebra_print_service.service', 'monitor_service.service'];
+        $allowed_services = [
+            'fsbhoa-event-service.service', 
+            'zebra_print_service.service', 
+            'monitor_service.service', 
+            'kiosk_service.service',
+        ];
         $allowed_commands = ['start', 'stop', 'restart', 'status'];
 
         if ( !in_array($service, $allowed_services) || !in_array($command, $allowed_commands) ) {
@@ -36,6 +41,7 @@ public function ajax_manage_service() {
 
         $output = (string) shell_exec($exec_command . " 2>&1");
         error_log("4. Raw output from command: " . print_r($output, true));
+        error_log("RAW HEX OUTPUT for {$service}: " . bin2hex($output));
         
         // Check for common error strings in the output of ANY command.
         $command_failed = (
@@ -47,9 +53,9 @@ public function ajax_manage_service() {
         if ($command === 'status') {
             $status = 'unknown'; // Default state
             if (!$command_failed) {
-                if (strpos($output, 'Active: active (running)') !== false) {
+                if (preg_match('/Active:\s+active\s+\(running\)/', $output)) {
                     $status = 'running';
-                } elseif (strpos($output, 'Active: inactive (dead)') !== false) {
+                } elseif (preg_match('/Active:\s+inactive\s+\(dead\)/', $output)) {
                     $status = 'stopped';
                 }
             }
