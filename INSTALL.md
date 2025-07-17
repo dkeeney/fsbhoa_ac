@@ -1,5 +1,5 @@
-# FSBHOA Access Control System Installation Guide (access.fsbhoa.com)
-*Version 2.9*
+b# FSBHOA Access Control System Installation Guide (access.fsbhoa.com)
+*Version 3.5*
 
 This document provides step-by-step instructions for deploying the FSBHOA Access Control system on the new dedicated server (`access.fsbhoa.com`).
 
@@ -98,7 +98,22 @@ This section covers the installation of the Ubuntu Desktop LTS operating system 
     ```
     *Note the database name, username, and password for the next steps.*
 
-### Step 3: Configure Apache and SSL
+### Step 3: Install phpMyAdmin (Optional)
+1.  **Install the necessary packages.**
+    ```bash
+    sudo apt install phpmyadmin php-mbstring php-zip php-gd php-json php-curl -y
+    ```
+2.  **Follow the on-screen prompts:**
+    * When asked to choose a web server, select **`apache2`**.
+    * When asked to configure a database, select **`<Yes>`**.
+    * If you encounter a password policy error, select **<Abort>**, then follow the manual database setup steps in the project's troubleshooting guide.
+3.  **Enable the configuration:**
+    ```bash
+    sudo a2enconf phpmyadmin
+    sudo systemctl restart apache2
+    ```
+
+### Step 4: Configure Apache and SSL
 1.  **Create Apache Virtual Host:** `sudo nano /etc/apache2/sites-available/fsbhoa-access.conf`
 2.  **Paste the following configuration** into the file.
     ```apache
@@ -141,7 +156,7 @@ This section covers the installation of the Ubuntu Desktop LTS operating system 
     sudo systemctl restart apache2
     ```
 
-### Step 4: Install WordPress and Import Data
+### Step 5: Install WordPress and Import Data
 1.  **Set Web Directory Permissions:** Give the web server ownership of the WordPress files.
     ```bash
     sudo chown -R www-data:www-data /var/www/html/
@@ -150,29 +165,25 @@ This section covers the installation of the Ubuntu Desktop LTS operating system 
     ```bash
     sudo cp -r ~/fsbhoa_ac/wordpress-plugin /var/www/html/wp-content/plugins/fsbhoa-access-control
     ```
-
 3.  **Run Web Installer:** Open a web browser and navigate to `https://access.fsbhoa.com`.
     * Follow the on-screen WordPress installation guide.
     * When prompted for database details, enter the information from Step 2 (`fsbhoa_db`, `wp_user`, and the password you created).
     * Complete the installation by providing a site title, admin username, and admin password.
-
 4.  **Log in** to the WordPress admin dashboard.
-
 5.  **Import Database:**
-    > **Note:** For a brand new installation, you should use the initial schema file from the git repository. For a migration, you should use a backup `.sql` file from the old server.
-
-    * **A) For a fresh installation:**
-        ```bash
-        # This command will ask for the mysql root password
-        sudo mysql -u root -p fsbhoa_db < ~/fsbhoa_ac/database/schema.sql
+    * **A) Log in to MySQL:** `sudo mysql -u root -p`
+    * **B) Drop and Recreate the Database:** Run these commands inside the MySQL prompt.
+        ```sql
+        DROP DATABASE fsbhoa_db;
+        CREATE DATABASE fsbhoa_db;
+        GRANT ALL PRIVILEGES ON fsbhoa_db.* TO 'wp_user'@'localhost';
+        FLUSH PRIVILEGES;
+        EXIT;
         ```
-    * **B) For migrating from an existing system (your current scenario):**
+    * **C) Import the SQL file:** From your regular terminal prompt, import your database backup.
         ```bash
-        # First, copy your backup.sql file to the server.
-        # Then, run this command, which will ask for the mysql root password:
-        sudo mysql -u root -p fsbhoa_db < /path/to/your/backup.sql
+        sudo mysql -u root -p fsbhoa_db < /path/to/your/fsbhoa_db.sql
         ```
-
 6.  **Update Site URL:** After importing, log back into MySQL to tell WordPress its new address.
     ```bash
     sudo mysql -u root -p
@@ -184,10 +195,118 @@ This section covers the installation of the Ubuntu Desktop LTS operating system 
     UPDATE wp_options SET option_value = '[https://access.fsbhoa.com](https://access.fsbhoa.com)' WHERE option_name = 'home';
     EXIT;
     ```
-
 7.  **Log in again:** After the import and URL update, your old WordPress admin user and password will be restored. You will need to log in again at `https://access.fsbhoa.com/wp-admin` with your previous credentials from the old server.
 8.  Go to **Plugins -> Installed Plugins** and ensure the "FSBHOA Access Control" plugin is **Activated**.
 
-**The next steps will be added here once you confirm the web server and WordPress setup is complete.**
+### Step 6: Finalize Migration
+1.  **Update Internal URLs:**
+    * From the WordPress dashboard, go to **Plugins -> Add New**.
+    * Search for, install, and activate the **"Better Search Replace"** plugin.
+    * Go to **Tools -> Better Search Replace**.
+    * **Search for:** `https://nas.fsbhoa.com` and **Replace with:** `https://access.fsbhoa.com`. Run this search.
+    * **Run a second time:** **Search for:** `http://NAS.local` and **Replace with:** `https://access.fsbhoa.com`.
+    * For each run, select all tables, do a "dry run" first, then uncheck the box to perform the permanent change.
+    * You can deactivate and delete the plugin when finished.
+2.  **Reset Permalinks:**
+    * From the WordPress dashboard, go to **Settings -> Permalinks**.
+    * Do not change any settings. Simply click the **"Save Changes"** button at the bottom. This flushes the old rewrite rules and ensures all your page links work correctly.
+
+### Step 7: Copy Media Files
+1.  **From the new server (`access.fsbhoa.com`)**, run the following command. This will securely copy the entire `uploads` directory from the old server to the new one.
+    > Note: This assumes the username on the old NAS is `pi`. If it's different, change `pi@nas.fsbhoa.com` accordingly. You will be prompted for the `pi` user's password on the old server.
+    ```bash
+    scp -r pi@nas.fsbhoa.com:/var/www/html/wp-content/uploads /var/www/html/wp-content/
+    ```
+2.  **Set Correct Permissions:** After the copy is complete, set the ownership of the new files to the web server user.
+    ```bash
+    sudo chown -R www-data:www-data /var/www/html/wp-content/uploads
+    ```
+3.  Refresh your browser. The images should now appear correctly.
+
+---
+## Part 4: Build and Enable Backend Services
+
+The `install.sh` script created the service files, but you need to build the Go applications from your source code.
+
+### Step 1: Build Go Applications
+1.  For each Go service, navigate to its directory and build the executable.
+    ```bash
+    # Build and install the CLI tool so it's available system-wide
+    cd ~/fsbhoa_ac/uhppote-cli
+    go build
+    sudo cp uhppote-cli /usr/local/bin/
+
+    # Build the event service
+    cd ~/fsbhoa_ac/event_service
+    go build
+
+    # Repeat for all other Go services (discovery_service, websocket_service, printer_service, etc.)
+    ```
+
+### Step 2: Enable and Start Services
+1.  Tell `systemd` to reload the service files (in case of changes).
+    ```bash
+    sudo systemctl daemon-reload
+    ```
+2.  Enable the services to start automatically on boot, and start them now.
+    ```bash
+    sudo systemctl enable --now fsbhoa-events.service
+    sudo systemctl enable --now fsbhoa-discovery.service
+    sudo systemctl enable --now fsbhoa-websocket.service
+    sudo systemctl enable --now fsbhoa-printer.service
+    ```
+3.  You can check the status of any service to ensure it's running.
+    ```bash
+    sudo systemctl status fsbhoa-events.service
+    ```
+4.  To view live logs for a service:
+    ```bash
+    sudo journalctl -u fsbhoa-events.service -f
+    ```
+
+---
+## Part 5: Kiosk Setup
+
+This section covers the final steps to enable the kiosk functionality on this machine.
+
+### Step 1: Find USB Card Reader ID
+1.  Plug the USB card reader into the `access` machine.
+2.  Run the following command to list all input devices by their stable ID.
+    ```bash
+    ls -l /dev/input/by-id/
+    ```
+3.  Identify the line that corresponds to your card reader. It will likely end in `-event-kbd`. Note down this full name (e.g., `usb-MagTek_USB_Keyboard-event-kbd`).
+
+### Step 2: Configure the Kiosk Service
+1.  Open the kiosk service file for editing.
+    ```bash
+    sudo nano /etc/systemd/system/fsbhoa-kiosk.service
+    ```
+2.  Find the line that begins with `StandardInput=`.
+3.  Replace the placeholder `usb-YOUR_CARD_READER_ID-event-kbd` with the actual device ID you found in the previous step.
+4.  Save and close the file (`Ctrl+X`, `Y`, `Enter`).
+
+### Step 3: Set Permissions and Enable Service
+1.  Add your `fsbhoa` user to the `input` group so it has permission to read from the device.
+    ```bash
+    sudo usermod -a -G input fsbhoa
+    ```
+2.  **You must reboot the machine** for this group change to take full effect.
+    ```bash
+    sudo reboot
+    ```
+3.  After rebooting, enable and start the kiosk service.
+    ```bash
+    sudo systemctl enable --now fsbhoa-kiosk.service
+    ```
+4.  Check its status to ensure it is running correctly.
+    ```bash
+    sudo systemctl status fsbhoa-kiosk.service
+    ```
+
+### Step 4: Configure Browser for Kiosk Mode
+The final step is to configure the web browser to automatically launch in fullscreen (kiosk) mode and point to the Go application's local URL (`http://localhost:8080`). This process varies depending on the browser and desktop environment but typically involves creating a custom `.desktop` file in `~/.config/autostart/`.
+
+**The system installation is now complete.**
 
 
