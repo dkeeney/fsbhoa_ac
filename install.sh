@@ -1,4 +1,4 @@
-[⚠️ Suspicious Content] #!/bin/bash
+#!/bin/bash
 
 # FSBHOA Access Control System - Server & Kiosk Installation Script
 # This script is tailored for the access.fsbhoa.com dual-purpose machine.
