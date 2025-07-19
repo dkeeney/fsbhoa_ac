@@ -1,6 +1,8 @@
 module fsbhoa_ac/event_service
 
-go 1.18
+go 1.23
+
+toolchain go1.24.5
 
 require (
 	github.com/gorilla/websocket v1.5.3

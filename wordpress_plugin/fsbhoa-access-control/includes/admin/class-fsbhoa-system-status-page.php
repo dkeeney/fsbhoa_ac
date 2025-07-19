@@ -3,81 +3,64 @@ if ( ! defined( 'WPINC' ) ) { die; }
 
 class Fsbhoa_System_Status_Page {
 
+    private $parent_slug = 'fsbhoa_ac_main_menu';
+    private $page_slug = 'fsbhoa_system_status';
+    private $services = [
+        'fsbhoa-events.service' => 'Event Service',
+        'fsbhoa-monitor.service' => 'Monitor Service',
+        'fsbhoa-printer.service' => 'Print Service',
+        'fsbhoa-kiosk.service' => 'Kiosk Service',
+    ];
+
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
     }
 
-    /**
-     * Adds the submenu page to the main FSBHOA menu.
-     */
     public function add_admin_menu() {
         add_submenu_page(
-            'fsbhoa_ac_main_menu',           // The parent slug
-            'System Status',                 // Page title
-            'System Status',                 // Menu title
-            'manage_options',                // Capability
-            'fsbhoa_system_status',          // Menu slug
-            array( $this, 'render_page' )    // Callback function to render the page
+            $this->parent_slug,
+            'System Status',
+            'System Status',
+            'manage_options',
+            $this->page_slug,
+            array( $this, 'render_page' )
         );
     }
 
-    /**
-     * Renders the HTML for the status page.
-     */
     public function render_page() {
         ?>
         <div class="wrap">
             <h1>System Services Status</h1>
-            <p>This page shows the status of the backend services and allows you to start, stop, and restart them.</p>
+            <p>This page shows the real-time status of the backend Go services and allows you to manage them.</p>
 
-            <table class="wp-list-table widefat striped" style="margin-top: 20px; max-width: 800px;">
+            <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
-                        <th style="width: 30%;">Service</th>
-                        <th style="width: 20%;">Status</th>
+                        <th style="width: 25%;">Service Name</th>
+                        <th style="width: 15%;">Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td><strong>Event Service</strong><br><em style="font-size:12px;">(fsbhoa-event-service.service)</em></td>
-                        <td><span id="status-fsbhoa-event-service.service" class="fsbhoa-status-indicator">Checking...</span></td>
-                        <td>
-                            <button class="button service-command-btn" data-command="start" data-service="fsbhoa-event-service.service">Start</button>
-                            <button class="button service-command-btn" data-command="stop" data-service="fsbhoa-event-service.service">Stop</button>
-                            <button class="button button-primary service-command-btn" data-command="restart" data-service="fsbhoa-event-service.service">Restart</button>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><strong>Zebra Print Service</strong><br><em style="font-size:12px;">(zebra_print_service.service)</em></td>
-                        <td><span id="status-zebra_print_service.service" class="fsbhoa-status-indicator">Checking...</span></td>
-                        <td>
-                            <button class="button service-command-btn" data-command="start" data-service="zebra_print_service.service">Start</button>
-                            <button class="button service-command-btn" data-command="stop" data-service="zebra_print_service.service">Stop</button>
-                            <button class="button button-primary service-command-btn" data-command="restart" data-service="zebra_print_service.service">Restart</button>
-                        </td>
-                    </tr>
-                    <tr>
-                          <td><strong>Monitor Service</strong><br><em style="font-size:12px;">(monitor_service.service)</em></td>
-                          <td><span id="status-monitor_service.service" class="fsbhoa-status-indicator">Checking...</span></td>
-                          <td>
-                              <button class="button service-command-btn" data-command="start" data-service="monitor_service.service">Start</button>
-                              <button class="button service-command-btn" data-command="stop" data-service="monitor_service.service">Stop</button>
-                              <button class="button button-primary service-command-btn" data-command="restart" data-service="monitor_service.service">Restart</button>
-                          </td>
-                      </tr>
-                      <tr>
-                          <td><strong>Kiosk Service</strong><br><em style="font-size:12px;">(kiosk_service.service)</em></td>
-                          <td><span id="status-kiosk_service.service" class="fsbhoa-status-indicator">Checking...</span></td>
-                          <td>
-                              <button class="button service-command-btn" data-command="start" data-service="kiosk_service.service">Start</button>
-                              <button class="button service-command-btn" data-command="stop" data-service="kiosk_service.service">Stop</button>
-                              <button class="button button-primary service-command-btn" data-command="restart" data-service="kiosk_service.service">Restart</button>
-                          </td>
-                      </tr>
+                    <?php foreach ( $this->services as $service_id => $service_name ) : ?>
+                        <tr>
+                            <td><strong><?php echo esc_html( $service_name ); ?></strong><br><small><?php echo esc_html( $service_id ); ?></small></td>
+                            <td>
+                                <span id="status-<?php echo esc_attr( $service_id ); ?>" class="fsbhoa-status-indicator">
+                                    Checking...
+                                </span>
+                            </td>
+                            <td>
+                                <button class="button service-command-btn" data-service="<?php echo esc_attr( $service_id ); ?>" data-command="start">Start</button>
+                                <button class="button service-command-btn" data-service="<?php echo esc_attr( $service_id ); ?>" data-command="stop">Stop</button>
+                                <button class="button button-primary service-command-btn" data-service="<?php echo esc_attr( $service_id ); ?>" data-command="restart">Restart</button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
         <?php
     }
 }
+

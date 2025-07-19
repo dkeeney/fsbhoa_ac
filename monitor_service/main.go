@@ -1,8 +1,3 @@
-func main() {
-    // Add a -config flag to specify the config file path
-    configFile := flag.String("config", "/var/lib/fsbhoa/monitor_service.json", "Path to the JSON configuration file.")
-    flag.Parse()
-
 package main
 
 import (

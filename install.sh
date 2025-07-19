@@ -87,7 +87,7 @@ USER_HOME=$(getent passwd "$SUDO_USER_VAR" | cut -d: -f6)
 PROJECT_DIR="$USER_HOME/fsbhoa_ac"
 
 # Service for Event Handler
-cat << EOF > /etc/systemd/system/fsbhoa-events.service
+cat << EOF > /etc/systemd/system/fsbhoa-event.service
 [Unit]
 Description=FSBHOA Hardware Event Service
 After=network.target
@@ -105,18 +105,19 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# Service for Controller Discovery
-cat << EOF > /etc/systemd/system/fsbhoa-discovery.service
+
+# Service for Real-time monitor service
+cat << EOF > /etc/systemd/system/fsbhoa-monitor.service
 [Unit]
-Description=FSBHOA Controller Discovery Service
+Description=FSBHOA Monitor Service
 After=network.target
 
 [Service]
 Type=simple
 User=$SUDO_USER_VAR
 Group=$(id -gn "$SUDO_USER_VAR")
-WorkingDirectory=$PROJECT_DIR/discovery_service
-ExecStart=$PROJECT_DIR/discovery_service/discovery_service
+WorkingDirectory=$PROJECT_DIR/monitor_service
+ExecStart=$PROJECT_DIR/monitor_service/monitor_service
 Restart=always
 RestartSec=5
 
@@ -124,27 +125,9 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# Service for Real-Time Monitor WebSocket
-cat << EOF > /etc/systemd/system/fsbhoa-websocket.service
-[Unit]
-Description=FSBHOA Real-Time Monitor WebSocket Service
-After=network.target
-
-[Service]
-Type=simple
-User=$SUDO_USER_VAR
-Group=$(id -gn "$SUDO_USER_VAR")
-WorkingDirectory=$PROJECT_DIR/websocket_service
-ExecStart=$PROJECT_DIR/websocket_service/websocket_service
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
 
 # Service for Zebra Printer
-cat << EOF > /etc/systemd/system/fsbhoa-printer.service
+cat << EOF > /etc/systemd/system/fsbhoa-zebra_printer.service
 [Unit]
 Description=FSBHOA Zebra Card Printer Service
 After=network.target
@@ -154,7 +137,7 @@ Type=simple
 User=$SUDO_USER_VAR
 Group=$(id -gn "$SUDO_USER_VAR")
 WorkingDirectory=$PROJECT_DIR/printer_service
-ExecStart=$PROJECT_DIR/printer_service/printer_service
+ExecStart=$PROJECT_DIR/zebra_printer_service/zebra_printer_service
 Restart=always
 RestartSec=5
 
