@@ -68,8 +68,10 @@ iptables -A INPUT -p tcp --dport 8083 -j ACCEPT  # event_service
 # The kiosk Go app will also run on this machine
 iptables -A INPUT -p tcp --dport 8080 -j ACCEPT  # kiosk_service
 
-# Allow UHPPOTE broadcast for controller discovery
-iptables -A INPUT -p udp --dport 60000 -j ACCEPT
+# Allow UHPPOTE broadcast and event ports
+iptables -A INPUT -p udp --dport 60000 -j ACCEPT # Discovery broadcast
+iptables -A INPUT -p udp --dport 60001 -j ACCEPT # Controller reply port
+iptables -A INPUT -p udp --dport 60002 -j ACCEPT # Event listener port
 
 # Drop all other incoming traffic
 iptables -P INPUT DROP
@@ -87,7 +89,7 @@ USER_HOME=$(getent passwd "$SUDO_USER_VAR" | cut -d: -f6)
 PROJECT_DIR="$USER_HOME/fsbhoa_ac"
 
 # Service for Event Handler
-cat << EOF > /etc/systemd/system/fsbhoa-event.service
+cat << EOF > /etc/systemd/system/fsbhoa-events.service
 [Unit]
 Description=FSBHOA Hardware Event Service
 After=network.target
@@ -136,8 +138,8 @@ After=network.target
 Type=simple
 User=$SUDO_USER_VAR
 Group=$(id -gn "$SUDO_USER_VAR")
-WorkingDirectory=$PROJECT_DIR/printer_service
-ExecStart=$PROJECT_DIR/zebra_printer_service/zebra_printer_service
+WorkingDirectory=$PROJECT_DIR/zebra_print_service
+ExecStart=$PROJECT_DIR/zebra_print_service/zebra_print_service
 Restart=always
 RestartSec=5
 

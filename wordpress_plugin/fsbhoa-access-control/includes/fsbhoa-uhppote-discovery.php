@@ -3,20 +3,30 @@ if ( ! defined( 'WPINC' ) ) { die; }
 
 /**
  * Discovers controllers by executing the uhppote-cli command directly.
- * We have proven this works when run as the www-data user.
+ * This version passes configuration via command-line flags to avoid
+ * dependency on the /etc/uhppoted/uhppoted.conf file.
  *
  * @return array An array of discovered controllers.
  */
 function fsbhoa_discover_controllers_udp() {
 
-    // The simple, direct command. We use the full path to be safe.
-    $command = '/usr/local/bin/uhppote-cli get-devices 2>&1';
+    // Get the necessary network settings from WordPress options.
+    $bind_address = get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0');
+    $broadcast_address = get_option('fsbhoa_ac_broadcast_addr', '0.0.0.0:0');
+
+    // Build the command with the explicit configuration flags.
+    $command = sprintf(
+        '/usr/local/bin/uhppote-cli --bind %s --broadcast %s get-devices 2>&1',
+        escapeshellarg($bind_address),
+        escapeshellarg($broadcast_address)
+    );
+
+    if (FSBHOA_DEBUG_MODE) {
+        error_log("DISCOVERY: Executing: " . $command);
+    }
 
     // Execute the command as the current user (which will be www-data).
     $output = shell_exec($command);
-
-    //var_dump($output);
-    //die('DEBUG: Script stopped in fsbhoa_discover_controllers_udp()');
 
     if (empty($output)) {
         // Return an empty array if the command failed or found nothing.
@@ -60,7 +70,7 @@ function fsbhoa_discover_controllers_udp() {
  */
 function fsbhoa_set_controller_ip($device_id, $ip_address, $netmask, $gateway) {
     // Build the base command with config flags from WordPress options
-    $listen_host = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
+    $listen_host = get_option('fsbhoa_ac_callback_host', '192.168.42.98'); // Updated default
     $listen_port = get_option('fsbhoa_ac_listen_port', '60002');
     $listen_address = $listen_host . ':' . $listen_port;
     $base_command = sprintf(
@@ -87,3 +97,5 @@ function fsbhoa_set_controller_ip($device_id, $ip_address, $netmask, $gateway) {
     // Execute the command
     shell_exec($set_address_command . " 2>&1");
 }
+
+
