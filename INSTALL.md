@@ -160,6 +160,35 @@ This section covers the installation of the Ubuntu Desktop LTS operating system 
     sudo chown -R www-data:www-data /var/www/html/
     ```
 
+### Step 1.5: Install Zebra Card Printer Driver
+
+The Go print service relies on a proprietary command-line tool from Zebra. You must download and install the official Linux driver for the ZC300 series printer.
+
+1.  **Download the Driver:**
+    * Navigate to the [Zebra Support & Downloads page](https://www.zebra.com/us/en/support-downloads.html) and search for the ZC300 printer.
+    * Download the Linux driver package. The file should be named similar to `Zebra_ZC_Card_Printer_Driver-1.0.0.0-Linux-x86_64-Install.tar.zip`.
+
+2.  **Install the Driver:**
+    * Copy the downloaded file to the server.
+    * Extract the archive:
+        ```bash
+        unzip Zebra_ZC_Card_Printer_Driver-1.0.0.0-Linux-x86_64-Install.tar.zip
+        tar -xf Zebra_ZC_Card_Printer_Driver-1.0.0.0-Linux-x86_64-Install.tar
+        ```
+    * The installer may require its target directory to exist first. Create it:
+        ```bash
+        sudo mkdir -p /usr/local/ZebraJaguarDriver
+        ```
+    * Run the installer:
+        ```bash
+        sudo ./Zebra_ZC_Card_Printer_Driver-1.0.0.0-Linux-x86_64-Install/Install.sh
+        ```
+    * Tell the system's dynamic linker where to find the new libraries:
+        ```bash
+        echo "/usr/local/ZebraJaguarDriver" | sudo tee /etc/ld.so.conf.d/zebra.conf
+        sudo ldconfig
+        ```
+
 **The server platform installation is now complete. Proceed to `CONFIGURATION.md` for application setup.**
 
 

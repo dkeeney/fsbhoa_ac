@@ -1,232 +1,197 @@
 package main
 
-/*
-#cgo linux LDFLAGS: -L/usr/local/ZebraJaguarDriver -lzmjxml -ltinyxml
-#cgo windows LDFLAGS: -lZBRPrinter -lZBRGraphics
-// This is where we would include the real C header files from the SDK once we find them.
-// For example:
-// #include "ZBRPrinter.h"
-*/
-import "C" // This special import enables cgo
-
 import (
-	"encoding/json"
+    "bytes"
+    "encoding/base64"
+    "encoding/json"
     "flag"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"strings"
-	"sync"
-	"time"
+    "fmt"
+    "image"
+    "image/draw"
+    "image/png"
+    "log"
+    "net/http"
+    "os"
+    "os/exec"
+    "time"
+
+    "golang.org/x/image/font"
+    "golang.org/x/image/font/basicfont"
+    "golang.org/x/image/math/fixed"
 )
+
+// --- Global Configuration ---
+var config Config
 
 // --- Data Structures ---
-
 type PrintRequestPayload struct {
-	RfidId              string `json:"rfid_id"`
-	FirstName           string `json:"first_name"`
-	LastName            string `json:"last_name"`
-	PropertyAddressText string `json:"property_address_text"`
-	PhotoBase64         string `json:"photo_base64"`
-	ResidentType        string `json:"resident_type"`
-	CardIssueDate       string `json:"card_issue_date"`
-	CardExpiryDate      string `json:"card_expiry_date"`
-	SubmittedByUser     string `json:"submitted_by_user"`
+    LogID       int               `json:"log_id"`
+    TemplateXML string            `json:"template_xml"` // Note: this is now unused but kept for API compatibility
+    Fields      map[string]string `json:"fields"`
 }
 
-type PrintJob struct {
-	PrinterJobID string
-	SystemJobID  string
-	Status       string
-	Message      string
-	SubmittedAt  time.Time
-	IsTerminal   bool
+// --- Core Logic ---
+
+// updatePrintStatusInWordPress sends a status update to our secure endpoint.
+func updatePrintStatusInWordPress(logID int, status string, message string) {
+    payload := map[string]interface{}{
+        "log_id":         logID,
+        "status":         status,
+        "status_message": message,
+    }
+    jsonData, err := json.Marshal(payload)
+    if err != nil {
+        log.Printf("[LogID: %d] Error marshalling status update JSON: %v", logID, err)
+        return
+    }
+    req, err := http.NewRequest("POST", config.ApiURL, bytes.NewBuffer(jsonData))
+    if err != nil {
+        log.Printf("[LogID: %d] Error creating API request: %v", logID, err)
+        return
+    }
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("X-Internal-API-Key", config.ApiToken)
+    client := &http.Client{Timeout: 10 * time.Second}
+    resp, err := client.Do(req)
+    if err != nil {
+        log.Printf("[LogID: %d] Error sending status update to WordPress: %v", logID, err)
+        return
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        log.Printf("[LogID: %d] WordPress API returned a non-200 status for update: %s", logID, resp.Status)
+    } else {
+        log.Printf("[LogID: %d] Successfully updated status to '%s' via API.", logID, status)
+    }
 }
 
-type StatusResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"status_message"`
+// createImage combines the photo and text into a single image file.
+func createImage(payload PrintRequestPayload) (string, error) {
+    // Decode the base64 photo
+    photoData, err := base64.StdEncoding.DecodeString(payload.Fields["residentPhoto"])
+    if err != nil {
+        return "", fmt.Errorf("could not decode photo: %v", err)
+    }
+    photoImg, _, err := image.Decode(bytes.NewReader(photoData))
+    if err != nil {
+        return "", fmt.Errorf("could not decode photo data into image: %v", err)
+    }
+
+    // Create a new blank card canvas (dimensions are for a standard CR80 card at 300 DPI)
+    cardWidth, cardHeight := 1016, 640
+    cardCanvas := image.NewRGBA(image.Rect(0, 0, cardWidth, cardHeight))
+
+    // Draw the photo onto the canvas
+    // These coordinates would come from a template file in a full implementation
+    photoRect := image.Rect(40, 40, 40+375, 40+450)
+    draw.Draw(cardCanvas, photoRect, photoImg, image.Point{}, draw.Src)
+
+    // Draw the text onto the canvas
+    fullName := fmt.Sprintf("%s %s", payload.Fields["firstName"], payload.Fields["lastName"])
+    addLabel(cardCanvas, 500, 200, fullName)
+
+    // Create a temporary file to save the final image
+    tmpFile, err := os.CreateTemp("", fmt.Sprintf("printjob-%d-*.png", payload.LogID))
+    if err != nil {
+        return "", fmt.Errorf("could not create temp file: %v", err)
+    }
+    defer tmpFile.Close()
+
+    // Save the canvas as a PNG file
+    if err := png.Encode(tmpFile, cardCanvas); err != nil {
+        return "", fmt.Errorf("could not encode image to PNG: %v", err)
+    }
+
+    return tmpFile.Name(), nil
 }
 
-// --- In-Memory Job Store ---
-
-var (
-	jobStore = make(map[string]*PrintJob)
-	jobMutex = &sync.Mutex{}
-)
-
-// --- Core SDK Logic ---
-
-// This function now contains the placeholder logic for real SDK interaction.
-func submitPrintJobToSDK(payload PrintRequestPayload) (string, error) {
-	log.Println("Connecting to printer via Zebra SDK...")
-
-	// The code below is a representation of the steps we would take.
-	// The actual function names (e.g., ZBRGetHandle) must be confirmed
-	// from the SDK's header files when the printer is available.
-
-	/*
-		// Step 1: Discover and get a handle to the printer.
-		var errorCode C.int
-		printerHandle := C.ZBRGetHandle(C.CString("USB"), nil, &errorCode)
-		if errorCode != 0 {
-			return "", fmt.Errorf("could not get printer handle, error code: %d", errorCode)
-		}
-		defer C.ZBRCloseHandle(printerHandle)
-		log.Println("SDK: Printer connection established.")
-
-		// Step 2: Create graphics for the card.
-		var graphicsHandle C.HANDLE
-		C.ZBRGraphicsInit(&graphicsHandle, ...) // Initialize graphics context
-		defer C.ZBRGraphicsClose(graphicsHandle)
-
-		// Draw text elements
-		C.ZBRGraphicsDrawText(graphicsHandle, C.CString(payload.FirstName + " " + payload.LastName), ...)
-		C.ZBRGraphicsDrawText(graphicsHandle, C.CString(payload.PropertyAddressText), ...)
-
-		// Decode the Base64 image and draw it
-		photoBytes, err := base64.StdEncoding.DecodeString(payload.PhotoBase64)
-		if err != nil {
-			return "", fmt.Errorf("invalid base64 photo data: %v", err)
-		}
-		C.ZBRGraphicsDrawImage(graphicsHandle, photoBytes, ...)
-		log.Println("SDK: Graphics created for the card.")
+// addLabel is a helper to draw text on an image.
+func addLabel(img *image.RGBA, x, y int, label string) {
+    point := fixed.Point26_6{X: fixed.I(x), Y: fixed.I(y)}
+    d := &font.Drawer{
+        Dst:  img,
+        Src:  image.Black,
+        Face: basicfont.Face7x13, // Using a basic built-in font
+        Dot:  point,
+    }
+    d.DrawString(label)
+}
 
 
-		// Step 3: Send the print job.
-		var jobId C.int
-		C.ZBRPrint(printerHandle, graphicsHandle, &jobId, &errorCode)
-		if errorCode != 0 {
-			return "", fmt.Errorf("failed to send print job, error code: %d", errorCode)
-		}
+// doPrintJob now generates an image and calls the rastertojg CLI tool.
+func doPrintJob(payload PrintRequestPayload) {
+    logID := payload.LogID
+    log.Printf("[LogID: %d] Starting CLI-based print job.", logID)
 
-		printerJobId := fmt.Sprintf("%d", jobId)
-	*/
+    // 1. Generate the card front image
+    imagePath, err := createImage(payload)
+    if err != nil {
+        errMsg := fmt.Sprintf("Failed to generate print image: %v", err)
+        log.Printf("[LogID: %d] %s", logID, errMsg)
+        updatePrintStatusInWordPress(logID, "failed_error", errMsg)
+        return
+    }
+    defer os.Remove(imagePath) // Clean up the temp file when done
+    log.Printf("[LogID: %d] Successfully created temporary print image at %s", logID, imagePath)
 
-	// For now, until the printer arrives, we will return a simulated job ID.
-	printerJobId := fmt.Sprintf("REAL_GO_JOB_%d", time.Now().UnixNano())
-	log.Printf("SDK: Print job submitted. Printer Job ID: %s (simulated)", printerJobId)
+    // 2. Execute the rastertojg command
+    cmd := exec.Command("/usr/local/ZebraJaguarDriver/rastertojg",
+        fmt.Sprintf("%d", logID), // job-id
+        "fsbhoa",                 // user
+        "Card Print",             // title
+        "1",                      // copies
+        "",                       // options (can be used for printer name, etc.)
+        imagePath,                // file
+    )
 
-	return printerJobId, nil
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        errMsg := fmt.Sprintf("rastertojg command failed: %v. Output: %s", err, string(output))
+        log.Printf("[LogID: %d] %s", logID, errMsg)
+        updatePrintStatusInWordPress(logID, "failed_error", errMsg)
+        return
+    }
+
+    finalMessage := fmt.Sprintf("Print job successfully submitted via rastertojg. Output: %s", string(output))
+    log.Printf("[LogID: %d] %s", logID, finalMessage)
+    updatePrintStatusInWordPress(logID, "completed_ok", finalMessage)
 }
 
 // --- HTTP Handlers ---
-
 func printCardHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method is accepted", http.StatusMethodNotAllowed)
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Error reading request body", http.StatusInternalServerError)
-		return
-	}
-	defer r.Body.Close()
-
-	var payload PrintRequestPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		http.Error(w, "Error parsing JSON payload", http.StatusBadRequest)
-		return
-	}
-
-	log.Printf("Received print request for: %s %s", payload.FirstName, payload.LastName)
-
-	printerJobId, err := submitPrintJobToSDK(payload)
-	if err != nil {
-		log.Printf("Error submitting job to SDK: %v", err)
-		http.Error(w, "Error submitting job to SDK", http.StatusInternalServerError)
-		return
-	}
-
-	systemJobID := fmt.Sprintf("go_sys_job_%d", time.Now().UnixNano())
-	newJob := &PrintJob{
-		PrinterJobID: printerJobId,
-		SystemJobID:  systemJobID,
-		Status:       "PRINTING",
-		Message:      "Job is currently printing.",
-		SubmittedAt:  time.Now(),
-		IsTerminal:   false,
-	}
-
-	jobMutex.Lock()
-	jobStore[printerJobId] = newJob
-	jobMutex.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	responseMap := map[string]string{
-		"status":          "queued",
-		"message":         "Print job successfully queued by Go service",
-		"system_job_id":  systemJobID,
-		"printer_job_id": printerJobId,
-	}
-	json.NewEncoder(w).Encode(responseMap)
-}
-
-func printStatusHandler(w http.ResponseWriter, r *http.Request) {
-	jobID := strings.TrimPrefix(r.URL.Path, "/print-status/")
-	if jobID == "" {
-		http.Error(w, "Missing job ID", http.StatusBadRequest)
-		return
-	}
-
-	log.Printf("Received status check for printer job ID: %s", jobID)
-
-	jobMutex.Lock()
-	job, exists := jobStore[jobID]
-	jobMutex.Unlock()
-
-	if !exists {
-		http.Error(w, "Job ID not found", http.StatusNotFound)
-		return
-	}
-
-	/*
-		// This is where the real SDK call to check status would go.
-		var status C.int
-		var messageBuffer [256]C.char
-		C.ZBRGetJobStatus(job.PrinterJobID, &status, &messageBuffer[0], 256)
-		job.Status = C.GoString(status)
-		job.Message = C.GoString(&messageBuffer[0])
-	*/
-
-	// For now, we simulate the job's progress.
-	if !job.IsTerminal && time.Since(job.SubmittedAt).Seconds() > 15 {
-		job.Status = "COMPLETED_OK"
-		job.Message = "Print completed successfully (simulated)."
-		job.IsTerminal = true
-		log.Printf("Job %s has reached a terminal state: %s", jobID, job.Status)
-		// Here we would also delete the temporary image file.
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	response := StatusResponse{
-		Status:  job.Status,
-		Message: job.Message,
-	}
-	json.NewEncoder(w).Encode(response)
+    if r.Method != http.MethodPost {
+        http.Error(w, "Only POST method is accepted", http.StatusMethodNotAllowed)
+        return
+    }
+    var payload PrintRequestPayload
+    if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+        http.Error(w, "Error parsing JSON payload", http.StatusBadRequest)
+        return
+    }
+    log.Printf("Received print request for LogID: %d", payload.LogID)
+    updatePrintStatusInWordPress(payload.LogID, "printing", "Job received by Go service.")
+    go doPrintJob(payload)
+    w.WriteHeader(http.StatusAccepted)
+    fmt.Fprintf(w, "Job for LogID %d accepted and is being processed.", payload.LogID)
 }
 
 func main() {
-        // Define a command-line flag for the port number
-        port := flag.Int("port", 8081, "Port number for the print service")
-        flag.Parse()
-
-        http.HandleFunc("/print_card", printCardHandler)
-        http.HandleFunc("/print-status/", printStatusHandler)
-
-        http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-                fmt.Fprintf(w, "FSBHOA Go Printer Service is running!")
-        })
-
-        addr := fmt.Sprintf(":%d", *port)
-        log.Printf("Starting Zebra Print Service on port %s...", addr)
-        if err := http.ListenAndServe(addr, nil); err != nil {
-                log.Fatal("ListenAndServe: ", err)
-        }
+    configFile := flag.String("config", "/var/lib/fsbhoa/zebra_print_service.json", "Path to the JSON configuration file.")
+    flag.Parse()
+    var err error
+    config, err = LoadConfig(*configFile)
+    if err != nil {
+        log.Fatalf("FATAL: Could not load config file '%s': %v", *configFile, err)
+    }
+    log.Printf("Configuration loaded successfully from %s", *configFile)
+    http.HandleFunc("/print_card", printCardHandler)
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Fprintf(w, "FSBHOA Go Printer Service is running!")
+    })
+    addr := fmt.Sprintf(":%d", config.Port)
+    log.Printf("Starting Zebra Print Service on http://127.0.0.1%s...", addr)
+    if err := http.ListenAndServe(addr, nil); err != nil {
+        log.Fatal("ListenAndServe: ", err)
+    }
 }
 

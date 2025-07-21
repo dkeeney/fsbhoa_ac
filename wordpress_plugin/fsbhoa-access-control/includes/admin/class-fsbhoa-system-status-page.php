@@ -8,7 +8,7 @@ class Fsbhoa_System_Status_Page {
     private $services = [
         'fsbhoa-events.service' => 'Event Service',
         'fsbhoa-monitor.service' => 'Monitor Service',
-        'fsbhoa-printer.service' => 'Print Service',
+        'fsbhoa-zebra-printer.service' => 'Print Service',
         'fsbhoa-kiosk.service' => 'Kiosk Service',
     ];
 

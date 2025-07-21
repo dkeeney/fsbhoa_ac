@@ -1,6 +1,7 @@
 <?php
 /**
  * Handles all AJAX actions for the interactive print workflow.
+ * V2 - Refactored for database-driven status tracking.
  */
 
 if ( ! defined( 'WPINC' ) ) {
@@ -10,156 +11,146 @@ if ( ! defined( 'WPINC' ) ) {
 class Fsbhoa_Print_Actions {
 
     public function __construct() {
-// --- DEBUG LINE 1 ---
-error_log('DEBUG: Fsbhoa_Print_Actions constructor was called.');
-
         add_action('wp_ajax_fsbhoa_submit_print_job', array($this, 'ajax_submit_print_job'));
         add_action('wp_ajax_fsbhoa_check_print_status', array($this, 'ajax_check_print_status'));
         add_action('wp_ajax_fsbhoa_save_rfid', array($this, 'ajax_save_rfid_and_activate'));
     }
 
     /**
-     * AJAX handler to submit the print job to the RISK server.
-     */
-    /**
-     * AJAX handler to submit the print job to the Go service and log the attempt.
+     * Step 1: Creates a log entry, then submits the print job to the Go service.
      */
     public function ajax_submit_print_job() {
         check_ajax_referer('fsbhoa_print_card_nonce', 'security');
 
         if (!isset($_POST['cardholder_id']) || !is_numeric($_POST['cardholder_id'])) {
             wp_send_json_error(['message' => 'Invalid Cardholder ID.'], 400);
-            return;
         }
         $cardholder_id = absint($_POST['cardholder_id']);
 
         global $wpdb;
         $cardholder = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_cardholders WHERE id = %d", $cardholder_id), ARRAY_A);
+
+        if ($wpdb->last_error) {
+            wp_send_json_error(['message' => 'Database error when fetching cardholder: ' . $wpdb->last_error], 500);
+        }
         if (!$cardholder) {
             wp_send_json_error(['message' => 'Cardholder not found.'], 404);
-            return;
         }
 
-        $property_address = $wpdb->get_var($wpdb->prepare("SELECT street_address FROM ac_property WHERE property_id = %d", $cardholder['property_id'])) ?: 'N/A';
+        // 1. Create the initial log entry in our database
+        $log_data = [
+            'cardholder_id'     => $cardholder_id,
+            'status'            => 'submitted',
+            'submitted_by_user' => wp_get_current_user()->user_login,
+        ];
+        $log_format = ['%d', '%s', '%s'];
+        $wpdb->insert('ac_print_log', $log_data, $log_format);
+
+        if ($wpdb->last_error) {
+            wp_send_json_error(['message' => 'FATAL: Could not create initial database log entry. ' . $wpdb->last_error], 500);
+        }
+        $log_id = $wpdb->insert_id;
+
+        // 2. Prepare the payload for the Go service
+        // Get Card Back Logo from settings
+        $card_back_url = get_option('fsbhoa_ac_card_back_url', '');
+        $card_back_base64 = '';
+        if (!empty($card_back_url)) {
+            $image_id = attachment_url_to_postid($card_back_url);
+            if ($image_id) {
+                $image_path = get_attached_file($image_id);
+                if ($image_path && file_exists($image_path)) {
+                    $card_back_base64 = base64_encode(file_get_contents($image_path));
+                }
+            }
+        }
+        
+        // Get Template JSON from settings
+        $template_path = get_option('fsbhoa_ac_print_template_path', '');
+        $template_json = '';
+        if (!empty($template_path) && file_exists($template_path)) {
+            $template_json = file_get_contents($template_path);
+        }
+
+        // Prepare expiration date line (line 2)
+        $line_2 = '';
+        if ($cardholder['card_expiry_date'] && $cardholder['card_expiry_date'] !== '2099-12-31') {
+            $line_2 = 'Expires: ' . date('m/d/Y', strtotime($cardholder['card_expiry_date']));
+        }
 
         $payload = [
-            'rfid_id'               => $cardholder['rfid_id'],
-            'first_name'            => $cardholder['first_name'],
-            'last_name'             => $cardholder['last_name'],
-            'property_address_text' => $property_address,
-            'photo_base64'          => base64_encode($cardholder['photo']),
-            'resident_type'         => $cardholder['resident_type'],
-            'card_issue_date'       => $cardholder['card_issue_date'],
-            'card_expiry_date'      => $cardholder['card_expiry_date'],
-            'submitted_by_user'     => wp_get_current_user()->user_login,
+            'log_id'           => $log_id,
+            'cardholder_id'    => $cardholder_id,
+            'template_xml'     => $template_json, // Renamed from template_json
+            'fields' => [
+                'firstName'     => $cardholder['first_name'],
+                'lastName'      => $cardholder['last_name'],
+                'residentPhoto' => base64_encode($cardholder['photo']),
+                'cardBackLogo'  => $card_back_base64,
+                // 'expirationDate' => $line_2, // We can add this later
+            ]
         ];
         $payload_json = json_encode($payload);
 
-        // Call the Go service
-        $risk_server_url = 'http://127.0.0.1:8081/print_card';
-        $response = wp_remote_post($risk_server_url, [
-            'body'      => $payload_json,
-            'headers'   => ['Content-Type' => 'application/json'],
-            'timeout'   => 15,
+        // Update the log with the data we are about to send, for auditing
+        $update_result = $wpdb->update('ac_print_log', ['print_request_data' => $payload_json], ['log_id' => $log_id]);
+        if ($update_result === false) {
+            wp_send_json_error(['message' => 'FATAL: Could not update database log with print data. ' . $wpdb->last_error], 500);
+        }
+
+        // 3. Call the Go service
+        $print_service_port = get_option('fsbhoa_ac_print_port', 8081);
+        $print_service_url = sprintf('http://127.0.0.1:%d/print_card', $print_service_port);
+        $response = wp_remote_post($print_service_url, [
+            'body'    => $payload_json,
+            'headers' => ['Content-Type' => 'application/json'],
+            'timeout' => 15,
         ]);
 
+        // 4. Handle the response
         if (is_wp_error($response)) {
-            wp_send_json_error(['message' => 'Failed to connect to the Print Service: ' . $response->get_error_message()], 500);
-            return;
+            $error_message = 'Failed to connect to Print Service: ' . $response->get_error_message();
+            // Update our log to reflect the connection failure
+            $wpdb->update('ac_print_log', ['status' => 'failed_error', 'status_message' => $error_message], ['log_id' => $log_id]);
+            // We don't check for an error on this final log update, as we are already in an error state.
+            wp_send_json_error(['message' => $error_message], 500);
         }
 
-        $body = wp_remote_retrieve_body($response);
-        $decoded_body = json_decode($body, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE || !isset($decoded_body['status'])) {
-            wp_send_json_error(['message' => 'Received an invalid response from the Print Service.', 'raw_response' => $body], 500);
-            return;
-        }
-
-        // --- THIS IS THE FIX ---
-        // If the Go service accepted the job, log it to our database before returning.
-        if ($decoded_body['status'] === 'queued') {
-            $system_job_id = $decoded_body['system_job_id'] ?? 'unknown_sys_id_' . time();
-            $printer_job_id = $decoded_body['printer_job_id'] ?? null;
-
-            $log_result = $wpdb->insert('ac_print_log', [
-                'system_job_id'      => $system_job_id,
-                'printer_job_id'     => $printer_job_id,
-                'cardholder_id'      => $cardholder_id,
-                'rfid_id'            => $payload['rfid_id'],
-                'print_request_data' => $payload_json,
-                'status'             => 'queued',
-                'submitted_by_user'  => $payload['submitted_by_user']
-            ]);
-
-            if (false === $log_result) {
-                // If logging fails, we must inform the user.
-                wp_send_json_error(['message' => 'Job was sent to printer, but failed to log to the database. Please check manually. DB Error: ' . $wpdb->last_error], 500);
-                return;
-            }
-
-            // Forward the successful response from the Go service to the browser.
-            // The JS needs the system_job_id to start polling.
-            wp_send_json($decoded_body);
-
-        } else {
-            // If the Go service returned an error, forward that error.
-            wp_send_json_error(['message' => 'Print service rejected the job: ' . ($decoded_body['message'] ?? 'Unknown reason')]);
-        }
+        // If the connection was successful, the Go service has taken over.
+        // Return the log_id so the JavaScript can start polling.
+        wp_send_json_success(['log_id' => $log_id]);
     }
 
 
     /**
-     * AJAX handler to check the status of a print job from our database.
+     * Step 2: Checks the status of a print job from our own database.
      */
     public function ajax_check_print_status() {
-// --- DEBUG LINE 2 ---
-    error_log('DEBUG: ajax_check_print_status function was reached.');
         check_ajax_referer('fsbhoa_print_card_nonce', 'security');
 
-        if (!isset($_POST['system_job_id'])) {
-            wp_send_json_error(['message' => 'No System Job ID provided.'], 400);
+        if (!isset($_POST['log_id']) || !is_numeric($_POST['log_id'])) {
+            wp_send_json_error(['message' => 'No Log ID provided.'], 400);
         }
-        $system_job_id = sanitize_text_field($_POST['system_job_id']);
+        $log_id = absint($_POST['log_id']);
 
-        // 1. Get the printer_job_id from our log table
         global $wpdb;
-        $printer_job_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT printer_job_id FROM ac_print_log WHERE system_job_id = %s",
-            $system_job_id
-        ));
+        $status_row = $wpdb->get_row($wpdb->prepare(
+            "SELECT status, status_message FROM ac_print_log WHERE log_id = %d",
+            $log_id
+        ), ARRAY_A);
 
         if ($wpdb->last_error) {
-            wp_send_json_error(['message' => 'Database error looking up job ID: ' . esc_html($wpdb->last_error)], 500);
+            wp_send_json_error(['message' => 'Database error looking up job status: ' . esc_html($wpdb->last_error)], 500);
+        }
+        if (!$status_row) {
+            wp_send_json_error(['message' => 'Could not find a print job for the given log ID.'], 404);
         }
 
-        if (empty($printer_job_id)) {
-            wp_send_json_error(['message' => 'Could not find a printer job ID for the given system job ID.'], 404);
-        }
-
-        // 2. Poll the Go service for the status
-        $risk_server_url = 'http://127.0.0.1:8081/print-status/' . $printer_job_id;
-        $response = wp_remote_get($risk_server_url, ['timeout' => 5]);
-
-        if (is_wp_error($response)) {
-            wp_send_json_error(['message' => 'Failed to connect to the Print Service for status check: ' . $response->get_error_message()], 500);
-        }
-
-        // 3. Forward the Go service's response to the browser
-        $body = wp_remote_retrieve_body($response);
-        $decoded_body = json_decode($body, true);
-
-        if (json_last_error() === JSON_ERROR_NONE) {
-            // The data payload from Go already contains 'status' and 'message' (renamed to status_message)
-            wp_send_json_success($decoded_body);
-        } else {
-            wp_send_json_error(['message' => 'Received an invalid status response from the Print Service.'], 500);
-        }
+        wp_send_json_success($status_row);
     }
 
-
     /**
-     * AJAX handler to save the new RFID and activate the card.
+     * Step 3: Saves the new RFID and activates the card.
      */
     public function ajax_save_rfid_and_activate() {
         check_ajax_referer('fsbhoa_print_card_nonce', 'security');
@@ -170,7 +161,7 @@ error_log('DEBUG: Fsbhoa_Print_Actions constructor was called.');
 
         $cardholder_id = absint($_POST['cardholder_id']);
         $rfid_id = sanitize_text_field($_POST['rfid_id']);
-        
+
         global $wpdb;
         $result = $wpdb->update(
             'ac_cardholders',
@@ -185,7 +176,7 @@ error_log('DEBUG: Fsbhoa_Print_Actions constructor was called.');
         );
 
         if ($result === false) {
-            wp_send_json_error(['message' => 'Database error during update.'], 500);
+            wp_send_json_error(['message' => 'Database error during card activation: ' . $wpdb->last_error], 500);
         } else {
             wp_send_json_success(['message' => 'Card activated successfully!']);
         }

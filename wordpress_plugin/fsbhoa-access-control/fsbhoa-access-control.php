@@ -104,6 +104,9 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-admin-p
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-kiosk-rest-api.php';
 
+// for Print Services
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/print/class-fsbhoa-print-rest-api.php';
+
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
 // This makes the admin functions available on the front-end for our shortcode.
@@ -225,6 +228,11 @@ function fsbhoa_ac_api_init() {
     if (class_exists('Fsbhoa_Kiosk_REST_API')) {
         $kiosk_api = new Fsbhoa_Kiosk_REST_API();
         $kiosk_api->register_routes();
+    }
+    // Instantiate the Print REST API handler
+    if (class_exists('Fsbhoa_Print_REST_API')) {
+        $print_api = new Fsbhoa_Print_REST_API();
+        $print_api->register_routes();
     }
     
     // Any other true REST API handlers would be initialized here in the future.
