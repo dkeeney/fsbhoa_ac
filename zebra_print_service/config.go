@@ -11,6 +11,8 @@ type Config struct {
     Port     int    `json:"port"`
     ApiURL   string `json:"api_url"`
     ApiToken string `json:"api_token"`
+    PrinterName string `json:"printer_name"`
+    DebugMode   bool   `json:"debug_mode"`
 }
 
 // LoadConfig reads the configuration from the given file path.

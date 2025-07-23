@@ -4,35 +4,75 @@ import (
     "bytes"
     "encoding/base64"
     "encoding/json"
+    "encoding/xml"
     "flag"
     "fmt"
     "image"
     "image/draw"
+    _ "image/jpeg"
     "image/png"
+    "io/ioutil"
     "log"
     "net/http"
     "os"
     "os/exec"
+    "strconv"
+    "strings"
     "time"
 
     "golang.org/x/image/font"
-    "golang.org/x/image/font/basicfont"
+    "golang.org/x/image/font/opentype"
+    "golang.org/x/image/font/sfnt"
+    xdraw "golang.org/x/image/draw"
     "golang.org/x/image/math/fixed"
 )
 
 // --- Global Configuration ---
 var config Config
+var loadedFont *sfnt.Font
 
 // --- Data Structures ---
 type PrintRequestPayload struct {
     LogID       int               `json:"log_id"`
-    TemplateXML string            `json:"template_xml"` // Note: this is now unused but kept for API compatibility
+    TemplateXML string            `json:"template_xml"`
     Fields      map[string]string `json:"fields"`
+}
+
+// --- XML Template Structs ---
+type FontDef struct {
+    ID   string `xml:"id,attr"`
+    Size string `xml:"size,attr"`
+}
+type Template struct {
+    Fonts []FontDef `xml:"fonts>font"`
+    Sides []Side    `xml:"sides>side"`
+}
+type Side struct {
+    Name       string      `xml:"name,attr"`
+    PrintTypes []PrintType `xml:"print_types>print_type"`
+}
+type PrintType struct {
+    Graphics []Graphic `xml:"graphic"`
+    Texts    []Text    `xml:"text"`
+}
+type Graphic struct {
+    Field  string `xml:"field,attr"`
+    X      string `xml:"x,attr"`
+    Y      string `xml:"y,attr"`
+    Width  string `xml:"width,attr"`
+    Height string `xml:"height,attr"`
+}
+type Text struct {
+    Field  string `xml:"field,attr"`
+    FontID string `xml:"font_id,attr"`
+    X      string `xml:"x,attr"`
+    Y      string `xml:"y,attr"`
+    Alignment string `xml:"alignment,attr"`
+    Width     string `xml:"width,attr"` 
 }
 
 // --- Core Logic ---
 
-// updatePrintStatusInWordPress sends a status update to our secure endpoint.
 func updatePrintStatusInWordPress(logID int, status string, message string) {
     payload := map[string]interface{}{
         "log_id":         logID,
@@ -65,39 +105,74 @@ func updatePrintStatusInWordPress(logID int, status string, message string) {
     }
 }
 
-// createImage combines the photo and text into a single image file.
 func createImage(payload PrintRequestPayload) (string, error) {
-    // Decode the base64 photo
-    photoData, err := base64.StdEncoding.DecodeString(payload.Fields["residentPhoto"])
-    if err != nil {
-        return "", fmt.Errorf("could not decode photo: %v", err)
-    }
-    photoImg, _, err := image.Decode(bytes.NewReader(photoData))
-    if err != nil {
-        return "", fmt.Errorf("could not decode photo data into image: %v", err)
+    var t Template
+    if err := xml.Unmarshal([]byte(payload.TemplateXML), &t); err != nil {
+        return "", fmt.Errorf("could not parse XML template: %v", err)
     }
 
-    // Create a new blank card canvas (dimensions are for a standard CR80 card at 300 DPI)
-    cardWidth, cardHeight := 1016, 640
+    fontMap := make(map[string]string)
+    for _, fontDef := range t.Fonts {
+        fontMap[fontDef.ID] = fontDef.Size
+    }
+
+    cardWidth, cardHeight := 640, 1016 // Portrait
     cardCanvas := image.NewRGBA(image.Rect(0, 0, cardWidth, cardHeight))
 
-    // Draw the photo onto the canvas
-    // These coordinates would come from a template file in a full implementation
-    photoRect := image.Rect(40, 40, 40+375, 40+450)
-    draw.Draw(cardCanvas, photoRect, photoImg, image.Point{}, draw.Src)
+    for _, side := range t.Sides {
+        if side.Name == "front" {
+            for _, pt := range side.PrintTypes {
+                for _, graphic := range pt.Graphics {
+                    base64Data, ok := payload.Fields[graphic.Field]
+                    if !ok || base64Data == "" {
+                        continue
+                    }
+                    imgData, err := base64.StdEncoding.DecodeString(base64Data)
+                    if err != nil {
+                        return "", fmt.Errorf("could not decode graphic '%s': %v", graphic.Field, err)
+                    }
+                    img, _, err := image.Decode(bytes.NewReader(imgData))
+                    if err != nil {
+                        return "", fmt.Errorf("could not decode image data for '%s': %v", graphic.Field, err)
+                    }
+                    x, _ := strconv.Atoi(graphic.X)
+                    y, _ := strconv.Atoi(graphic.Y)
+                    w, _ := strconv.Atoi(graphic.Width)
+                    h, _ := strconv.Atoi(graphic.Height)
+                    rect := image.Rect(x, y, x+w, y+h)
+                    xdraw.ApproxBiLinear.Scale(cardCanvas, rect, img, img.Bounds(), draw.Over, nil)
+                }
 
-    // Draw the text onto the canvas
-    fullName := fmt.Sprintf("%s %s", payload.Fields["firstName"], payload.Fields["lastName"])
-    addLabel(cardCanvas, 500, 200, fullName)
+                for _, text := range pt.Texts {
+                    textValue, ok := payload.Fields[text.Field]
+                    if !ok || textValue == "" {
+                        continue
+                    }
+                    sizeStr, ok := fontMap[text.FontID]
+                    if !ok {
+                        sizeStr = "28"
+                    }
+                    size, err := strconv.ParseFloat(sizeStr, 64)
+                    if err != nil {
+                        size = 28.0
+                        log.Printf("Warning: Could not parse font size '%s', using default", sizeStr)
+                    }
+                    x, _ := strconv.Atoi(text.X)
+                    y, _ := strconv.Atoi(text.Y)
+                    boxWidth, _ := strconv.Atoi(text.Width) // Get box width for centering
+                    addLabel(cardCanvas, x, y, boxWidth, text.Alignment, textValue, size)
+                }
+            }
+        }
+    }
 
-    // Create a temporary file to save the final image
-    tmpFile, err := os.CreateTemp("", fmt.Sprintf("printjob-%d-*.png", payload.LogID))
+    tmpFile, err := os.CreateTemp("/var/www/html/wp-content/uploads/fsbhoa_print_temp", fmt.Sprintf("printjob-%d-*.png", payload.LogID))
     if err != nil {
         return "", fmt.Errorf("could not create temp file: %v", err)
     }
     defer tmpFile.Close()
+    tmpFile.Chmod(0644)
 
-    // Save the canvas as a PNG file
     if err := png.Encode(tmpFile, cardCanvas); err != nil {
         return "", fmt.Errorf("could not encode image to PNG: %v", err)
     }
@@ -105,25 +180,41 @@ func createImage(payload PrintRequestPayload) (string, error) {
     return tmpFile.Name(), nil
 }
 
-// addLabel is a helper to draw text on an image.
-func addLabel(img *image.RGBA, x, y int, label string) {
-    point := fixed.Point26_6{X: fixed.I(x), Y: fixed.I(y)}
+func addLabel(img *image.RGBA, x int, y int, boxWidth int, alignment string, label string, size float64) {
+    face, err := opentype.NewFace(loadedFont, &opentype.FaceOptions{
+        Size:    size,
+        DPI:     72,
+        Hinting: font.HintingFull,
+    })
+    if err != nil {
+        log.Printf("Failed to create font face: %v", err)
+        return
+    }
+
     d := &font.Drawer{
         Dst:  img,
         Src:  image.Black,
-        Face: basicfont.Face7x13, // Using a basic built-in font
-        Dot:  point,
+        Face: face,
     }
+
+    // Calculate the starting X-coordinate based on text alignment
+    textWidth := d.MeasureString(label).Ceil()
+    startX := x
+    if alignment == "center" {
+        startX = x + (boxWidth-textWidth)/2
+    } else if alignment == "right" {
+        startX = x + boxWidth - textWidth
+    }
+
+    d.Dot = fixed.Point26_6{X: fixed.I(startX), Y: fixed.I(y)}
     d.DrawString(label)
 }
 
 
-// doPrintJob now generates an image and calls the rastertojg CLI tool.
 func doPrintJob(payload PrintRequestPayload) {
     logID := payload.LogID
-    log.Printf("[LogID: %d] Starting CLI-based print job.", logID)
+    log.Printf("[LogID: %d] Starting print job.", logID)
 
-    // 1. Generate the card front image
     imagePath, err := createImage(payload)
     if err != nil {
         errMsg := fmt.Sprintf("Failed to generate print image: %v", err)
@@ -131,33 +222,72 @@ func doPrintJob(payload PrintRequestPayload) {
         updatePrintStatusInWordPress(logID, "failed_error", errMsg)
         return
     }
-    defer os.Remove(imagePath) // Clean up the temp file when done
+
+    if config.DebugMode {
+        log.Printf("[LogID: %d] DEBUG MODE ENABLED. Print job skipped. Image saved at %s", logID, imagePath)
+        updatePrintStatusInWordPress(logID, "completed_ok", "Job finished in debug mode (dry run).")
+        return
+    }
+
+    defer os.Remove(imagePath)
     log.Printf("[LogID: %d] Successfully created temporary print image at %s", logID, imagePath)
 
-    // 2. Execute the rastertojg command
-    cmd := exec.Command("/usr/local/ZebraJaguarDriver/rastertojg",
-        fmt.Sprintf("%d", logID), // job-id
-        "fsbhoa",                 // user
-        "Card Print",             // title
-        "1",                      // copies
-        "",                       // options (can be used for printer name, etc.)
-        imagePath,                // file
-    )
-
-    output, err := cmd.CombinedOutput()
-    if err != nil {
-        errMsg := fmt.Sprintf("rastertojg command failed: %v. Output: %s", err, string(output))
+    printerName := config.PrinterName
+    if printerName == "" {
+        errMsg := "Printer name is not configured in zebra_print_service.json"
         log.Printf("[LogID: %d] %s", logID, errMsg)
         updatePrintStatusInWordPress(logID, "failed_error", errMsg)
         return
     }
 
-    finalMessage := fmt.Sprintf("Print job successfully submitted via rastertojg. Output: %s", string(output))
-    log.Printf("[LogID: %d] %s", logID, finalMessage)
-    updatePrintStatusInWordPress(logID, "completed_ok", finalMessage)
+    cmd := exec.Command("/usr/bin/lp",
+        "-d", printerName,
+        imagePath,
+    )
+
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        errMsg := fmt.Sprintf("lp command failed: %v. Output: %s", err, string(output))
+        log.Printf("[LogID: %d] %s", logID, errMsg)
+        updatePrintStatusInWordPress(logID, "failed_error", errMsg)
+        return
+    }
+
+    outputStr := string(output)
+    parts := strings.Fields(outputStr)
+    if len(parts) < 4 || parts[0] != "request" {
+        errMsg := fmt.Sprintf("Could not parse request ID from lp output: %s", outputStr)
+        log.Printf("[LogID: %d] %s", logID, errMsg)
+        updatePrintStatusInWordPress(logID, "failed_error", errMsg)
+        return
+    }
+    requestID := parts[3]
+    log.Printf("[LogID: %d] Job submitted to CUPS with request ID: %s", logID, requestID)
+
+    timeout := time.After(2 * time.Minute)
+    ticker := time.NewTicker(2 * time.Second)
+    defer ticker.Stop()
+
+    for {
+        select {
+        case <-timeout:
+            errMsg := "Print job timed out after 2 minutes."
+            log.Printf("[LogID: %d] %s", logID, errMsg)
+            updatePrintStatusInWordPress(logID, "failed_error", errMsg)
+            return
+        case <-ticker.C:
+            lpstatCmd := exec.Command("lpstat", "-o")
+            lpstatOutput, _ := lpstatCmd.CombinedOutput()
+            if !strings.Contains(string(lpstatOutput), requestID) {
+                finalMessage := fmt.Sprintf("CUPS job %s completed.", requestID)
+                log.Printf("[LogID: %d] %s", logID, finalMessage)
+                updatePrintStatusInWordPress(logID, "completed_ok", finalMessage)
+                return
+            }
+        }
+    }
 }
 
-// --- HTTP Handlers ---
 func printCardHandler(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
         http.Error(w, "Only POST method is accepted", http.StatusMethodNotAllowed)
@@ -176,14 +306,23 @@ func printCardHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+    fontBytes, err := ioutil.ReadFile("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+    if err != nil {
+        log.Fatalf("FATAL: Could not read font file: %v", err)
+    }
+    loadedFont, err = sfnt.Parse(fontBytes)
+    if err != nil {
+        log.Fatalf("FATAL: Could not parse font file: %v", err)
+    }
+
     configFile := flag.String("config", "/var/lib/fsbhoa/zebra_print_service.json", "Path to the JSON configuration file.")
     flag.Parse()
-    var err error
     config, err = LoadConfig(*configFile)
     if err != nil {
         log.Fatalf("FATAL: Could not load config file '%s': %v", *configFile, err)
     }
     log.Printf("Configuration loaded successfully from %s", *configFile)
+
     http.HandleFunc("/print_card", printCardHandler)
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         fmt.Fprintf(w, "FSBHOA Go Printer Service is running!")
