@@ -64,6 +64,9 @@ jQuery(function($) {
                 capturePhotoButton: $('#fsbhoa_capture_photo_button'),
                 canvasElement: document.getElementById('fsbhoa_webcam_canvas'),
                 removePhotoButton: $('#fsbhoa_remove_photo_button'),
+		exportPhotoButton: $('#fsbhoa-export-photo-btn'),
+                firstNameInput: $('#first_name'),
+                lastNameInput: $('#last_name'),
                 webcamErrorMessage: $('#fsbhoa_webcam_error_message'),
                 stream: null,
                 initialMainPhotoSrc: ($('#fsbhoa_photo_preview_main_img').attr('src') && $('#fsbhoa_photo_preview_main_img').attr('src') !== '#') ? $('#fsbhoa_photo_preview_main_img').attr('src') : null,
@@ -184,6 +187,7 @@ jQuery(function($) {
             formContainer.on('change', '#cardholder_photo_file_input', (e) => this.handleFileSelect(e));
             formContainer.on('input', '#rfid_id', () => this.handleRfidInputChange());
             formContainer.on('click', '#fsbhoa_remove_photo_button', () => this.handleRemovePhotoButtonClick());
+            formContainer.on('click', '#fsbhoa-export-photo-btn', () => this.handleExportPhotoClick());
             formContainer.on('change', '#resident_type', () => this.handleResidentTypeChange());
         },
 
@@ -199,6 +203,35 @@ jQuery(function($) {
             // 3. Hide the "Remove Photo" button itself after it's been clicked.
             this.vars.removePhotoButton.hide();
 
+            this.vars.exportPhotoButton.hide();
+
+        },
+
+        handleExportPhotoClick: function() {
+            const base64Data = this.vars.photoBase64Input.val();
+            const firstName = this.vars.firstNameInput.val() || 'photo';
+            const lastName = this.vars.lastNameInput.val() || 'export';
+
+            if (!base64Data) {
+                alert('No photo to export.');
+                return;
+            }
+
+            // Create the full data URL
+            const dataUrl = 'data:image/png;base64,' + base64Data;
+            
+            // Sanitize names for a safe filename
+            const safeFirstName = firstName.trim().toLowerCase().replace(/[^a-z0-9]/gi, '_');
+            const safeLastName = lastName.trim().toLowerCase().replace(/[^a-z0-9]/gi, '_');
+            const filename = safeFirstName + '.' + safeLastName + '.png';
+
+            // Create a temporary link element and trigger the browser download
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         },
 
         handleResidentTypeChange: function() {
@@ -318,10 +351,15 @@ jQuery(function($) {
                 this.vars.mainPhotoPreviewImg.attr('src', imageDataUrl).show();
                 if (this.vars.noPhotoMessage) this.vars.noPhotoMessage.hide();
                 if (this.vars.cropPhotoButton) this.vars.cropPhotoButton.show();
+                if (this.vars.removePhotoButton) this.vars.removePhotoButton.show();
+                if (this.vars.exportPhotoButton) this.vars.exportPhotoButton.show();
+
             } else {
                 this.vars.mainPhotoPreviewImg.attr('src', '#').hide();
                 if (this.vars.noPhotoMessage) this.vars.noPhotoMessage.show();
                 if (this.vars.cropPhotoButton) this.vars.cropPhotoButton.hide();
+                if (this.vars.removePhotoButton) this.vars.removePhotoButton.hide();
+                if (this.vars.exportPhotoButton) this.vars.exportPhotoButton.hide();
             }
             // Update the hidden field
             const base64Data = (imageDataUrl) ? imageDataUrl.split(',')[1] || "" : "";

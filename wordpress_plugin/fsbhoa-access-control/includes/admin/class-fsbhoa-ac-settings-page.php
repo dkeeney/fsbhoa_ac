@@ -5,6 +5,8 @@ class Fsbhoa_Ac_Settings_Page {
     private const DEFAULT_PRINT_API_TOKEN = 'eZdaPzde/0JGMirn6DV4VPSErRerexAiqZBCQj/T3Vg=';
 
     private $parent_slug = 'fsbhoa_ac_main_menu';
+
+    // Where to write the config files for the services
     private $event_service_config_path = '/var/lib/fsbhoa/event_service.json';
     private $monitor_service_config_path = '/var/lib/fsbhoa/monitor_service.json';
     private $event_service_option_group = 'fsbhoa_event_service_options';
@@ -91,6 +93,8 @@ class Fsbhoa_Ac_Settings_Page {
             'port'      => (int) get_option('fsbhoa_ac_print_port', 8081),
             'api_url'   => get_site_url() . '/wp-json/fsbhoa/v1/print_log_update',
             'api_token' => get_option('fsbhoa_ac_print_api_token', ''),
+            'printer_name' => get_option('fsbhoa_ac_printer_name', 'Zebra-ZC300'),
+            'debug_mode'   => (get_option('fsbhoa_ac_print_debug_mode', 'off') === 'on'),
         ];
         $this->write_config_file($this->print_service_config_path, $print_config);
 
@@ -181,10 +185,14 @@ class Fsbhoa_Ac_Settings_Page {
         // ====================================================================
         add_settings_section('fsbhoa_print_service_section', 'Print Service Settings', null, $print_service_page_slug);
         add_settings_field('fsbhoa_ac_print_port_field', 'Zebra Print Service Port', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_port', 'type' => 'number', 'default' => 8081]);
+        add_settings_field('fsbhoa_ac_printer_name_field', 'CUPS Printer Name', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_printer_name', 'type' => 'text', 'default' => 'Zebra-ZC300', 'desc' => 'The exact name of the printer queue in CUPS.']);
+        add_settings_field('fsbhoa_ac_print_debug_mode_field', 'Debug Mode (Dry Run)', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_debug_mode', 'type' => 'checkbox', 'desc' => 'If checked, the service will only generate the image file in /var/tmp and will NOT send it to the printer.']);
         add_settings_field('fsbhoa_ac_card_back_url_field', 'Card Back Logo', array($this, 'render_media_uploader_field'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_card_back_url', 'desc' => 'Select an image from the Media Library for the back of the card.']);
         add_settings_field('fsbhoa_ac_print_template_path_field', 'Print Template JSON Path', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_template_path', 'type' => 'text', 'desc' => 'Full server path to the print template JSON file.']);
 
         register_setting($print_service_option_group, 'fsbhoa_ac_print_port', 'absint');
+        register_setting($print_service_option_group, 'fsbhoa_ac_printer_name', 'sanitize_text_field');
+        register_setting($print_service_option_group, 'fsbhoa_ac_print_debug_mode', 'sanitize_text_field');
         register_setting($print_service_option_group, 'fsbhoa_ac_card_back_url', 'esc_url_raw');
         register_setting($print_service_option_group, 'fsbhoa_ac_print_template_path', 'sanitize_text_field');
 	register_setting($print_service_option_group, 'fsbhoa_ac_print_api_token', 'sanitize_text_field');

@@ -14,6 +14,7 @@ class Fsbhoa_Print_Actions {
         add_action('wp_ajax_fsbhoa_submit_print_job', array($this, 'ajax_submit_print_job'));
         add_action('wp_ajax_fsbhoa_check_print_status', array($this, 'ajax_check_print_status'));
         add_action('wp_ajax_fsbhoa_save_rfid', array($this, 'ajax_save_rfid_and_activate'));
+	add_action('wp_ajax_fsbhoa_serve_dry_run_image', array($this, 'ajax_serve_dry_run_image'));
     }
 
     /**
@@ -29,7 +30,6 @@ class Fsbhoa_Print_Actions {
 
         global $wpdb;
         $cardholder = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_cardholders WHERE id = %d", $cardholder_id), ARRAY_A);
-
         if ($wpdb->last_error) {
             wp_send_json_error(['message' => 'Database error when fetching cardholder: ' . $wpdb->last_error], 500);
         }
@@ -38,12 +38,15 @@ class Fsbhoa_Print_Actions {
         }
 
         // 1. Create the initial log entry in our database
+        $system_job_id = 'fsbhoa_sys_job_' . time() . '_' . wp_rand(100, 999);
+
         $log_data = [
+            'system_job_id'     => $system_job_id,
             'cardholder_id'     => $cardholder_id,
             'status'            => 'submitted',
             'submitted_by_user' => wp_get_current_user()->user_login,
         ];
-        $log_format = ['%d', '%s', '%s'];
+        $log_format = ['%s', '%d', '%s', '%s'];
         $wpdb->insert('ac_print_log', $log_data, $log_format);
 
         if ($wpdb->last_error) {
@@ -52,7 +55,6 @@ class Fsbhoa_Print_Actions {
         $log_id = $wpdb->insert_id;
 
         // 2. Prepare the payload for the Go service
-        // Get Card Back Logo from settings
         $card_back_url = get_option('fsbhoa_ac_card_back_url', '');
         $card_back_base64 = '';
         if (!empty($card_back_url)) {
@@ -65,34 +67,34 @@ class Fsbhoa_Print_Actions {
             }
         }
         
-        // Get Template JSON from settings
         $template_path = get_option('fsbhoa_ac_print_template_path', '');
-        $template_json = '';
+        $template_xml = '';
         if (!empty($template_path) && file_exists($template_path)) {
-            $template_json = file_get_contents($template_path);
+            $template_xml = file_get_contents($template_path);
         }
+	$first_name_parts = explode(' ', $cardholder['first_name']);
 
-        // Prepare expiration date line (line 2)
-        $line_2 = '';
-        if ($cardholder['card_expiry_date'] && $cardholder['card_expiry_date'] !== '2099-12-31') {
-            $line_2 = 'Expires: ' . date('m/d/Y', strtotime($cardholder['card_expiry_date']));
+        $fields = [
+            'firstName'     => $first_name_parts[0],
+            'lastName'      => $cardholder['last_name'],
+            'residentPhoto' => base64_encode($cardholder['photo']),
+            'cardBackLogo'  => $card_back_base64,
+        ];
+
+        // Conditionally add the expiration date text
+        if (isset($cardholder['card_expiry_date']) && $cardholder['card_expiry_date'] !== '2099-12-31') {
+            $fields['expirationDateText'] = 'Expires: ' . date('m/d/Y', strtotime($cardholder['card_expiry_date']));
         }
 
         $payload = [
-            'log_id'           => $log_id,
-            'cardholder_id'    => $cardholder_id,
-            'template_xml'     => $template_json, // Renamed from template_json
-            'fields' => [
-                'firstName'     => $cardholder['first_name'],
-                'lastName'      => $cardholder['last_name'],
-                'residentPhoto' => base64_encode($cardholder['photo']),
-                'cardBackLogo'  => $card_back_base64,
-                // 'expirationDate' => $line_2, // We can add this later
-            ]
+            'log_id'         => $log_id,
+            'cardholder_id'  => $cardholder_id,
+            'template_xml'   => $template_xml,
+            'fields'         => $fields
         ];
+
         $payload_json = json_encode($payload);
 
-        // Update the log with the data we are about to send, for auditing
         $update_result = $wpdb->update('ac_print_log', ['print_request_data' => $payload_json], ['log_id' => $log_id]);
         if ($update_result === false) {
             wp_send_json_error(['message' => 'FATAL: Could not update database log with print data. ' . $wpdb->last_error], 500);
@@ -110,14 +112,10 @@ class Fsbhoa_Print_Actions {
         // 4. Handle the response
         if (is_wp_error($response)) {
             $error_message = 'Failed to connect to Print Service: ' . $response->get_error_message();
-            // Update our log to reflect the connection failure
             $wpdb->update('ac_print_log', ['status' => 'failed_error', 'status_message' => $error_message], ['log_id' => $log_id]);
-            // We don't check for an error on this final log update, as we are already in an error state.
             wp_send_json_error(['message' => $error_message], 500);
         }
 
-        // If the connection was successful, the Go service has taken over.
-        // Return the log_id so the JavaScript can start polling.
         wp_send_json_success(['log_id' => $log_id]);
     }
 
@@ -180,6 +178,45 @@ class Fsbhoa_Print_Actions {
         } else {
             wp_send_json_success(['message' => 'Card activated successfully!']);
         }
+    }
+
+    /**
+     * Finds and serves a generated dry-run image from /var/tmp.
+     */
+    public function ajax_serve_dry_run_image() {
+        if (!isset($_GET['log_id']) || !is_numeric($_GET['log_id'])) {
+            status_header(400);
+            die('Invalid Log ID.');
+        }
+        $log_id = absint($_GET['log_id']);
+
+        // Use WordPress functions to find the correct directory
+        $uploads = wp_upload_dir();
+        $temp_dir = $uploads['basedir'] . '/fsbhoa_print_temp';
+
+        // Find the image file using a wildcard search
+        $search_pattern = $temp_dir . "/printjob-{$log_id}-*.png";
+        $files = glob($search_pattern);
+
+        if (empty($files)) {
+            status_header(404);
+            // For debugging, let's include the path we searched
+            die("Image file not found for this log ID in {$temp_dir}");
+        }
+
+        $image_path = $files[0];
+        $image_data = file_get_contents($image_path);
+
+        if ($image_data === false) {
+            status_header(500);
+            die('Could not read the image file.');
+        }
+
+        // Serve the image
+        header('Content-Type: image/png');
+        header('Content-Length: ' . filesize($image_path));
+        echo $image_data;
+        die();
     }
 }
 

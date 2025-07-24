@@ -3,6 +3,7 @@ jQuery(document).ready(function($) {
 
     const cardholderId = $('#fsbhoa-start-print-btn').data('cardholder-id');
     const cardholderListPageUrl = fsbhoa_print_vars.cardholder_page_url;
+    const isDebugMode = $('.fsbhoa-print-page-wrapper').data('debug-mode');
     let pollingInterval;
 
     // --- UI Helper Functions ---
@@ -58,7 +59,7 @@ jQuery(document).ready(function($) {
                 method: 'POST',
                 data: {
                     action: 'fsbhoa_check_print_status',
-                    log_id: logId, // Send the log_id for status check
+                    log_id: logId,
                     security: fsbhoa_print_vars.nonce
                 },
                 success: function(response) {
@@ -66,21 +67,30 @@ jQuery(document).ready(function($) {
                         const status = response.data.status.toUpperCase();
                         const message = response.data.status_message || status;
 
-                        // Don't show a message for 'submitted' or 'printing' unless there's a specific message
                         if (response.data.status_message) {
-                           showStatusMessage('Status: ' + message);
+                            showStatusMessage('Status: ' + message);
                         }
-
+                        
+                        // --- 2. HANDLE DEBUG VS. LIVE MODE ---
                         if (status === 'COMPLETED_OK') {
                             clearInterval(pollingInterval);
-                            showSection('#fsbhoa-rfid-section');
-                            $('#fsbhoa-rfid-input').focus();
+                            
+                            if (isDebugMode) {
+                                // DRY RUN IS COMPLETE
+                                const imageUrl = fsbhoa_print_vars.ajax_url + '?action=fsbhoa_serve_dry_run_image&log_id=' + logId;
+                                $('#fsbhoa-view-image-btn').attr('href', imageUrl);
+                                showSection('#fsbhoa-dryrun-section');
+                            } else {
+                                // NORMAL PRINT IS COMPLETE
+                                showSection('#fsbhoa-rfid-section');
+                                $('#fsbhoa-rfid-input').focus();
+                            }
+
                         } else if (status.includes('ERROR') || status.includes('FAILED')) {
                             clearInterval(pollingInterval);
                             showStatusMessage('Print failed: ' + message, 'error');
                         }
                     } else {
-                        // If the polling call itself fails
                         clearInterval(pollingInterval);
                         showStatusMessage('Error checking status: ' + response.data.message, 'error');
                     }
