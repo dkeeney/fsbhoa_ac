@@ -28,22 +28,26 @@ class Fsbhoa_Property_List_Table extends WP_List_Table {
 
     public static function get_properties( $per_page = 20, $page_number = 1 ) {
         global $wpdb;
-        $table_name = 'ac_property'; 
-
-        $sql = "SELECT property_id, street_address, notes FROM {$table_name}";
-
-        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'street_address';
+        $table_name = 'ac_property';
+    
+        $sql = "SELECT property_id, house_number, street_name, notes FROM {$table_name}";
+    
+        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'street_name';
         $order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( $_REQUEST['order'] ) ) : 'ASC';
-        
-        $allowed_orderby = array('property_id', 'street_address'); // Ensure 'property_id' is valid if you allow sorting by it
-        if ( !in_array(strtolower($orderby), $allowed_orderby) ) {
-            $orderby = 'street_address'; 
+    
+        if ( 'street_address' === $orderby ) {
+            // If the sort request is for the old 'street_address' column, apply our new multi-column sort.
+            // CAST ensures numeric sorting for house numbers (e.g., 2, 10, 100).
+            $sql .= ' ORDER BY street_name ' . $order . ', CAST(house_number AS UNSIGNED) ' . $order;
+        } else {
+            // Fallback for any other sortable columns you might add later
+            $allowed_orderby = array('property_id', 'street_name', 'house_number');
+            if ( !in_array(strtolower($orderby), $allowed_orderby) ) {
+                $orderby = 'street_name';
+            }
+            $sql .= ' ORDER BY ' . $orderby . ' ' . $order;
         }
-        if ( !in_array($order, array('ASC', 'DESC')) ) {
-            $order = 'ASC'; 
-        }
-        $sql .= ' ORDER BY ' . $orderby . ' ' . $order;
-
+    
         $sql .= " LIMIT $per_page";
         $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
 
@@ -73,7 +77,8 @@ class Fsbhoa_Property_List_Table extends WP_List_Table {
     }
 
     function column_street_address($item) {
-        return '<strong>' . esc_html($item['street_address']) . '</strong>';
+        $address = trim(($item['house_number'] ?? '') . ' ' . ($item['street_name'] ?? ''));
+        return '<strong>' . esc_html($address) . '</strong>';
     }
 
     function column_actions($item) {
@@ -114,7 +119,6 @@ class Fsbhoa_Property_List_Table extends WP_List_Table {
 
     function get_columns() {
         $columns = array(
-            'actions'        => __( 'Actions', 'fsbhoa-ac' ), // Actions column first
             'street_address' => __( 'Street Address', 'fsbhoa-ac' ),
             'notes'          => __( 'Notes', 'fsbhoa-ac' ),
         );

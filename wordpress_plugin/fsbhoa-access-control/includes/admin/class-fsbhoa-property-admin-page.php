@@ -129,11 +129,17 @@ class Fsbhoa_Property_Admin_Page {
                                     <span class="dashicons dashicons-trash"></span>
                                 </a>
                             </td>
-                            <td><strong><?php echo esc_html( $property['street_address'] ?? '' ); ?></strong></td>
+                            <?php
+                                $address_display = trim( ($property['house_number'] ?? '') . ' ' . ($property['street_name'] ?? '') );
+                                $sort_value = ($property['street_name'] ?? '') . str_pad(($property['house_number'] ?? 0), 10, "0", STR_PAD_LEFT);
+                            ?>
+                            <td data-order="<?php echo esc_attr($sort_value); ?>">
+                                <strong><?php echo esc_html($address_display); ?></strong>
+                            </td>
                             <td><?php echo esc_html( $property['notes'] ?? '' ); ?></td>
                         </tr>
                     <?php endforeach; else : ?>
-                        <tr><td colspan="3"><?php esc_html_e( 'No properties found.', 'fsbhoa-ac' ); ?></td></tr>
+                        <td><td colspan="3"><?php esc_html_e( 'No properties found.', 'fsbhoa-ac' ); ?></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -148,7 +154,7 @@ class Fsbhoa_Property_Admin_Page {
      * @since 0.1.5 
      * @param string $current_view_action The action determining the view ('add' or 'edit' from GET).
      */
-public function render_add_new_property_form($current_view_action = 'add') {
+    public function render_add_new_property_form($current_view_action = 'add') {
         // Ensure the submit_button() function is available when run from a shortcode
         if ( ! function_exists( 'submit_button' ) ) {
             require_once ABSPATH . 'wp-admin/includes/template.php';
@@ -162,7 +168,7 @@ public function render_add_new_property_form($current_view_action = 'add') {
 
         if ($is_edit_mode) {
             $item_id = absint($_GET['property_id']);
-            $property_to_edit = $wpdb->get_row($wpdb->prepare("SELECT street_address, notes FROM {$table_name} WHERE property_id = %d", $item_id), ARRAY_A);
+            $property_to_edit = $wpdb->get_row($wpdb->prepare("SELECT house_number, street_name, notes FROM {$table_name} WHERE property_id = %d", $item_id), ARRAY_A);
             
             if ($wpdb->last_error) {
                 error_log('FSBHOA DB Error (Get Property for Edit): ' . $wpdb->last_error);
@@ -194,11 +200,13 @@ public function render_add_new_property_form($current_view_action = 'add') {
 
                 <div class="fsbhoa-form-section">
                     <div class="form-row">
-                        <div class="form-field is-full-width" >
-                            <label for="street_address"><?php esc_html_e( 'Street Address', 'fsbhoa-ac' ); ?></label>
-                            <input type="text" name="street_address" id="street_address" class="regular-text"
-                                   value="<?php echo esc_attr($form_data['street_address']); ?>" required>
-                            <p class="description"><?php esc_html_e( 'Example: 123 Main St. This must be unique.', 'fsbhoa-ac' ); ?></p>
+                        <div class="form-field" style="flex-basis: 30%; margin-right: 2%;">
+                            <label for="house_number"><?php esc_html_e( 'House Number', 'fsbhoa-ac' ); ?></label>
+                            <input type="text" name="house_number" id="house_number" value="<?php echo esc_attr($form_data['house_number'] ?? ''); ?>" required>
+                        </div>
+                        <div class="form-field" style="flex-basis: 68%;">
+                            <label for="street_name"><?php esc_html_e( 'Street Name', 'fsbhoa-ac' ); ?></label>
+                            <input type="text" name="street_name" id="street_name" value="<?php echo esc_attr($form_data['street_name'] ?? ''); ?>" required>
                         </div>
                     </div>
                     <div class="form-row">

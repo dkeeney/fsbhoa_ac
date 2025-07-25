@@ -61,7 +61,10 @@ class Fsbhoa_Property_Actions {
         // --- Validation Logic ---
         $errors = array();
         $data_to_save = array();
-        $data_to_save['street_address'] = isset($_POST['street_address']) ? trim(sanitize_text_field(wp_unslash($_POST['street_address']))) : '';
+	$data_to_save['house_number'] = isset($_POST['house_number']) ? trim(sanitize_text_field(wp_unslash($_POST['house_number']))) : '';
+        $data_to_save['street_name'] = isset($_POST['street_name']) ? trim(sanitize_text_field(wp_unslash($_POST['street_name']))) : '';
+        // Also build the legacy field for backward compatibility
+        $data_to_save['street_address'] = trim($data_to_save['house_number'] . ' ' . $data_to_save['street_name']);
         $data_to_save['notes'] = isset($_POST['notes']) ? trim(sanitize_textarea_field(wp_unslash($_POST['notes']))) : '';
     
         if (empty($data_to_save['street_address'])) {

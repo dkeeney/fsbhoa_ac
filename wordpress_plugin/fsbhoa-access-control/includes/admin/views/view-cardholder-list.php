@@ -97,8 +97,22 @@ function fsbhoa_render_cardholder_list_view() {
                             </a>
                         </td>
 
-                        <td><strong><?php echo esc_html( $cardholder['first_name'] . ' ' . $cardholder['last_name'] ); ?></strong></td>
-                        <td><?php echo isset($cardholder['street_address']) ? esc_html($cardholder['street_address']) : '<em>N/A</em>'; ?></td>
+                        <?php
+                            $display_name = trim( $cardholder['first_name'] . ' ' . $cardholder['last_name'] );
+                            // Create a sort value of "lastname firstname"
+                            $sort_name = trim( ($cardholder['last_name'] ?? '') . ' ' . ($cardholder['first_name'] ?? '') );
+                        ?>
+                        <td data-order="<?php echo esc_attr($sort_name); ?>">
+                            <strong><?php echo esc_html($display_name); ?></strong>
+                        </td>
+                        <?php
+                            $address_display = trim( ($cardholder['house_number'] ?? '') . ' ' . ($cardholder['street_name'] ?? '') );
+                            // Create a sort value of "streetname padded-housenumber"
+                            $sort_address = ($cardholder['street_name'] ?? '') . str_pad(($cardholder['house_number'] ?? 0), 10, "0", STR_PAD_LEFT);
+                        ?>
+                        <td data-order="<?php echo esc_attr($sort_address); ?>">
+                            <?php echo !empty($address_display) ? esc_html($address_display) : '<em>N/A</em>'; ?>
+                        </td>
                         <td class="fsbhoa-status-column"><?php echo esc_html( ucwords($cardholder['card_status']) ); ?></td>
                         <td class="fsbhoa-type-column">
                             <?php echo esc_html( $cardholder['resident_type'] ?? '' ); ?>

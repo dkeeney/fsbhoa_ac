@@ -38,9 +38,9 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
         $properties_table = 'ac_property';
 
         // Ensure card_status is selected
-        $sql = "SELECT c.*, p.street_address 
-                FROM {$cardholders_table} c
-                LEFT JOIN {$properties_table} p ON c.property_id = p.property_id";
+        $sql = "SELECT c.*, p.house_number, p.street_name
+            FROM {$cardholders_table} c
+            LEFT JOIN {$properties_table} p ON c.property_id = p.property_id";
 
         $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'full_name'; // Default to full_name
         $order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( $_REQUEST['order'] ) ) : 'ASC';
@@ -51,7 +51,7 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
         if ( $orderby === 'full_name') {
             $orderby_sql = 'c.last_name ' . $order . ', c.first_name ' . $order;
         } elseif ( $orderby === 'street_address') {
-            $orderby_sql = 'p.street_address ' . $order;
+            $orderby_sql = 'p.street_name ' . $order . ', CAST(p.house_number AS UNSIGNED) ' . $order;
         } elseif (in_array(strtolower($orderby), $allowed_orderby) && $orderby !== 'full_name' ) { 
             $orderby_sql = 'c.' . $orderby . ' ' . $order; 
         } else { 
@@ -97,7 +97,8 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
     }
     
     public function column_property( $item ) {
-        return isset($item['street_address']) ? esc_html($item['street_address']) : '<em>' . __('N/A', 'fsbhoa-ac') . '</em>';
+        $address = trim(($item['house_number'] ?? '') . ' ' . ($item['street_name'] ?? ''));
+        return !empty($address) ? esc_html($address) : '<em>' . __('N/A', 'fsbhoa-ac') . '</em>';
     }
 
     public function column_actions($item) {

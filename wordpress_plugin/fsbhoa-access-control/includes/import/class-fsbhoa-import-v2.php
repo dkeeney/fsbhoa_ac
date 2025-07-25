@@ -179,7 +179,7 @@ class Fsbhoa_Import_V2
                 $new_cardholders_from_row = $this->parse_cardholders_from_row($row);
 
                 $property_address_raw = $this->get_value_from_row($row, ['property address', 'property_address']);
-                $property_id = $this->get_or_create_property($property_address_raw, $address_suffix_to_remove, $stats);
+                $property_id = $this->get_or_create_property($property_address_raw, $stats);
                 if (!$property_id) {
                     throw new Exception("Skipping row due to missing or invalid property address.");
                 }
@@ -293,59 +293,64 @@ private function parse_cardholders_from_row($row)
         return $parsed_cardholders;
     }
 
-    private function get_or_create_property($raw_address, $suffix_to_remove, &$stats)
+    private function get_or_create_property($raw_address, &$stats)
     {
-        if (empty(trim($raw_address))) 
+        if (empty(trim($raw_address))) {
             return null;
+        }
 
-        // Normalize all whitespace variants (including non-breaking spaces) to a single regular space.
-        $normalized_address = preg_replace('/\s+/u', ' ', trim($raw_address));
-        $normalized_suffix  = preg_replace('/\s+/u', ' ', trim($suffix_to_remove));
-
-
-        // Use the normalized strings for the replacement
-        $clean_address = trim($normalized_address);
-        if (!empty($suffix_to_remove)) {
-            // preg_quote is still important to escape special characters like commas
-            $clean_address = preg_replace('/' . preg_quote(trim($suffix_to_remove), '/') . '$/i', '', $clean_address);
+        // 1. Clean the raw address from the CSV
+        $address_suffix_to_remove = get_option('fsbhoa_ac_address_suffix', '');
+        $clean_address = preg_replace('/\s+/u', ' ', trim($raw_address)); // Normalize whitespace
+        if (!empty($address_suffix_to_remove)) {
+            $clean_address = preg_replace('/' . preg_quote(trim($address_suffix_to_remove), '/') . '$/i', '', $clean_address);
             $clean_address = trim($clean_address);
         }
 
         if (empty($clean_address)) {
-            return null;
+            return null; // Address was just the suffix, so it's empty
         }
 
-        // Check if property exists
-        $query = $this->wpdb->prepare("SELECT property_id FROM {$this->table_properties} WHERE street_address = %s", $clean_address);
+        // 2. Parse the cleaned address into house number and street name
+        if (!preg_match('/^([0-9]+[A-Z]?)\s+(.*)/', $clean_address, $matches)) {
+            throw new Exception("Could not parse address '{$clean_address}'. It must start with a house number.");
+        }
+        $house_number = trim($matches[1]);
+        $street_name = trim($matches[2]);
+
+        // 3. Check if property exists based on the new split fields
+        $query = $this->wpdb->prepare(
+            "SELECT property_id FROM {$this->table_properties} WHERE house_number = %s AND street_name = %s",
+            $house_number,
+            $street_name
+        );
         $property_id = $this->wpdb->get_var($query);
 
         if ($this->wpdb->last_error) {
             throw new Exception("Database error while checking for property '{$clean_address}': " . $this->wpdb->last_error);
         }
 
-        if ($property_id){ 
-            return (int)$property_id;
+        if ($property_id) {
+            return (int) $property_id;
         } else {
-            // Create new property.
+            // 4. Create new property, populating all three address columns
             $result = $this->wpdb->insert(
                 $this->table_properties,
-                ['street_address' => $clean_address, 'origin' => 'import'],
-                ['%s', '%s']
+                [
+                    'house_number'   => $house_number,
+                    'street_name'    => $street_name,
+                    'street_address' => $clean_address, // Populate legacy field
+                    'origin'         => 'import'
+                ],
+                ['%s', '%s', '%s', '%s']
             );
 
             if ($result === false) {
-               throw new Exception("Database error: Could not create property for address '{$clean_address}'. DB Error: " . $this->wpdb->last_error);
-
+                throw new Exception("Database error: Could not create property for address '{$clean_address}'. DB Error: " . $this->wpdb->last_error);
             }
             $stats['properties_created']++;
             return $this->wpdb->insert_id;
         }
-        
-
-        $result = $this->wpdb->insert($this->table_properties, ['street_address' => $clean_address, 'origin' => 'import'], ['%s', '%s']);
-        if ($result === false) throw new Exception("Database error: Could not create property for address '{$clean_address}'.");
-        $stats['properties_created']++;
-        return $this->wpdb->insert_id;
     }
 
     private function get_cardholders_by_property($property_id) { return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->table_cardholders} WHERE property_id = %d", $property_id)); }
