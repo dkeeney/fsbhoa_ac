@@ -22,6 +22,61 @@ jQuery(document).ready(function($) {
             });
     });
 
+    /**
+     * Sets up the handler for the new custom event test button.
+     */
+    function setupCustomTestButton() {
+        var $button = $('#run-custom-test-btn');
+        var $cardNumberInput = $('#custom-card-number');
+        var $serialNumberInput = $('#custom-serial-number');
+
+        // Exit if the button doesn't exist on this page
+        if ($button.length === 0) {
+            return;
+        }
+
+        $button.on('click', function() {
+            var cardNumber = $cardNumberInput.val();
+            var serialNumber = $serialNumberInput.val();
+
+            if (!cardNumber || !serialNumber) {
+                alert('Please enter both a Card Number and a Controller Serial Number.');
+                return;
+            }
+
+            var payload = {
+                card_number: parseInt(cardNumber, 10),
+                serial_number: parseInt(serialNumber, 10)
+            };
+
+            // AJAX call to a WordPress action that will trigger the Go service
+            $.ajax({
+                url: fsbhoa_test_vars.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'trigger_custom_event',
+                    nonce: fsbhoa_test_vars.nonce,
+                    payload: JSON.stringify(payload)
+                },
+                beforeSend: function() {
+                    $button.text('Running...').prop('disabled', true);
+                },
+                success: function(response) {
+                    alert('Test event sent successfully! Check the real-time monitor.');
+                },
+                error: function(xhr) {
+                    alert('Error: ' + xhr.responseText);
+                },
+                complete: function() {
+                    $button.text('Run Custom Test').prop('disabled', false);
+                }
+            });
+        });
+    }
+    setupCustomTestButton();
+
+
+
     function runTestStep(step, message) {
         logResult(message, 'running');
         // Add a delay to allow services to process

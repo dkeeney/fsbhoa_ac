@@ -8,6 +8,7 @@ class Fsbhoa_Test_Suite_Page {
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+        add_action( 'wp_ajax_trigger_custom_event', array( $this, 'handle_trigger_custom_event_ajax' ) );
     }
 
     public function add_admin_menu() {
@@ -42,6 +43,26 @@ class Fsbhoa_Test_Suite_Page {
         ?>
         <div class="wrap">
             <h1>System Communications Test Suite</h1>
+
+            <p>Trigger a simulated swipe event with specific parameters.</p>
+            <div>
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="custom-card-number">Card Number</label></th>
+                            <td><input type="text" id="custom-card-number" class="regular-text" value="17659798"></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="custom-serial-number">Controller Serial Number</label></th>
+                            <td><input type="text" id="custom-serial-number" class="regular-text" value="425043852"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="submit">
+                <button id="run-custom-test-btn" class="button button-primary">Run Custom Test</button>
+            </p>
+            </br>
             <p>Click the button below to run a series of tests to ensure all services are communicating correctly.</p>
             <p>
                 <button id="run-test-suite" class="button button-primary">Run Full Test Suite</button>
@@ -54,4 +75,54 @@ class Fsbhoa_Test_Suite_Page {
         </div>
         <?php
     }
+
+    public function handle_trigger_custom_event_ajax() {
+        // First, check the nonce for security
+        check_ajax_referer('fsbhoa_test_suite_nonce', 'nonce');
+
+        // Get the JSON payload from the AJAX request
+        $payload_json = stripslashes($_POST['payload']);
+        $payload = json_decode($payload_json, true);
+
+        if (!$payload) {
+            wp_send_json_error('Invalid payload data.');
+            return;
+        }
+
+        // The URL for your Go service's test endpoint
+        $url = 'https://localhost:8083/test_event';
+    
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload_json);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+
+        // IMPORTANT: Skip SSL verification for localhost connection
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
+        curl_close($ch);
+
+        if ($curl_error) {
+            wp_send_json_error('cURL Error: ' . $curl_error);
+            return;
+        }
+
+        if ($http_code !== 200) {
+            wp_send_json_error('Go service returned an error. HTTP Code: ' . $http_code . ' | Response: ' . $response);
+            return;
+        }
+
+        // Send a success response back to the JavaScript
+        wp_send_json_success('Successfully received by PHP.');
+
+        // Always end a WordPress AJAX handler with wp_die()
+        wp_die();
+    }
+
+
 }

@@ -44,9 +44,7 @@ func watchConfigFile(u uhppote.IUHPPOTE) {
 func loadControllerConfig(configPath string, u uhppote.IUHPPOTE) (time.Time, error) {
 	stat, err := os.Stat(configPath)
 	if err != nil {
-		if config.Debug {
-			log.Printf("DEBUG CONFIG: Could not stat config file %s: %v", configPath, err)
-		}
+		log.Printf("ERROR CONFIG: Could not stat config file %s: %v", configPath, err)
 		return time.Time{}, err // Return zero time and the error
 	}
 

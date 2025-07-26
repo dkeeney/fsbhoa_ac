@@ -342,6 +342,35 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    /**
+     * Sets up the functionality for the Show/Hide Map button.
+     * Corrected to use a callback function for updating the button text.
+     */
+    function setupMapViewToggle() {
+        var $mapSection = jQuery('#fsbhoa-map-section');
+        var $toggleButton = jQuery('#fsbhoa-toggle-map-btn');
+
+        if ($toggleButton.length === 0) {
+            return;
+        }
+
+        $toggleButton.on('click', function() {
+            // We pass a function directly into slideToggle.
+            // This function will execute automatically after the 200ms animation.
+            $mapSection.slideToggle(200, function() {
+                // Now, check the visibility and set the text
+                if ($mapSection.is(':visible')) {
+                    $toggleButton.text('Hide Map');
+                } else {
+                    $toggleButton.text('Show Map');
+                }
+            });
+        });
+    }
+
+    // Initialize the toggle button functionality
+    setupMapViewToggle();
+
     // Add the main event listener to the map container
     if (mapContainer) {
         mapContainer.addEventListener('click', handleGateClick);
@@ -352,6 +381,8 @@ document.addEventListener('DOMContentLoaded', function () {
         initializeMap(),
         loadRecentActivity()
     ]).then(() => connect());
+
+    
 });
 
 

@@ -6,35 +6,42 @@ if ( ! defined( 'WPINC' ) ) { die; }
  */
 function fsbhoa_render_live_monitor_view() {
     ?>
+    <div class="fsbhoa-center-button-container">
+       <button id="fsbhoa-toggle-map-btn" class="button">Hide Map</button>
+    </div>
     <div class="fsbhoa-frontend-wrap monitor-page-override">
 
         <!-- Top Section: Live Map -->
-        <div class="bg-white rounded-xl shadow-md p-6 mb-8 max-w-2xl mx-auto">
-			<h2 class="text-xl font-semibold mb-4">Community Status Map</h2>
-			<div id="map-container" class="relative">
+        <div id="fsbhoa-map-section">
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8 max-w-2xl mx-auto">
+		<h2 class="text-xl font-semibold mb-4">Community Status Map</h2>
+		<div id="map-container" class="relative">
 
-				<img src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" alt="Community Map" style="display: block; width: 100%; height: auto; border-radius: 0.5rem;">
+	            <img src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" alt="Community Map" style="display: block; width: 100%; height: auto; border-radius: 0.5rem;">
 
 				<div id="connection-status" class="flex items-center space-x-2 px-3 py-1 rounded-full bg-yellow-200 text-yellow-800 text-sm font-medium" >
 					<div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
 					<span>Connecting...</span>
-				</div>
+	 	    </div>
 
-			</div>
 		</div>
+	    </div>
+       </div>
 
-        <!-- Bottom Section: Event Log -->
-       <div class="max-w-2xl mx-auto"> 
-            <h2 class="text-xl font-semibold mb-4">Today's Activity Log</h2>
-            <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                <div id="event-log-container" class="h-[36rem] overflow-y-auto">
-                    <ul id="event-list" class="divide-y divide-gray-200">
-                        <li id="log-placeholder" class="p-4 text-center text-gray-500">
-                            Waiting for live events...
-                        </li>
-                    </ul>
-                </div>
-            </div>
+       <!-- Bottom Section: Event Log -->
+       <div id="activity-log-section">
+           <div class="max-w-2xl mx-auto"> 
+               <h2 class="text-xl font-semibold mb-4">Today's Activity Log</h2>
+               <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                   <div id="event-log-container" class="h-[36rem] overflow-y-auto">
+                       <ul id="event-list" class="divide-y divide-gray-200">
+                           <li id="log-placeholder" class="p-4 text-center text-gray-500">
+                               Waiting for live events...
+                           </li>
+                       </ul>
+                   </div>
+               </div>
+           </div>
         </div>
     </div>
     <?php

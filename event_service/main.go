@@ -50,6 +50,7 @@ func main() {
 
 	log.Println("----------------------------------------------------")
 	log.Printf("INFO: FSBHOA Event Service starting...")
+        log.Printf("CONFIG LOADED: %+v\n", config)
 
 	// 3. Initialize UHPPOTE interface
 	listenAddressString := fmt.Sprintf("%s:%d", config.CallbackHost, config.ListenPort)
@@ -80,13 +81,10 @@ func main() {
 	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", config.WebSocketPort)}
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { serveWs(hub, w, r) })
 
-    // Manual state was set for a gate, get the new state for real-time display.
-    http.HandleFunc("/trigger-poll", triggerPollHandler(u, hub))
+        // Manual state was set for a gate, get the new state for real-time display.
+        http.HandleFunc("/trigger-poll", triggerPollHandler(u, hub))
+	http.HandleFunc("/test_event", testEventHandler(hub, &listener))
 
-
-	if config.EnableTestStub {
-		http.HandleFunc("/test_event", testEventHandler(hub, &listener))
-	}
 	go func() {
 		var err error
 		log.Printf("INFO: WebSocket server starting on port %d...", config.WebSocketPort)
@@ -138,6 +136,11 @@ func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         if config.Debug {
             log.Println("DEBUG: Received request on /test_event endpoint.")
+        }
+        if !config.EnableTestStub {
+            // This sends a "403 Forbidden" error back to the client
+            http.Error(w, "Test stub is disabled in configuration.", http.StatusForbidden)
+            return // This stops the function from running further
         }
 
         // Define a struct to hold our expected JSON payload

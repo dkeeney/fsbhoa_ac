@@ -108,7 +108,16 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_
                 <button type="button" id="fsbhoa-export-photo-btn" class="button button-secondary" style="margin-left: 10px; margin-top: 5px; ">
                     <?php esc_html_e('Export Photo', 'fsbhoa-ac'); ?>
                 </button>
-
+		<button id="print-id-card-button"
+        		class="button button-primary"
+        		style="display:none;"
+        		data-print-url="<?php
+            		// This reuses the same URL generation as the list page.
+            		// Assumes $cardholder_id is available in this view.
+            		echo admin_url('admin.php?page=fsbhoa_cardholder&action=print_card&cardholder_id=' . $cardholder_id);
+        		?>">
+    		Print ID
+		</button>
                 </label>
             <?php endif; ?>
         </div>
