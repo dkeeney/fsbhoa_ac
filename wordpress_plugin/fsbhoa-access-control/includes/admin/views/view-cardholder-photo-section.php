@@ -101,14 +101,13 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_
             </div>
             <!-- Photo Delete Controls -->
             
-             <?php if ($has_photo_to_display): ?>
-                <label style="display: block; margin-top: 15px;">
-                <button type="button" id="fsbhoa_remove_photo_button" class="button button-link-delete" style="margin-top: 10px;"><?php esc_html_e( 'Remove Photo', 'fsbhoa-ac' ); ?></button>
-                <br>
-                <button type="button" id="fsbhoa-export-photo-btn" class="button button-secondary" style="margin-left: 10px; margin-top: 5px; ">
-                    <?php esc_html_e('Export Photo', 'fsbhoa-ac'); ?>
-                </button>
-		<button id="print-id-card-button"
+           <label style="display: block; margin-top: 15px;">
+           <button type="button" id="fsbhoa_remove_photo_button" class="button button-link-delete" style="margin-top: 10px;"><?php esc_html_e( 'Remove Photo', 'fsbhoa-ac' ); ?></button>
+           <br>
+           <button type="button" id="fsbhoa-export-photo-btn" class="button button-secondary" style="margin-left: 10px; margin-top: 5px; ">
+               <?php esc_html_e('Export Photo', 'fsbhoa-ac'); ?>
+           </button>
+	   <button id="print-id-card-button"
         		class="button button-primary"
         		style="display:none;"
         		data-print-url="<?php
@@ -116,10 +115,9 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_
             		// Assumes $cardholder_id is available in this view.
             		echo admin_url('admin.php?page=fsbhoa_cardholder&action=print_card&cardholder_id=' . $cardholder_id);
         		?>">
-    		Print ID
-		</button>
-                </label>
-            <?php endif; ?>
+               <?php esc_html_e('Print ID', 'fsbhoa-ac' ); ?>
+	   </button>
+           </label>
         </div>
     </div>
 

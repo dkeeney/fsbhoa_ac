@@ -190,7 +190,30 @@ class Fsbhoa_Cardholder_Actions {
        
         // If we reach here, the operation was successful.
         $message_code = $is_update ? 'cardholder_updated' : 'cardholder_added';
-        wp_redirect( add_query_arg( array('message' => $message_code), $list_page_url ) );
+
+        // Check if our 'print' flag was sent from the JavaScript
+        if ( isset($_POST['fsbhoa_after_save_action']) && $_POST['fsbhoa_after_save_action'] === 'print' ) {
+            
+            // 1. Get the page that contains the print shortcode
+            $print_page_slug = 'print-photo-id'; // <-- Correct slug
+            $print_page = get_page_by_path($print_page_slug);
+
+            if ($print_page) {
+                $page_url = get_permalink($print_page->ID);
+            
+                // 2. Add the cardholder ID to the page's URL
+                $print_url = add_query_arg('cardholder_id', $item_id, $page_url);
+            
+                wp_redirect($print_url);
+            } else {
+                // Fallback if the page with that slug isn't found
+                $list_page_url = admin_url('admin.php?page=fsbhoa_cardholder');
+                wp_redirect( $list_page_url );
+            }
+
+        } else {
+            wp_redirect( add_query_arg( array('message' => $message_code), $list_page_url ) );
+        }
         exit;
     }
 

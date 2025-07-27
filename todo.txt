@@ -1,19 +1,17 @@
 
-1) Add print button to cardholder edit screen.
 
-2) Button to hide gate status section.
+- Export Cardholder List: Add a feature to the cardholder list page to export the currently filtered and sorted view as a .csv file.
 
-3) Export Cardholder List: Add a feature to the cardholder list page to export the currently filtered and sorted view as a .csv file.
+- Cardholder Permissions: Implement a new system where cardholders can be assigned to groups, and these groups have specific time-based schedules for gate access.
 
-4) Cardholder Permissions: Implement a new system where cardholders can be assigned to groups, and these groups have specific time-based schedules for gate access.
+- UI Cleanup: General improvements to the look and feel of the plugin pages.
 
-5) UI Cleanup: General improvements to the look and feel of the plugin pages.
+- A Backup/Restore feature.
 
-6) A Backup/Restore feature.
+- Provision the system to handle vehicle access codes.
 
-7) Provision the system to handle vehicle access codes.
+- Hide login menu when logged in.
 
-8) Hide login menu when logged in.
+- Wrong status when card is not in database.
 
-9) hide gate status button.
 

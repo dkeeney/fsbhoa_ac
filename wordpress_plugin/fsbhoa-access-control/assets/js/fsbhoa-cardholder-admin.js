@@ -50,7 +50,7 @@ jQuery(function($) {
                 residentTypeInput: $('#resident_type'),
 
                 // Photo Section (from your file)
-                mainPhotoPreviewImg: $('#fsbhoa_photo_preview_main_img'),
+                mainPhotoPreviewImg: $('#fsbhoa_photo_preview_main_img'),  // the preview window
                 noPhotoMessage: $('#fsbhoa_no_photo_message'),
                 cropPhotoButton: $('#fsbhoa-crop-photo-btn'),
                 photoBase64Input: $('#fsbhoa_photo_base64'),
@@ -65,6 +65,7 @@ jQuery(function($) {
                 canvasElement: document.getElementById('fsbhoa_webcam_canvas'),
                 removePhotoButton: $('#fsbhoa_remove_photo_button'),
 		exportPhotoButton: $('#fsbhoa-export-photo-btn'),
+                printIdButton: $('#print-id-card-button'),
                 firstNameInput: $('#first_name'),
                 lastNameInput: $('#last_name'),
                 webcamErrorMessage: $('#fsbhoa_webcam_error_message'),
@@ -117,19 +118,15 @@ jQuery(function($) {
         initFormLibraries: function() {
             if (typeof FSBHOA_Croppie !== 'undefined') {
                 FSBHOA_Croppie.init((croppedImageDataURL) => {
-                                        // --- JAVASCRIPT DEBUG LOGS ---
-                    console.log('DEBUG 1: Croppie callback has fired!');
-                    console.log('DEBUG 2: Received image data (first 50 chars):', croppedImageDataURL.substring(0, 50));                                        
-                    
                     this.updateMainPhotoDisplay(croppedImageDataURL);
                     if (this.vars.photoBase64Input.length) {
                         // Strip the "data:image/jpeg;base64," part before setting the value
                         const base64Data = croppedImageDataURL.split(',')[1] || "";
-               console.log('DEBUG 3: Setting hidden field with base64 data (first 50 chars):', base64Data.substring(0, 50));
+                        //console.log('DEBUG 3: Setting hidden field with base64 data (first 50 chars):', base64Data.substring(0, 50));
                         this.vars.photoBase64Input.val(base64Data);
                     }
                     else {
-      console.error('DEBUG FAILED: Could not find the hidden photo input field (#fsbhoa_photo_base64)!');
+                       console.error('DEBUG FAILED: Could not find the hidden photo input field (#fsbhoa_photo_base64)!');
                     }
 
                 });
@@ -188,23 +185,29 @@ jQuery(function($) {
             formContainer.on('input', '#rfid_id', () => this.handleRfidInputChange());
             formContainer.on('click', '#fsbhoa_remove_photo_button', () => this.handleRemovePhotoButtonClick());
             formContainer.on('click', '#fsbhoa-export-photo-btn', () => this.handleExportPhotoClick());
+            formContainer.on('click', '#print-id-card-button', () => this.handlePrintIdClick());
             formContainer.on('change', '#resident_type', () => this.handleResidentTypeChange());
         },
 
         handleRemovePhotoButtonClick: function() {
-
-            // 1. Clear the visual preview and hidden data fields
+            // Clear the visual preview by calling our central display function.
+            // Passing 'null' clears the image.
+            // This also hides all of the buttons that take action on the image.
             this.updateMainPhotoDisplay(null);
+        },
 
-            // 2. Clear the visual preview by calling our central display function.
-            //    Passing 'null' clears the image, and 'true' signals this is a new action.
-            this.updateMainPhotoDisplay(null);
+        handlePrintIdClick: function() {
+            // Create a new hidden input field to act as our flag.
+            var afterSaveInput = $('<input>')
+                .attr('type', 'hidden')
+                .attr('name', 'fsbhoa_after_save_action')
+                .val('print');
 
-            // 3. Hide the "Remove Photo" button itself after it's been clicked.
-            this.vars.removePhotoButton.hide();
+            // Add the hidden input to the form.
+            this.vars.cardholderForm.append(afterSaveInput);
 
-            this.vars.exportPhotoButton.hide();
-
+            // Now, trigger the main form's "Save" button.
+            $('#submit').click();
         },
 
         handleExportPhotoClick: function() {
@@ -264,6 +267,9 @@ jQuery(function($) {
                console.error(errorMessage);
                return; // Stop the function here
            }
+           this.vars.removePhotoButton.hide();
+           this.vars.exportPhotoButton.hide();
+           this.vars.printIdButton.hide();
 
            // If the check passes, proceed with trying to access the camera
            navigator.mediaDevices.getUserMedia({ video: true })
@@ -292,23 +298,23 @@ jQuery(function($) {
         },
 
         stopWebcam: function() {
-             if (this.vars.stream) { this.vars.stream.getTracks().forEach(track => track.stop()); this.vars.stream = null; }
-            this.vars.webcamContainer.hide();
-            this.vars.startWebcamButton.show();
-            this.vars.webcamActiveControls.hide();
-            this.vars.fileUploadSection.show();
+            if (this.vars.stream) { 
+                this.vars.stream.getTracks().forEach(track => track.stop()); 
+                this.vars.stream = null; 
+            }
+            this.updateControlsVisibility();
         },
 
         captureWebcamPhoto: function() {
-            if (this.vars.stream && this.vars.videoElement.readyState >= 2) {
-                if (this.vars.canvasElement) {
-                    this.vars.canvasElement.width = this.vars.videoElement.videoWidth;
-                    this.vars.canvasElement.height = this.vars.videoElement.videoHeight;
-                    this.vars.canvasElement.getContext('2d').drawImage(this.vars.videoElement, 0, 0);
-                    const imageDataUrl = this.vars.canvasElement.toDataURL('image/jpeg', 0.9);
-                    this.stopWebcam();
-                    this.updateMainPhotoDisplay(imageDataUrl);
-                }
+            if (this.vars.stream) {
+                this.vars.canvasElement.width = this.vars.videoElement.videoWidth;
+                this.vars.canvasElement.height = this.vars.videoElement.videoHeight;
+                this.vars.canvasElement.getContext('2d').drawImage(this.vars.videoElement, 0, 0);
+            
+                const imageDataUrl = this.vars.canvasElement.toDataURL('image/jpeg', 0.9);
+            
+                this.updateMainPhotoDisplay(imageDataUrl); // Update the main photo
+                this.stopWebcam(); // Stop the webcam stream
             }
         },
 
@@ -345,26 +351,78 @@ jQuery(function($) {
             }
         },
 
+        // This function only handles the image data.
         updateMainPhotoDisplay: function(imageDataUrl) {
-            // update the display
-            if (imageDataUrl && imageDataUrl !== '#') {
-                this.vars.mainPhotoPreviewImg.attr('src', imageDataUrl).show();
-                if (this.vars.noPhotoMessage) this.vars.noPhotoMessage.hide();
-                if (this.vars.cropPhotoButton) this.vars.cropPhotoButton.show();
-                if (this.vars.removePhotoButton) this.vars.removePhotoButton.show();
-                if (this.vars.exportPhotoButton) this.vars.exportPhotoButton.show();
+            const base64Data = (imageDataUrl && imageDataUrl !== '#') ? imageDataUrl.split(',')[1] || "" : "";
+            const finalSrc = (imageDataUrl && imageDataUrl !== '#') ? imageDataUrl : '#';
 
-            } else {
-                this.vars.mainPhotoPreviewImg.attr('src', '#').hide();
-                if (this.vars.noPhotoMessage) this.vars.noPhotoMessage.show();
-                if (this.vars.cropPhotoButton) this.vars.cropPhotoButton.hide();
-                if (this.vars.removePhotoButton) this.vars.removePhotoButton.hide();
-                if (this.vars.exportPhotoButton) this.vars.exportPhotoButton.hide();
-            }
-            // Update the hidden field
-            const base64Data = (imageDataUrl) ? imageDataUrl.split(',')[1] || "" : "";
+            this.vars.mainPhotoPreviewImg.attr('src', finalSrc);
             this.vars.photoBase64Input.val(base64Data);
 
+            // After updating data, let the central function handle the UI
+            this.updateControlsVisibility();
+        },
+
+        // This function controls button visiblty based on the current state.
+        startWebcam: function() {
+            // First, hide any previous error messages
+            this.vars.webcamErrorMessage.hide().text('');
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                const errorMessage = 'Webcam requires a secure connection (HTTPS).';
+                this.vars.webcamErrorMessage.text(errorMessage).show();
+                return;
+            }
+
+            // Try to access the camera
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((mediaStream) => {
+                    // SUCCESS: The stream is active
+                    this.vars.stream = mediaStream;
+                    if (this.vars.videoElement) {
+                        this.vars.videoElement.srcObject = this.vars.stream;
+                        this.vars.videoElement.play();
+                    }
+                    // Now, let the central function update the UI
+                    this.updateControlsVisibility();
+                })
+                .catch((err) => {
+                    // ERROR: Could not get stream
+                    console.error('Webcam Error:', err);
+                    // Let the central function update the UI even on error
+                    this.updateControlsVisibility();
+                });
+        },
+
+        updateControlsVisibility: function() {
+
+        const hiddenInputValue = this.vars.photoBase64Input.val();
+
+            const hasPhoto = this.vars.photoBase64Input.val() !== '';
+            const isWebcamActive = !!this.vars.stream;
+
+            // Show/hide the "no photo" message
+            this.vars.noPhotoMessage.toggle(!hasPhoto && !isWebcamActive);
+
+            // Show/hide the main photo preview
+            this.vars.mainPhotoPreviewImg.toggle(hasPhoto);
+
+            // Show/hide the action buttons (Remove, Export, Print)
+            const showActionButtons = hasPhoto && !isWebcamActive;
+            this.vars.removePhotoButton.toggle(showActionButtons);
+            this.vars.exportPhotoButton.toggle(showActionButtons);
+            this.vars.printIdButton.toggle(showActionButtons);
+
+            // Show/hide the crop button
+            this.vars.cropPhotoButton.toggle(showActionButtons);
+
+            // Show/hide the initial controls (Start Webcam, Upload)
+            this.vars.startWebcamButton.toggle(!isWebcamActive);
+            this.vars.fileUploadSection.toggle(!isWebcamActive);
+
+            // Show/hide the active webcam UI
+            this.vars.webcamContainer.toggle(isWebcamActive);
+            this.vars.webcamActiveControls.toggle(isWebcamActive);
         },
 
         updateStatusDisplayFromCheckbox: function() {
