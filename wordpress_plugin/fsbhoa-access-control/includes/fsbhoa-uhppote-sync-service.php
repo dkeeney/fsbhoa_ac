@@ -23,7 +23,7 @@ function fsbhoa_perform_full_sync() {
 
     // --- Get all necessary data from the database ---
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers WHERE ip_address IS NOT NULL AND ip_address != ''");
-    $cardholders = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status = 'active' AND resident_type != 'Landlord'");
+    $cardholders = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status IN ('active', 'disabled') AND resident_type != 'Landlord'");
     $tasks = $wpdb->get_results("SELECT * FROM ac_task_list WHERE enabled = 1");
 
     if ($wpdb->last_error) {
@@ -65,17 +65,23 @@ function fsbhoa_perform_full_sync() {
 
         // --- Card Deletion Logic ---
         set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking for cards to delete on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
+        $controller_cards = [];
         $get_cards_command = sprintf('%s get-cards %s', $base_command, escapeshellarg($device_id));
         $cards_output = shell_exec($get_cards_command . " 2>&1");
-        $controller_card_numbers = [];
-        $lines = explode("\n", trim($cards_output));
-        foreach ($lines as $line) {
-            $parts = preg_split('/\s+/', $line);
-            if (is_numeric($parts[0])) {
-                $controller_card_numbers[] = intval($parts[0]);
+        if (!empty($cards_output)) {
+            $lines = explode("\n", trim($cards_output));
+            foreach ($lines as $line) {
+                if (!empty($line)) {
+                    $parts = preg_split('/\s+/', $line);
+                    $card_number = $parts[0];
+                    $controller_cards[$card_number] = $line; // Store with card number as the key
+                }
             }
-        }
-        $cards_to_delete = array_diff($controller_card_numbers, $db_card_numbers);
+	}
+        $cards_to_delete = array_diff_key($controller_cards, $db_cards);
+error_log('SYNC DEBUG - DB Cards: ' . print_r(array_keys($db_cards), true));
+error_log('SYNC DEBUG - Controller Cards: ' . print_r(array_keys($controller_cards), true));
+error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete), true));
         if (!empty($cards_to_delete)) {
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Found " . count($cards_to_delete) . " card(s) to delete on '$friendly_name'."); }
             foreach ($cards_to_delete as $card_to_del) {
@@ -93,18 +99,19 @@ function fsbhoa_perform_full_sync() {
             $card_count++;
             set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking card $card_count/" . count($db_cards) . " on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
 
-            // Use time profile '255' for 'always active' access.
-            $permissions_string = '1:Y,2:Y,3:Y,4:Y';
 
             $put_card_command = sprintf(
-                '%s put-card %s %d %s %s %s',
+                '%s put-card %s %d %s %s',
                 $base_command,
                 escapeshellarg($device_id),
                 $card_number,
                 escapeshellarg($cardholder->card_issue_date ?? '2000-01-01'),
-                escapeshellarg($cardholder->card_expiry_date),
-                escapeshellarg($permissions_string)
+                escapeshellarg($cardholder->card_expiry_date)
             );
+            if ($cardholder->card_status === 'active') {
+               $permissions_string = '1:Y,2:Y,3:Y,4:Y'; // Grant full access only if active
+               $put_card_command .= ' ' . escapeshellarg($permissions_string);
+            }
 
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $put_card_command); }
             $put_output = shell_exec($put_card_command . " 2>&1");

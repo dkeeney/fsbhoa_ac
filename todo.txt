@@ -8,9 +8,4 @@
 
 - A Backup/Restore feature.
 
-- Provision the system to handle vehicle access codes.
-
-- Wrong status when card is not in database.
-
-- diferenctial sync; need to delete cards not in the database.
 
