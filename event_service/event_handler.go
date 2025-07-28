@@ -26,27 +26,27 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 	}
 
 	// Create a descriptive message based on the event type and reason code.
-	var eventMessage string
-	switch event.Reason {
-	case 1:
-		eventMessage = "Card swipe event" // This will be overwritten by enrichEvent for card swipes
-	case 2:
-		eventMessage = "Door opened"
-	case 3:
-		eventMessage = "Door closed"
-	case 4:
-		eventMessage = "Button pressed"
-	case 5:
-		eventMessage = "Door propped open"
-	case 6:
-		eventMessage = "Door forced open"
-    case 100:
-        eventMessage = "Sign-in"
-    case 101:
-        eventMessage = "Sign-in Failure"
-	default:
-		eventMessage = fmt.Sprintf("Unknown event reason: %d", event.Reason)
-	}
+        var eventMessage string
+        switch event.Reason {
+            case 1: // Generic Swipe Event
+                if event.Granted {
+                    eventMessage = "Access Granted"
+                } else {
+                    // This is a generic denial; a more specific reason (like 6 or 11) usually follows,
+                    // so we can choose to ignore this initial event or label it generically.
+                    eventMessage = "Access Denied" 
+                }
+            case 6:
+                eventMessage = "Card Not Found"
+            case 11:
+                eventMessage = "Card Disabled"
+            case 13:
+                eventMessage = "Card Expired"
+            case 101:
+                eventMessage = "Forced Entry"
+            default:
+                eventMessage = fmt.Sprintf("Unknown Event (Code: %d)", event.Reason)
+        }
 
 	// Create the event struct to be logged
 	rawEvent := RawHardwareEvent{

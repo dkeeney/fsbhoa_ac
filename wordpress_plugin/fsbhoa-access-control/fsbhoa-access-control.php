@@ -45,6 +45,25 @@ function fsbhoa_ac_deactivate() {
 register_deactivation_hook( __FILE__, 'fsbhoa_ac_deactivate' );
 
 
+// on login, go to the home page.
+function fsbhoa_admin_login_redirect( $redirect_to, $request, $user ) {
+    return home_url();
+}
+add_filter( 'login_redirect', 'fsbhoa_admin_login_redirect', 10, 3 );
+
+// If not logged in, re-direct to login page.
+function fsbhoa_force_login_redirect() {
+    // If the user is logged in, or if they are on the login page, do nothing.
+    if ( is_user_logged_in() || is_login() ) {
+        return;
+    }
+
+    // For all other pages, redirect the logged-out user to the login page.
+    wp_redirect( wp_login_url() );
+    exit;
+}
+add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
+
 /**
  * Load core plugin classes for admin area.
  */
