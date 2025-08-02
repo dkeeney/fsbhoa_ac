@@ -447,8 +447,8 @@ jQuery(function($) {
         }
     };
 
-    $(document).ready(function() {
+    //$(document).ready(function() {
         App.init();
-    });
+    //});
 });
 

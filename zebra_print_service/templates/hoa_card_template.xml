@@ -3,6 +3,7 @@
     <fonts>
         <font id="1" name="Arial" size="70" bold="yes" />
         <font id="2" name="Arial" size="20" />
+        <font id="3" name="Arial" size="40" />
     </fonts>
     <sides>
         <side name="front" orientation="portrait">
@@ -13,7 +14,7 @@
                 <print_type type="mono">
                     <text field="firstName" font_id="1" x="20" y="840" width="600" height="50" alignment="center" />
                     <text field="lastName" font_id="1" x="20" y="900" width="600" height="50" alignment="center" />
-                    <text field="expirationDateText" font_id="2" x="20" y="950" width="600" height="40" alignment="center" />
+                    <text field="line3" font_id="3" x="20" y="950" width="600" height="50" alignment="center" />
                 </print_type>
             </print_types>
         </side>

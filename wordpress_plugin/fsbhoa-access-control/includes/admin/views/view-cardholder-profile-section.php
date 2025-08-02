@@ -6,7 +6,7 @@ if ( ! defined( 'WPINC' ) ) { die; }
  *
  * @param array $form_data The current data for the form.
  */
-function fsbhoa_render_profile_section( $form_data ) {
+function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_groups, $default_groups ) {
 ?>
 <div class="fsbhoa-form-section">
     <div class="form-row">
@@ -17,6 +17,19 @@ function fsbhoa_render_profile_section( $form_data ) {
         <div class="form-field">
             <label for="last_name">Last Name</label>
             <input type="text" name="last_name" id="last_name" value="<?php echo esc_attr($form_data['last_name']); ?>" required>
+        </div>
+        <div class="form-field" style="max-width: 120px;">
+            <label for="title">Title</label>
+            <input type="text" name="title" id="title" value="<?php echo esc_attr($form_data['title']); ?>">
+        </div>
+        <div class="form-field">
+            <label>Formal Name (from import)</label>
+            <span class="readonly-field">
+                <?php 
+                $import_name = trim(esc_html($form_data['import_first_name'] . ' ' . $form_data['import_last_name']));
+                echo !empty($import_name) ? $import_name : 'N/A';
+                ?>
+            </span>
         </div>
     </div>
     <div class="form-row">
@@ -39,6 +52,32 @@ function fsbhoa_render_profile_section( $form_data ) {
                 <option value="Other" <?php selected($current_phone_type, 'Other'); ?>>Other</option>
             </select>
         </div>
+        <div class="form-third-width">
+            <label>Permissions Groups</label>
+            <div class="checkbox-group-container">
+                    <?php // Display the default group(s) as checked and disabled. ?>
+                    <?php if (!empty($default_groups)) : ?>
+                        <?php foreach ($default_groups as $group) : ?>
+                            <label class="disabled-checkbox">
+                                <input type="checkbox" checked disabled>
+                                <?php echo esc_html($group->group_name); ?> <em>(default)</em>
+                            </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+
+                    <?php // Display the assignable groups. ?>
+                    <?php if (!empty($all_groups)) : ?>
+                        <?php foreach ($all_groups as $group) : ?>
+                            <label>
+                                <input type="checkbox" name="cardholder_groups[]" value="<?php echo esc_attr($group->group_id); ?>" <?php checked(in_array($group->group_id, $cardholder_groups)); ?>>
+                                <?php echo esc_html($group->group_name); ?>
+                            </label>
+                        <?php endforeach; ?>
+                    <?php elseif (empty($default_groups)) : ?>
+                        <p class="description"><?php _e('No groups available.', 'fsbhoa-ac'); ?></p>
+                    <?php endif; ?>
+            </div>
+        </div>
     </div>
 </div>
 <?php
@@ -56,6 +95,7 @@ function fsbhoa_validate_profile_data( $post_data ) {
     // Sanitize all profile fields first
     $sanitized_data['first_name']    = isset($post_data['first_name']) ? sanitize_text_field(wp_unslash($post_data['first_name'])) : '';
     $sanitized_data['last_name']     = isset($post_data['last_name']) ? sanitize_text_field(wp_unslash($post_data['last_name'])) : '';
+    $sanitized_data['title'] = isset($post_data['title']) ? sanitize_text_field(wp_unslash($post_data['title'])) : '';
     $raw_email = isset($post_data['email']) ? trim(wp_unslash($post_data['email'])) : '';
     $sanitized_data['email']         = isset($post_data['email']) ? sanitize_email(wp_unslash($post_data['email'])) : '';
     $sanitized_data['phone_type']    = isset($post_data['phone_type']) ? sanitize_text_field(wp_unslash($post_data['phone_type'])) : '';
@@ -72,7 +112,8 @@ function fsbhoa_validate_profile_data( $post_data ) {
     // ---  EMAIL VALIDATION ---
     if ( ! empty($raw_email) ) {
         // Use our strict regex pattern to check for format like name@domain.com
-        if ( ! preg_match('/^[^@\s]+@[^@\s\.]+\.[^@\s\.]{2,}$/', $raw_email) ) {
+        // the built-in validation does not require a top-level domain so use the regular expression.
+        if ( ! preg_match('/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $raw_email) ) {
             $errors['email'] = __( 'Please enter a valid email address format (e.g., name@domain.com).', 'fsbhoa-ac' );
         }
     }

@@ -44,6 +44,9 @@ class Fsbhoa_Cardholder_Admin_Page {
         $transient_key = 'fsbhoa_form_feedback_' . ($is_edit_mode ? 'edit_' . $item_id_for_edit . '_' : 'add_') . $user_id;
         $feedback = get_transient($transient_key);
 
+        $cardholder_groups = [];
+        $all_groups = $this->get_assignable_groups();
+        $default_groups = $this->get_default_groups();
 
         if ($feedback !== false) {
             // RECOVERING FROM ERROR
@@ -61,7 +64,11 @@ class Fsbhoa_Cardholder_Admin_Page {
                     array('back_link' => true)
                 );
             }
+
             if ($cardholder_to_edit) {
+                // Prepare the group data for the view.
+                $cardholder_groups = $this->get_cardholder_group_memberships($cardholder_to_edit['id']);
+
                 $form_data = array_merge($form_data, $cardholder_to_edit);
                 if (!empty($cardholder_to_edit['photo'])) {
                     $form_data['photo_base64'] = base64_encode($cardholder_to_edit['photo']);
@@ -112,7 +119,7 @@ class Fsbhoa_Cardholder_Admin_Page {
                 <?php
                 // We no longer use a table, just call the render functions for our sections
                 require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-profile-section.php';
-                fsbhoa_render_profile_section( $form_data );
+                fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_groups, $default_groups );
 
                 require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-address-section.php';
                 fsbhoa_render_address_section( $form_data );
@@ -132,5 +139,55 @@ class Fsbhoa_Cardholder_Admin_Page {
             <div id="fsbhoa-cropper-dialog" title="Crop Photo" style="display:none;"><div id="fsbhoa-cropper-image-container"></div></div>
         </div>
         <?php
+    }
+
+    /**
+     * Fetches all available, enabled, non-holiday (base) groups for the assignment box.
+     *
+     * @global wpdb $wpdb
+     * @return array List of group objects.
+     */
+    public function get_assignable_groups() {
+        global $wpdb;
+        $groups = $wpdb->get_results("SELECT group_id, group_name FROM ac_groups WHERE is_enabled = 1 AND parent_group_id IS NULL AND is_default = 0 ORDER BY group_name ASC");
+        if ($wpdb->last_error) {
+            // Handle or log the error appropriately
+            return [];
+        }
+        return $groups;
+}
+
+    /**
+     * Fetches the current group memberships for a specific cardholder.
+     *
+     * @global wpdb $wpdb
+     * @param int $cardholder_id The ID of the cardholder.
+     * @return array A simple array of group IDs.
+     */
+    public function get_cardholder_group_memberships($cardholder_id) {
+        global $wpdb;
+        $results = $wpdb->get_results($wpdb->prepare("SELECT group_id FROM ac_cardholder_groups WHERE cardholder_id = %d", $cardholder_id));
+        if ($wpdb->last_error) {
+            // Handle or log the error appropriately
+            return [];
+        }
+        // Flatten the array of objects into a simple array of IDs for easier checking.
+        return wp_list_pluck($results, 'group_id');
+    }
+
+    /**
+     * Fetches all enabled, default groups.
+     *
+     * @global wpdb $wpdb
+     * @return array List of default group objects.
+     */
+    public function get_default_groups() {
+        global $wpdb;
+        $groups = $wpdb->get_results("SELECT group_id, group_name FROM ac_groups WHERE is_enabled = 1 AND is_default = 1 ORDER BY group_name ASC");
+        if ($wpdb->last_error) {
+            // Handle or log the error appropriately
+            return [];
+        }
+        return $groups;
     }
 }

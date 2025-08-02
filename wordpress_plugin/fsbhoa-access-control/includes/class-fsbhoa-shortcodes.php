@@ -16,6 +16,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_reports', array( $this, 'render_reports_shortcode' ) );
         add_shortcode( 'fsbhoa_usage_analytics', array( $this, 'render_analytics_shortcode' ) );
         add_shortcode( 'fsbhoa_amenity_management', array( $this, 'render_amenity_management_shortcode' ) );
+        add_shortcode( 'fsbhoa_groups_page', [$this, 'render_groups_page']);
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
@@ -76,21 +77,26 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_reports' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_usage_analytics' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_amenity_management' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_groups_page' )
             ) ) {
             return;
         }
 
         wp_enqueue_script('jquery');
+        wp_enqueue_style('dashicons');
         wp_enqueue_script('jquery-ui-autocomplete');
         wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
-        wp_enqueue_style('datatables-style', 'https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.css');
-        wp_enqueue_script('datatables-script', 'https://cdn.datatables.net/2.0.8/js/dataTables.js', array('jquery'), '2.0.8', true);
+        // Load the local DataTables files from the new vendor directory.
+        wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
+        wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
 
         $app_script_handle = 'fsbhoa-cardholder-admin-script';
         wp_enqueue_style('wp-jquery-ui-dialog');
-        wp_enqueue_style('croppie-style', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.css', array(), '2.6.5');
+
+        wp_enqueue_style('croppie-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/croppie/croppie.min.css', array(), '2.6.5');
+        wp_enqueue_script('croppie-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/croppie/croppie.min.js', array('jquery'), '2.6.5', true);
+
         wp_enqueue_style('fsbhoa-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
-        wp_enqueue_script('croppie-script', 'https://cdnjs.cloudflare.com/ajax/libs/croppie/2.6.5/croppie.min.js', array('jquery'), '2.6.5', true);
         wp_enqueue_script('fsbhoa-photo-croppie', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-photo-croppie.js', array('jquery', 'jquery-ui-dialog', 'croppie-script'), FSBHOA_AC_PLUGIN_VERSION, true);
         wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('jquery', 'jquery-ui-autocomplete', 'datatables-script', 'fsbhoa-photo-croppie'), FSBHOA_AC_PLUGIN_VERSION, true);
 
@@ -115,7 +121,7 @@ class Fsbhoa_Shortcodes {
             wp_enqueue_style('fsbhoa-reports-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-reports-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
             wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-reports-admin.js', array('jquery', 'datatables-script'), FSBHOA_AC_PLUGIN_VERSION, true);
             wp_enqueue_script('jquery-ui-datepicker');
-            wp_enqueue_style('jquery-ui-style', 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css');
+wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery-ui/jquery-ui.css', array(), '1.12.1');
             wp_localize_script($script_handle, 'fsbhoa_reports_vars', array('rest_nonce' => wp_create_nonce( 'wp_rest' ), 'export_nonce' => wp_create_nonce( 'fsbhoa_export_nonce' )));
         }
 
@@ -123,7 +129,7 @@ class Fsbhoa_Shortcodes {
             wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
             wp_enqueue_style('fsbhoa-reports-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-reports-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
             $script_handle = 'fsbhoa-analytics-admin';
-            wp_enqueue_script('chart-js', 'https://cdn.jsdelivr.net/npm/chart.js', array(), '4.4.3', true);
+            wp_enqueue_script('chart-js', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/chart.min.js', array(), '4.4.3', true);
             wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-analytics-admin.js', array('jquery', 'chart-js'), FSBHOA_AC_PLUGIN_VERSION, true);
             wp_localize_script($script_handle, 'fsbhoa_reports_vars', array('rest_nonce' => wp_create_nonce( 'wp_rest' )));
         }
@@ -169,6 +175,26 @@ class Fsbhoa_Shortcodes {
             $ws_url = sprintf('wss://%s:%d/ws', $ws_host, $ws_port); // Use secure wss://
 
             wp_localize_script($script_handle, 'fsbhoa_monitor_vars', [ 'ws_url' => $ws_url, 'nonce'  => wp_create_nonce('wp_rest') ]);
+        }
+        if (has_shortcode($post->post_content, 'fsbhoa_groups_page')) {
+                // Enqueue the CSS for the groups page using the correct URL constant.
+                $css_path = FSBHOA_AC_PLUGIN_DIR . 'assets/css/fsbhoa-groups.css';
+                wp_enqueue_style(
+                    'fsbhoa-groups-style', 
+                    FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-groups.css', 
+                    [], 
+                    filemtime($css_path)
+                );
+
+                // Enqueue the JavaScript for the groups page using the correct URL constant.
+                $js_path = FSBHOA_AC_PLUGIN_DIR . 'assets/js/groups-admin.js';
+                wp_enqueue_script(
+                    'fsbhoa-groups-admin-js', 
+                    FSBHOA_AC_PLUGIN_URL . 'assets/js/groups-admin.js', 
+                    ['jquery'], 
+                    filemtime($js_path), 
+                    true
+                );
         }
 
         if ( has_shortcode( $post->post_content, 'fsbhoa_amenity_management' ) ) {
@@ -299,6 +325,30 @@ class Fsbhoa_Shortcodes {
         }
 
         return ob_get_clean();
+    }
+
+    /**
+     * Renders the Access Groups management page.
+     *
+     * This shortcode handler now acts as a simple entry point,
+     * instantiating the controller class that handles the actual page rendering.
+     *
+     * @param array $atts Shortcode attributes (not used).
+     * @return string The HTML for the page.
+     */
+    public function render_groups_page($atts) {
+        // Security check: Only users with 'manage_options' can see this page.
+        if (!current_user_can('manage_options')) {
+            return '<p>' . __('You do not have sufficient permissions to access this page.', 'fsbhoa-ac') . '</p>';
+        }
+
+        // Check if the controller class exists before trying to use it.
+        if (class_exists('FSBHOA_Groups_Admin_Page')) {
+            $groups_page = new FSBHOA_Groups_Admin_Page();
+            return $groups_page->render_page();
+        } else {
+            return '<div class="error"><p>' . esc_html__('Error: The Groups Admin Page class was not found.', 'fsbhoa-ac') . '</p></div>';
+        }
     }
 }
 

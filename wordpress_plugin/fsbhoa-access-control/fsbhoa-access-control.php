@@ -65,8 +65,10 @@ function fsbhoa_force_login_redirect() {
 add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
 
 /**
- * Load core plugin classes for admin area.
+ * Load core plugin classes 
  */
+
+// For Cardholder and property
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-cardholder-functions.php';
 // For Cardholder DISPLAY
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php'; 
@@ -75,6 +77,11 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-acti
 // For Property Display & Actions (already refactored similarly)
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-page.php'; 
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-actions.php';
+
+// For Permission Groups
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-groups-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-groups-actions.php';
+
 
 // List Table classes
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-property-list-table.php';
@@ -169,6 +176,9 @@ function run_fsbhoa_action_handlers() {
          add_action('admin_notices', function() {
             echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Actions_Page class is missing. Property management functionality will not work.</p></div>';
         });
+    }
+    if (class_exists('FSBHOA_Groups_Actions')) {
+        new FSBHOA_Groups_Actions();
     }
 
     // Instantiate report actions handler

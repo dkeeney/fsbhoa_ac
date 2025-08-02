@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jul 25, 2025 at 01:07 PM
+-- Generation Time: Aug 02, 2025 at 04:46 PM
 -- Server version: 8.0.42-0ubuntu0.24.04.2
 -- PHP Version: 8.3.6
 
@@ -67,6 +67,9 @@ CREATE TABLE `ac_cardholders` (
   `rfid_id` varchar(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `first_name` varchar(100) DEFAULT NULL,
   `last_name` varchar(100) DEFAULT NULL,
+  `title` varchar(50) DEFAULT NULL,
+  `import_first_name` varchar(255) DEFAULT NULL,
+  `import_last_name` varchar(255) DEFAULT NULL,
   `property_id` int DEFAULT NULL,
   `email` varchar(255) DEFAULT NULL,
   `phone` varchar(30) DEFAULT NULL,
@@ -80,6 +83,17 @@ CREATE TABLE `ac_cardholders` (
   `origin` varchar(20) NOT NULL DEFAULT 'manual' COMMENT 'Indicates if the record was from a csv import or added manually',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ac_cardholder_groups`
+--
+
+CREATE TABLE `ac_cardholder_groups` (
+  `cardholder_id` int NOT NULL,
+  `group_id` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -124,7 +138,8 @@ CREATE TABLE `ac_deleted_cardholders` (
   `origin` varchar(20) NOT NULL DEFAULT 'manual',
   `created_at` datetime DEFAULT NULL,
   `updated_at` datetime DEFAULT NULL,
-  `deleted_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `deleted_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `groups_csv` text COMMENT 'Comma-separated list of group IDs the user belonged to at the time of deletion.'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -143,6 +158,46 @@ CREATE TABLE `ac_doors` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `map_x` int DEFAULT '0',
   `map_y` int DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ac_groups`
+--
+
+CREATE TABLE `ac_groups` (
+  `group_id` int NOT NULL,
+  `group_name` varchar(100) NOT NULL,
+  `group_description` text COMMENT 'Notes field to describe the group''s purpose.',
+  `is_enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT '0 = Disabled, 1 = Enabled. A disabled group grants no permissions.',
+  `has_all_access` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'If set to 1, this group has 24/7 access to all doors, overriding other permissions.',
+  `valid_from` date NOT NULL DEFAULT '2020-01-01',
+  `valid_to` date NOT NULL DEFAULT '2099-12-31',
+  `parent_group_id` int DEFAULT NULL,
+  `is_default` tinyint(1) NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ac_group_permissions`
+--
+
+CREATE TABLE `ac_group_permissions` (
+  `permission_id` int NOT NULL,
+  `group_id` int NOT NULL,
+  `door_id` int NOT NULL,
+  `is_enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT '0 = Disabled, 1 = Enabled.',
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  `on_mon` tinyint(1) NOT NULL DEFAULT '0',
+  `on_tue` tinyint(1) NOT NULL DEFAULT '0',
+  `on_wed` tinyint(1) NOT NULL DEFAULT '0',
+  `on_thu` tinyint(1) NOT NULL DEFAULT '0',
+  `on_fri` tinyint(1) NOT NULL DEFAULT '0',
+  `on_sat` tinyint(1) NOT NULL DEFAULT '0',
+  `on_sun` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -247,6 +302,13 @@ ALTER TABLE `ac_cardholders`
   ADD KEY `idx_resident_type` (`resident_type`);
 
 --
+-- Indexes for table `ac_cardholder_groups`
+--
+ALTER TABLE `ac_cardholder_groups`
+  ADD PRIMARY KEY (`cardholder_id`,`group_id`),
+  ADD KEY `group_id` (`group_id`);
+
+--
 -- Indexes for table `ac_controllers`
 --
 ALTER TABLE `ac_controllers`
@@ -268,6 +330,22 @@ ALTER TABLE `ac_doors`
   ADD UNIQUE KEY `idx_friendly_name_unique` (`friendly_name`),
   ADD UNIQUE KEY `idx_controller_door_unique` (`controller_record_id`,`door_number_on_controller`),
   ADD KEY `idx_fk_controller_record_id` (`controller_record_id`);
+
+--
+-- Indexes for table `ac_groups`
+--
+ALTER TABLE `ac_groups`
+  ADD PRIMARY KEY (`group_id`),
+  ADD UNIQUE KEY `unique_group_name` (`group_name`),
+  ADD KEY `fk_parent_group` (`parent_group_id`);
+
+--
+-- Indexes for table `ac_group_permissions`
+--
+ALTER TABLE `ac_group_permissions`
+  ADD PRIMARY KEY (`permission_id`),
+  ADD KEY `idx_group_id` (`group_id`),
+  ADD KEY `idx_door_id` (`door_id`);
 
 --
 -- Indexes for table `ac_print_log`
@@ -332,6 +410,18 @@ ALTER TABLE `ac_doors`
   MODIFY `door_record_id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `ac_groups`
+--
+ALTER TABLE `ac_groups`
+  MODIFY `group_id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `ac_group_permissions`
+--
+ALTER TABLE `ac_group_permissions`
+  MODIFY `permission_id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `ac_print_log`
 --
 ALTER TABLE `ac_print_log`
@@ -366,10 +456,30 @@ ALTER TABLE `ac_cardholders`
   ADD CONSTRAINT `fk_ac_cardholders_property` FOREIGN KEY (`property_id`) REFERENCES `ac_property` (`property_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
+-- Constraints for table `ac_cardholder_groups`
+--
+ALTER TABLE `ac_cardholder_groups`
+  ADD CONSTRAINT `fk_cardholder_groups_cardholder` FOREIGN KEY (`cardholder_id`) REFERENCES `ac_cardholders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_cardholder_groups_group` FOREIGN KEY (`group_id`) REFERENCES `ac_groups` (`group_id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `ac_doors`
 --
 ALTER TABLE `ac_doors`
   ADD CONSTRAINT `fk_ac_doors_controller` FOREIGN KEY (`controller_record_id`) REFERENCES `ac_controllers` (`controller_record_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `ac_groups`
+--
+ALTER TABLE `ac_groups`
+  ADD CONSTRAINT `fk_parent_group` FOREIGN KEY (`parent_group_id`) REFERENCES `ac_groups` (`group_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `ac_group_permissions`
+--
+ALTER TABLE `ac_group_permissions`
+  ADD CONSTRAINT `fk_group_permissions_door` FOREIGN KEY (`door_id`) REFERENCES `ac_doors` (`door_record_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_group_permissions_group` FOREIGN KEY (`group_id`) REFERENCES `ac_groups` (`group_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `ac_print_log`
@@ -387,5 +497,4 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-
 

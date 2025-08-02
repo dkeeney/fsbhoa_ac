@@ -72,18 +72,28 @@ class Fsbhoa_Print_Actions {
         if (!empty($template_path) && file_exists($template_path)) {
             $template_xml = file_get_contents($template_path);
         }
-	$first_name_parts = explode(' ', $cardholder['first_name']);
 
         $fields = [
-            'firstName'     => $first_name_parts[0],
+            'firstName'     => $cardholder['first_name'],
             'lastName'      => $cardholder['last_name'],
+            'title'         => $cardholder['title'],
             'residentPhoto' => base64_encode($cardholder['photo']),
             'cardBackLogo'  => $card_back_base64,
         ];
 
-        // Conditionally add the expiration date text
-        if (isset($cardholder['card_expiry_date']) && $cardholder['card_expiry_date'] !== '2099-12-31') {
-            $fields['expirationDateText'] = 'Expires: ' . date('m/d/Y', strtotime($cardholder['card_expiry_date']));
+       $line3_text = '';
+        // Prioritize the title
+        if (!empty(trim($cardholder['title']))) {
+            $line3_text = trim($cardholder['title']);
+        } 
+        // If no title, check for an expiration date
+        else if (isset($cardholder['card_expiry_date']) && $cardholder['card_expiry_date'] !== '2099-12-31') {
+            $line3_text = 'Expires: ' . date('m/d/Y', strtotime($cardholder['card_expiry_date']));
+        }
+
+        // Only add the field if there is content for it
+        if (!empty($line3_text)) {
+            $fields['line3'] = $line3_text;
         }
 
         $payload = [

@@ -101,7 +101,6 @@ class Fsbhoa_Cardholder_Actions {
         $table_name = 'ac_cardholders';
         $is_update = ( isset($_POST['action']) && $_POST['action'] === 'fsbhoa_do_update_cardholder' );
 
-  // --- NEW DEBUG LOG #1 ---
         $photo_size = isset($_POST['photo_base64']) ? strlen($_POST['photo_base64']) : '0 (or not set)';
         error_log("--- ACTIONS: POST received. Size of photo_base64: " . $photo_size);
 
@@ -142,7 +141,7 @@ class Fsbhoa_Cardholder_Actions {
         // GEMINI_PROTECTED_BLOCK: FSBHOA_DEBUG_OUTPUT   DO NOT REMOVE
         // ---  Full Debugging Block ---
         if ( defined('FSBHOA_DEBUG_MODE') && FSBHOA_DEBUG_MODE ) {
-            error_log('--- FSBHOA Cardholder Submission Debug ---');
+            error_log('--- FSBHOA Cardholder Submission ---');
             error_log('ACTION: ' . ($is_update ? 'UPDATE' : 'ADD'));
             error_log('ITEM ID: ' . $item_id);
             error_log('RAW POST: ' . print_r(wp_unslash($_POST), true));
@@ -175,6 +174,13 @@ class Fsbhoa_Cardholder_Actions {
                     $errors['db_error'] = 'A database error occurred while adding the new cardholder. Please try again.';
                     error_log('FSBHOA DB Insert Error: ' . $wpdb->last_error);
                 }
+                else {
+                    $item_id = $wpdb->insert_id;
+                }
+            }
+            if (empty($errors)) {
+                $submitted_groups = isset($_POST['cardholder_groups']) ? (array) $_POST['cardholder_groups'] : [];
+                $this->save_cardholder_groups($item_id, $submitted_groups);
             }
         }
         
@@ -187,7 +193,9 @@ class Fsbhoa_Cardholder_Actions {
             wp_redirect( add_query_arg( array('message' => 'validation_error'), $form_page_url ) );
             exit;
         }
-       
+      
+
+ 
         // If we reach here, the operation was successful.
         $message_code = $is_update ? 'cardholder_updated' : 'cardholder_added';
 
@@ -217,4 +225,46 @@ class Fsbhoa_Cardholder_Actions {
         exit;
     }
 
+
+    /**
+     * Saves the group memberships for a cardholder.
+     *
+     * @param int   $cardholder_id The ID of the cardholder being updated.
+     * @param array $group_ids     An array of group IDs selected on the form.
+     */
+    private function save_cardholder_groups($cardholder_id, $group_ids) {
+        global $wpdb;
+
+        // Sanitize the incoming group IDs to ensure they are all integers.
+        $group_ids = array_map('absint', $group_ids);
+
+        // First, delete all existing non-default group memberships for this cardholder.
+        $wpdb->delete('ac_cardholder_groups', ['cardholder_id' => $cardholder_id]);
+        if ($wpdb->last_error) {
+            // We don't stop execution, but we can log this error.
+            error_log('FSBHOA DB Error: Failed to delete old groups for cardholder ' . $cardholder_id . ': ' . $wpdb->last_error);
+            return; // Abort if we can't clear old groups.
+        }
+
+        // If any groups were selected, loop through and insert them.
+        if (!empty($group_ids)) {
+            foreach ($group_ids as $group_id) {
+                $wpdb->insert(
+                    'ac_cardholder_groups',
+                    [
+                        'cardholder_id' => $cardholder_id,
+                        'group_id'      => $group_id,
+                    ],
+                    [
+                        '%d', // format for cardholder_id
+                        '%d', // format for group_id
+                    ]
+                );
+                if ($wpdb->last_error) {
+                    error_log('FSBHOA DB Error: Failed to insert group ' . $group_id . ' for cardholder ' . $cardholder_id . ': ' . $wpdb->last_error);
+                    // Continue trying to insert the others.
+                }
+            }
+        }
+    }
 }

@@ -2,10 +2,91 @@
 
 - Export Cardholder List: Add a feature to the cardholder list page to export the currently filtered and sorted view as a .csv file.
 
-- Cardholder Permissions: Implement a new system where cardholders can be assigned to groups, and these groups have specific time-based schedules for gate access.
-
 - UI Cleanup: General improvements to the look and feel of the plugin pages.
 
-- A Backup/Restore feature.
+- A Backup/Restore feature.   Use a backup plugin.  No code needed.
 
+- On the Group list, the counts for the default group is missing
+
+- On photo section of cardholder edit, the Cropping windows is offset.
+
+- On controller edit screen, the gate entry array, needs column headings.
+
+- Card Preview screen, Name is one line not two....maybe we should use the template to generate.
+
+- Enable buttons need to be consistant (like Permission Groups) 
+    Task List Management
+    Amenities list
+    
+- Better edit imenity screen layout.
+
+- Sync Reminder (Red button in heading)
+
+- Investigate a battery powered/ WiFi enabled webcam.
+
+- Better buttons
+==================================================================================
+For testing:
+I have 5 cards.
+
+rfid_id    name    state     group
+17315052   --      inactive  --                   (this should not show up at all)
+15811171   Dolores disabled  Resident             (This should be in the controller but has not permissions)
+16735030   brenda  active    Resident, restricted (Expired date, should be treated as if active for permissions)
+15364678   keeney  active    Resident, Staff
+17659798   bill    active    Resident, 
+
+Groups:
+Resident    base (default)
+        5:00am-5:00pm every day for doors  #2, #3, #4
+
+restricted   base
+        5:00am-10:00pm  mon, tue, wed  door #3
+        5:00am-10:00pm  thr, fri  door #4
+        5:45am - 6:00pm sun door #1
+
+Staff base all-access permission.
+   Staff-Christmas  no permissions
+
+
+Controllers
+425043852   4 doors  
+   #1 waterfall right
+   #2 waterfall left
+   #3 pickleball
+   #4 tennis
+
+
+TEST RESULTS:
+fsbhoa@access:~/fsbhoa_ac/wordpress_plugin/fsbhoa-access-control$ uhppote-cli get-time-profiles 425043852
+
+-------------------------------------------
+TIME PROFILES 425043852 2025-08-02 09:16:39
+-------------------------------------------
+Profile  From       To          Mon Tue Wed Thurs Fri Sat Sun  Start1 End1   Start2 End2   Start3 End3   Linked
+2        2020-01-01 2099-12-31  Y   Y   Y   Y     Y   Y   Y    05:00  22:00  05:00  17:00  00:00  00:00
+3        2020-01-01 2099-12-31  Y   Y   Y   Y     Y   Y   Y    05:00  22:00  05:00  17:00  00:00  00:00
+4        2020-01-01 2099-12-31  N   N   N   N     N   N   Y    17:45  18:00  00:00  00:00  00:00  00:00
+5        2020-01-01 2099-12-31  Y   Y   Y   Y     Y   Y   Y    05:00  17:00  00:00  00:00  00:00  00:00
+fsbhoa@access:~/fsbhoa_ac/wordpress_plugin/fsbhoa-access-control$ uhppote-cli get-cards 425043852
+15811171 2025-07-31 2099-12-31 N N N N
+15364678 2025-07-26 2099-12-31 Y Y Y Y
+16735030 2025-07-31 2099-12-31 4 5 2 3
+17659798 2025-07-28 2099-12-31 N 5 5 5
+
+Same test but with the Resident group disabled.
+fsbhoa@access:~/fsbhoa_ac/wordpress_plugin/fsbhoa-access-control$ uhppote-cli get-time-profiles 425043852
+
+-------------------------------------------
+TIME PROFILES 425043852 2025-08-02 09:22:59
+-------------------------------------------
+Profile  From       To          Mon Tue Wed Thurs Fri Sat Sun  Start1 End1   Start2 End2   Start3 End3   Linked
+2        2020-01-01 2099-12-31  Y   Y   Y   N     N   N   N    05:00  22:00  00:00  00:00  00:00  00:00
+3        2020-01-01 2099-12-31  N   N   N   Y     Y   N   N    05:00  22:00  00:00  00:00  00:00  00:00
+4        2020-01-01 2099-12-31  N   N   N   N     N   N   Y    17:45  18:00  00:00  00:00  00:00  00:00
+fsbhoa@access:~/fsbhoa_ac/wordpress_plugin/fsbhoa-access-control$ uhppote-cli get-cards 425043852
+15811171 2025-07-31 2099-12-31 N N N N
+15364678 2025-07-26 2099-12-31 Y Y Y Y
+16735030 2025-07-31 2099-12-31 4 N 2 3
+17659798 2025-07-28 2099-12-31 N N N N
 

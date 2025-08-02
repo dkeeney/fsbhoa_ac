@@ -1,14 +1,5 @@
 <?php
 /**
- * Renders the printable ID card preview and the interactive print/scan workflow UI.
- * This file is included by the [fsbhoa_print_card] shortcode handler.
- */
-
-if ( ! defined( 'WPINC' ) ) {
-    die;
-}
-
-/**
  * Main function to generate the print preview and workflow UI.
  */
 function fsbhoa_render_printable_card_view() {
@@ -33,6 +24,7 @@ function fsbhoa_render_printable_card_view() {
 
     // --- Prepare display variables ---
     $full_name = trim($cardholder['first_name'] . ' ' . $cardholder['last_name']);
+    $title = trim($cardholder['title']);
 
     $photo_src = !empty($cardholder['photo']) ? 'data:image/jpeg;base64,' . base64_encode($cardholder['photo']) : '';
     $expiration_text = '';
@@ -41,7 +33,7 @@ function fsbhoa_render_printable_card_view() {
     }
     ?>
 
-      <div class="fsbhoa-print-page-wrapper" data-debug-mode="<?php echo (get_option('fsbhoa_ac_print_debug_mode', 'off') === 'on') ? 'true' : 'false'; ?>">
+    <div class="fsbhoa-print-page-wrapper" data-debug-mode="<?php echo (get_option('fsbhoa_ac_print_debug_mode', 'off') === 'on') ? 'true' : 'false'; ?>">
         <div class="fsbhoa-print-columns">
 
             <div class="fsbhoa-card-preview-container">
@@ -54,14 +46,10 @@ function fsbhoa_render_printable_card_view() {
                             <?php endif; ?>
                         </div>
                         <div class="id-card-info">
-                            <?php
-                                // Parse the name specifically for the card display
-                                $first_name_parts = explode(' ', $cardholder['first_name']);
-                                $first_name_only = $first_name_parts[0];
-                                $last_name = $cardholder['last_name'];
-                            ?>
-                            <p class="card-name"><?php echo esc_html($first_name_only); ?></p>
-                            <p class="card-name"><?php echo esc_html($last_name); ?></p>
+                            <p class="card-name"><?php echo esc_html($full_name); ?></p>
+                            <?php if (!empty($title)): ?>
+                                <p class="card-title"><?php echo esc_html($title); ?></p>
+                            <?php endif; ?>
                             <?php if ($expiration_text): ?>
                                 <p class="card-expires">Expires: <?php echo esc_html($expiration_text); ?></p>
                             <?php endif; ?>
@@ -74,6 +62,9 @@ function fsbhoa_render_printable_card_view() {
                 <h3>Cardholder Details</h3>
                 <div class="details-box">
                     <p><strong>Name:</strong> <?php echo esc_html($full_name); ?></p>
+                    <?php if (!empty($title)): ?>
+                        <p><strong>Title:</strong> <?php echo esc_html($title); ?></p>
+                    <?php endif; ?>
                     <p><strong>Address:</strong> <?php echo esc_html($cardholder['street_address'] ?? 'N/A'); ?></p>
                     <p><strong>Phone:</strong> <?php echo esc_html($cardholder['phone'] ?? 'N/A'); ?></p>
                     <p><strong>Email:</strong> <?php echo esc_html($cardholder['email'] ?? 'N/A'); ?></p>
@@ -118,4 +109,3 @@ function fsbhoa_render_printable_card_view() {
     </div>
     <?php
 }
-

@@ -212,86 +212,65 @@ class Fsbhoa_Import_V2
     }
     
 
-private function parse_cardholders_from_row($row)
+    private function sync_property_occupants(&$new_cardholders_from_row, $existing_db_cardholders, $property_id, &$stats)
     {
-        $parsed_cardholders = [];
+        // Compare based on the formal import name, not the preferred display name
+        $new_full_names = array_map(function ($ch) { 
+            return strtolower(trim($ch['import_first_name'])) . ' ' . strtolower(trim($ch['import_last_name'])); 
+        }, $new_cardholders_from_row);
 
-        $owner1_first = $this->get_value_from_row($row, ['first name', 'firstname', 'first_name']);
-        $owner1_last  = $this->get_value_from_row($row, ['last name', 'lastname', 'last_name']);
+        foreach ($existing_db_cardholders as $db_cardholder) {
+            // Compare based on the formal import name stored in the database
+            $existing_full_name = strtolower(trim($db_cardholder->import_first_name)) . ' ' . strtolower(trim($db_cardholder->import_last_name));
+            
+            // If an existing person from an import is NOT in the new import file, delete them.
+            if (!in_array($existing_full_name, $new_full_names)) {
+                if ($db_cardholder->origin === 'import') {
+                    $result = fsbhoa_archive_and_delete_cardholder($db_cardholder->id);
 
-        $owner2_first = $this->get_value_from_row($row, ['second owner first name', 'secondownerfirstname', 'second_owner_first_name']);
-        $owner2_last  = $this->get_value_from_row($row, ['second owner last name', 'secondownerlastname', 'second_owner_last_name']);
-
-        $phones_str   = $this->get_value_from_row($row, ['phone', 'phonenumber']);
-        $phones_str_cleaned = str_replace(':', ',', $phones_str); // Also clean owner phones for colons
-        $owner_phones = !empty($phones_str_cleaned) ? array_map('trim', explode(',', $phones_str_cleaned)) : [];
-
-        $emails_str   = $this->get_value_from_row($row, ['email', 'emailaddress']);
-        $owner_emails = !empty($emails_str) ? array_map('trim', explode(',', $emails_str)) : [];
-
-
-        $tenant_names_str  = $this->get_value_from_row($row, ['tenant name(s)', 'tenantname(s)', 'tenant_name(s)']);
-        $tenant_emails_str = $this->get_value_from_row($row, ['tenant email(s)', 'tenantemail(s)', 'tenant_email(s)']);
-        $tenant_phones_str = $this->get_value_from_row($row, ['tenant phone(s)', 'tenantphone(s)', 'tenant_phone(s)']);
-
-        // Owner 1
-        if (!empty($owner1_first) && !empty($owner1_last)) {
-            $phones = !empty($phones_str) ? array_map('trim', explode(',', $phones_str)) : [];
-            $emails = !empty($emails_str) ? array_map('trim', explode(',', $emails_str)) : [];
-            $parsed_cardholders[] = [
-                'first_name'    => trim($owner1_first),
-                'last_name'     => trim($owner1_last),
-                'email'         => $emails[0] ?? '',
-                'phone'         => $this->normalize_phone($phones[0] ?? ''),
-                'resident_type' => 'Resident Owner',
-                'origin'        => 'import',
-            ];
-        }
-
-        // Owner 2
-        if (!empty($owner2_first) && !empty($owner2_last)) {
-            $phones = !empty($phones_str) ? array_map('trim', explode(',', $phones_str)) : [];
-            $emails = !empty($emails_str) ? array_map('trim', explode(',', $emails_str)) : [];
-            $parsed_cardholders[] = [
-                'first_name'    => trim($owner2_first),
-                'last_name'     => trim($owner2_last),
-                'email'         => $emails[1] ?? '',
-                'phone'         => $this->normalize_phone($phones[1] ?? ''),
-                'resident_type' => 'Resident Owner',
-                'origin'        => 'import',
-            ];
-        }
-
-        // Tenants
-        if (!empty($tenant_names_str)) {
-            $tenant_names  = array_map('trim', explode(',', $tenant_names_str));
-            $tenant_emails = !empty($tenant_emails_str) ? array_map('trim', explode(',', $tenant_emails_str)) : [];
-
-            // --- START: Phone parsing fix ---
-            // Replace colons with commas to handle more separator variations before exploding.
-            $tenant_phones_str_cleaned = str_replace(':', ',', $tenant_phones_str);
-            $tenant_phones = !empty($tenant_phones_str_cleaned) ? array_map('trim', explode(',', $tenant_phones_str_cleaned)) : [];
-            // --- END: Phone parsing fix ---
-
-            foreach ($tenant_names as $index => $name) {
-                $name_parts = array_filter(explode(' ', trim($name)));
-                if (count($name_parts) < 2) continue;
-
-                $last_name  = array_pop($name_parts);
-                $first_name = implode(' ', $name_parts);
-
-                $parsed_cardholders[] = [
-                    'first_name'    => $first_name,
-                    'last_name'     => $last_name,
-                    'email'         => $tenant_emails[$index] ?? '',
-                    'phone'         => $this->normalize_phone($tenant_phones[$index] ?? ''),
-                    'resident_type' => 'Tenant',
-                    'origin'        => 'import',
-                ];
+                    if (is_wp_error($result)) {
+                        $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": Could not archive '{$db_cardholder->first_name} {$db_cardholder->last_name}'. Reason: " . $result->get_error_message();
+                    } else {
+                        $stats['cardholders_deleted']++;
+                    }
+                }
+            }
+            
+            // If a manually created user exists, prevent the import from creating a duplicate.
+            if ($db_cardholder->origin !== 'import' && in_array(strtolower(trim($db_cardholder->first_name)) . ' ' . strtolower(trim($db_cardholder->last_name)), $new_full_names)) {
+                $new_cardholders_from_row = array_filter($new_cardholders_from_row, function($new_ch) use ($db_cardholder) {
+                    $new_ch_full_name = strtolower(trim($new_ch['first_name'])) . ' ' . strtolower(trim($new_ch['last_name']));
+                    return $new_ch_full_name !== strtolower(trim($db_cardholder->first_name)) . ' ' . strtolower(trim($db_cardholder->last_name));
+                });
             }
         }
-        return $parsed_cardholders;
+
+        $has_tenants = false;
+        foreach ($new_cardholders_from_row as $cardholder) { 
+            if ($cardholder['resident_type'] === 'Tenant') { 
+                $has_tenants = true; 
+                break; 
+            } 
+        }
+        if (!$has_tenants) {
+            foreach ($existing_db_cardholders as $db_cardholder) {
+                $existing_full_name = strtolower(trim($db_cardholder->first_name)) . ' ' . strtolower(trim($db_cardholder->last_name));
+                if ($db_cardholder->resident_type === 'Tenant' && in_array($existing_full_name, $new_full_names)) { 
+                    $has_tenants = true; 
+                    break; 
+                }
+            }
+        }
+        if ($has_tenants) {
+            foreach ($new_cardholders_from_row as &$cardholder) {
+                if ($cardholder['resident_type'] !== 'Tenant') {
+                    $cardholder['resident_type'] = 'Landlord';
+                }
+            }
+            unset($cardholder);
+        }
     }
+
 
     private function get_or_create_property($raw_address, &$stats)
     {
@@ -353,59 +332,25 @@ private function parse_cardholders_from_row($row)
         }
     }
 
-    private function get_cardholders_by_property($property_id) { return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->table_cardholders} WHERE property_id = %d", $property_id)); }
-    
-    private function sync_property_occupants(&$new_cardholders_from_row, $existing_db_cardholders, $property_id, &$stats)
-    {
-        $new_full_names = array_map(function ($ch) { return strtolower(trim($ch['first_name'])) . ' ' . strtolower(trim($ch['last_name'])); }, $new_cardholders_from_row);
-        foreach ($existing_db_cardholders as $db_cardholder) {
-            $existing_full_name = strtolower(trim($db_cardholder->first_name)) . ' ' . strtolower(trim($db_cardholder->last_name));
-            if (!in_array($existing_full_name, $new_full_names)) {
-                if ($db_cardholder->origin === 'import') {
-                    // Call the robust, global archive function.
-                    $result = fsbhoa_archive_and_delete_cardholder($db_cardholder->id);
-
-                    if (is_wp_error($result)) {
-                        // If archiving fails, log the specific error and do not increment the deleted count.
-                        $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": Could not archive '{$db_cardholder->first_name} {$db_cardholder->last_name}'. Reason: " . $result->get_error_message();
-                    } else {
-                        // Only increment the count if the archive was successful.
-                        $stats['cardholders_deleted']++;
-                    }
-                }
-            }
-            if ($db_cardholder->origin !== 'import' && in_array($existing_full_name, $new_full_names)) {
-                 $new_cardholders_from_row = array_filter($new_cardholders_from_row, function($new_ch) use ($existing_full_name) {
-                    $new_ch_full_name = strtolower(trim($new_ch['first_name'])) . ' ' . strtolower(trim($new_ch['last_name']));
-                    return $new_ch_full_name !== $existing_full_name;
-                });
-            }
-        }
-
-        $has_tenants = false;
-        foreach ($new_cardholders_from_row as $cardholder) { if ($cardholder['resident_type'] === 'Tenant') { $has_tenants = true; break; } }
-        if (!$has_tenants) {
-            foreach ($existing_db_cardholders as $db_cardholder) {
-                $existing_full_name = strtolower(trim($db_cardholder->first_name)) . ' ' . strtolower(trim($db_cardholder->last_name));
-                if ($db_cardholder->resident_type === 'Tenant' && in_array($existing_full_name, $new_full_names)) { $has_tenants = true; break; }
-            }
-        }
-        if ($has_tenants) {
-            foreach ($new_cardholders_from_row as &$cardholder) {
-                if ($cardholder['resident_type'] !== 'Tenant') { 
-                    $cardholder['resident_type'] = 'Landlord'; 
-                }
-            }
-            unset($cardholder);
-        }
+    private function get_cardholders_by_property($property_id) { 
+        return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->table_cardholders} WHERE property_id = %d", $property_id)); 
     }
-
+    
+    
     private function apply_changes_to_db($new_list, $property_id, &$stats)
     {
         foreach ($new_list as $cardholder_data) {
             $cardholder_data['property_id'] = $property_id;
-            $query = $this->wpdb->prepare("SELECT id, phone, email, resident_type FROM {$this->table_cardholders} WHERE first_name = %s AND last_name = %s AND property_id = %d", $cardholder_data['first_name'], $cardholder_data['last_name'], $property_id);
+            
+            // Find existing records using the IMPORT names as the key
+            $query = $this->wpdb->prepare(
+                "SELECT id, phone, email, resident_type, import_first_name, import_last_name FROM {$this->table_cardholders} WHERE import_first_name = %s AND import_last_name = %s AND property_id = %d",
+                $cardholder_data['import_first_name'],
+                $cardholder_data['import_last_name'],
+                $property_id
+            );
             $existing_record = $this->wpdb->get_row($query);
+            
             if ($this->wpdb->last_error) {
                 throw new Exception("DB error checking for cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}': " . $this->wpdb->last_error);
             }
@@ -413,40 +358,45 @@ private function parse_cardholders_from_row($row)
             if ($existing_record) {
                 // UPDATE existing record
                 $data_to_update = [];
-                $update_reasons = []; // For debugging
+
+                // Update contact info if changed
                 if ($existing_record->phone !== $cardholder_data['phone']) {
                     $data_to_update['phone'] = $cardholder_data['phone'];
-                    $update_reasons[] = "Phone changed from '{$existing_record->phone}' to '{$cardholder_data['phone']}'";
                 }
                 if ($existing_record->email !== $cardholder_data['email']) {
                     $data_to_update['email'] = $cardholder_data['email'];
-                    $update_reasons[] = "Email changed from '{$existing_record->email}' to '{$cardholder_data['email']}'";
                 }
+                
+                // Update resident type if changed
                 if ($existing_record->resident_type !== $cardholder_data['resident_type']) {
                     $data_to_update['resident_type'] = $cardholder_data['resident_type'];
-                    $update_reasons[] = "Resident Type changed from '{$existing_record->resident_type}' to '{$cardholder_data['resident_type']}'";
-                    // Only increment the count if the type is specifically changing TO 'Landlord'.
-                    if ( $cardholder_data['resident_type'] === 'Landlord' ) {
+                    if ($cardholder_data['resident_type'] === 'Landlord') {
                         $stats['landlords_identified']++;
                     }
                 }
-                if(!empty($data_to_update)) {
 
+                // Also update the import_name fields in case of a formal name change
+                if ($existing_record->import_first_name !== $cardholder_data['import_first_name']) {
+                    $data_to_update['import_first_name'] = $cardholder_data['import_first_name'];
+                }
+                if ($existing_record->import_last_name !== $cardholder_data['import_last_name']) {
+                    $data_to_update['import_last_name'] = $cardholder_data['import_last_name'];
+                }
+
+                if (!empty($data_to_update)) {
                     $result = $this->wpdb->update($this->table_cardholders, $data_to_update, ['id' => $existing_record->id]);
                     if ($result === false) {
                         throw new Exception("DB error updating cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}'. DB Error: " . $this->wpdb->last_error);
                     }
-
                     $stats['cardholders_updated']++;
                 }
             } else {
                 // INSERT new record
+                // The $cardholder_data array from parse_cardholders_from_row now contains all needed fields
                 $result = $this->wpdb->insert($this->table_cardholders, $cardholder_data);
-                // --- Added DB Error Check ---
                 if ($result === false) {
                     throw new Exception("DB error inserting cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}'. DB Error: " . $this->wpdb->last_error);
                 }
-
                 $stats['cardholders_created']++;
             }
         }

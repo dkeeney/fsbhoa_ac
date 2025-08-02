@@ -6,8 +6,12 @@
 if (!defined('WPINC')) {
     die;
 }
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
 
 add_action('fsbhoa_run_background_sync', 'fsbhoa_perform_full_sync');
+
+
+
 
 /**
  * Performs the main sync logic. Queries the DB and loops through hardware.
@@ -22,6 +26,14 @@ function fsbhoa_perform_full_sync() {
     global $wpdb;
 
     // --- Get all necessary data from the database ---
+    $permission_data = fsbhoa_get_all_permission_data();
+    if ($permission_data === false) {
+        if (defined('FSBHOA_DEBUG_MODE') && FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: DB Error fetching permission data."); }
+        // Set a failed status
+        update_option('fsbhoa_sync_final_status', ['status' => 'failed', 'message' => 'Error fetching permission data from the database.']);
+        return;
+    }
+
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers WHERE ip_address IS NOT NULL AND ip_address != ''");
     $cardholders = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status IN ('active', 'disabled') AND resident_type != 'Landlord'");
     $tasks = $wpdb->get_results("SELECT * FROM ac_task_list WHERE enabled = 1");
@@ -56,18 +68,19 @@ function fsbhoa_perform_full_sync() {
         $listen_host = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
         $listen_port = get_option('fsbhoa_ac_listen_port', '60002');
         $listen_address = $listen_host . ':' . $listen_port;
-        $base_command = sprintf(
-            'uhppote-cli --bind %s --broadcast %s --listen %s',
-            escapeshellarg(get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0')),
-            escapeshellarg(get_option('fsbhoa_ac_broadcast_addr', '0.0.0.0:0')),
-            escapeshellarg($listen_address)
-        );
+
+
+        // Build and Sync Permission Time Profiles for this controller.
+        $unique_schedules = fsbhoa_build_unique_schedules_for_controller($db_cards, $permission_data);
+        $profile_map = fsbhoa_sync_time_profiles($device_id, $unique_schedules);
+
 
         // --- Card Deletion Logic ---
         set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking for cards to delete on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
         $controller_cards = [];
-        $get_cards_command = sprintf('%s get-cards %s', $base_command, escapeshellarg($device_id));
+        $get_cards_command = sprintf('uhppote-cli get-cards %s', $device_id);
         $cards_output = shell_exec($get_cards_command . " 2>&1");
+ 
         if (!empty($cards_output)) {
             $lines = explode("\n", trim($cards_output));
             foreach ($lines as $line) {
@@ -79,15 +92,19 @@ function fsbhoa_perform_full_sync() {
             }
 	}
         $cards_to_delete = array_diff_key($controller_cards, $db_cards);
-error_log('SYNC DEBUG - DB Cards: ' . print_r(array_keys($db_cards), true));
-error_log('SYNC DEBUG - Controller Cards: ' . print_r(array_keys($controller_cards), true));
-error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete), true));
+//error_log('SYNC DEBUG - DB Cards: ' . print_r(array_keys($db_cards), true));
+//error_log('SYNC DEBUG - Controller Cards: ' . print_r(array_keys($controller_cards), true));
+//error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete), true));
         if (!empty($cards_to_delete)) {
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Found " . count($cards_to_delete) . " card(s) to delete on '$friendly_name'."); }
             foreach ($cards_to_delete as $card_to_del) {
                 if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: >>> Deleting Card #{$card_to_del} from '$friendly_name'"); }
-                $delete_card_command = sprintf('%s delete-card %s %d', $base_command, escapeshellarg($device_id), $card_to_del);
-                shell_exec($delete_card_command . " 2>&1");
+                $delete_card_command = sprintf('uhppote-cli delete-card %s %d',  $device_id, $card_to_del);
+                $delete_output = shell_exec($delete_card_command . " 2>&1");
+                //if (defined('FSBHOA_DEBUG_MODE') && FSBHOA_DEBUG_MODE && !empty(trim($delete_output))) {
+                //    error_log("SYNC SERVICE: Response from deleting Card #{$card_to_del}: " . trim($delete_output));
+                //}
+ 
             }
         } else {
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: No cards need to be deleted from '$friendly_name'."); }
@@ -98,32 +115,30 @@ error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete
         foreach ($db_cards as $card_number => $cardholder) {
             $card_count++;
             set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking card $card_count/" . count($db_cards) . " on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
-
-
+            $permissions_string = fsbhoa_build_card_permissions_string($cardholder, $permission_data, $profile_map);
             $put_card_command = sprintf(
-                '%s put-card %s %d %s %s',
-                $base_command,
-                escapeshellarg($device_id),
+                'uhppote-cli put-card %s %d %s %s %s',
+                $device_id,
                 $card_number,
-                escapeshellarg($cardholder->card_issue_date ?? '2000-01-01'),
-                escapeshellarg($cardholder->card_expiry_date)
+                $cardholder->card_issue_date ?? '2000-01-01',
+                $cardholder->card_expiry_date,
+                $permissions_string
             );
-            if ($cardholder->card_status === 'active') {
-               $permissions_string = '1:Y,2:Y,3:Y,4:Y'; // Grant full access only if active
-               $put_card_command .= ' ' . escapeshellarg($permissions_string);
-            }
 
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $put_card_command); }
             $put_output = shell_exec($put_card_command . " 2>&1");
             if (FSBHOA_DEBUG_MODE && strpos($put_output, 'ERROR') !== false) {
-                error_log("SYNC SERVICE: ERROR pushing Card #{$card_number}. Response: " . $put_output);
+                error_log("SYNC SERVICE: ERROR put Card #{$card_number}. Response: " . $put_output);
             }
         }
 
         // --- Task Synchronization Logic ---
         if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Using uhppote-cli to sync tasks for '$friendly_name'..."); }
-        $clear_command = sprintf('uhppote-cli --debug clear-task-list %s', escapeshellarg($device_id));
-        shell_exec($clear_command . " 2>&1");
+        $clear_command = sprintf('uhppote-cli --debug clear-task-list %s', $device_id);
+        $clear_output = shell_exec($clear_command . " 2>&1");
+        if (FSBHOA_DEBUG_MODE && strpos($clear_output, 'ERROR') !== false) {
+            error_log("SYNC SERVICE: ERROR clear-task-list. Response: " . $clear_output);
+        }
 
         $tasks_pushed_count = 0;
         foreach ($tasks as $task) {
@@ -140,17 +155,20 @@ error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete
 
                 foreach ($doors_to_set as $door) {
                     $add_task_command = sprintf(
-                        'uhppote-cli --debug add-task %s %d %d %s %s %s %s',
-                        escapeshellarg($device_id),
+                        'uhppote-cli add-task %s %d %d %s %s %s %s',
+                        $device_id,
                         $door,
                         intval($task->task_type),
-                        escapeshellarg($task->valid_from . ':' . $task->valid_to),
-                        escapeshellarg($weekdays),
-                        escapeshellarg(substr($task->start_time, 0, 5)),
-                        escapeshellarg('0')
+                        $task->valid_from . ':' . $task->valid_to,
+                        $weekdays,
+                        substr($task->start_time, 0, 5),
+                        '0'
                     );
                     if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $add_task_command); }
-                    shell_exec($add_task_command . " 2>&1");
+                    $output = shell_exec($add_task_command . " 2>&1");
+                    if (FSBHOA_DEBUG_MODE && strpos($output, 'ERROR') !== false) {
+                        error_log("SYNC SERVICE: ERROR add-task Response: " . $output);
+                    }
                 }
                 $tasks_pushed_count++;
             }
@@ -274,5 +292,4 @@ function fsbhoa_verify_tasks_on_controller($device_id, $expected_tasks) {
 
     return true;
 }
-
 
