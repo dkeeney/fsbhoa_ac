@@ -19,7 +19,7 @@ var FSBHOA_Croppie = (function($) {
         
         croppieInstance = new Croppie(containerElement, {
             viewport: { width: vpw, height: vph },
-            boundary: { width: 350, height: 400 },
+            //boundary: { width: 350, height: 400 },
             showZoomer: true,
             enableOrientation: true
         });
@@ -42,7 +42,7 @@ var FSBHOA_Croppie = (function($) {
             cropperDialog.dialog({
                 autoOpen: false,
                 resizable: true,
-                height: 550,
+                height: 650,
                 width: 450,
                 modal: true,
                 classes: { "ui-dialog": "wp-dialog" },

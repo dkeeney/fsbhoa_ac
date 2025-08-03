@@ -70,7 +70,30 @@ table.dataTable th.select-checkbox.selected::after {
 /* Photo section layout */
 #fsbhoa_photo_section .form-row { align-items: flex-start; }
 #fsbhoa_main_photo_preview_area { flex-shrink: 0; }
-#fsbhoa-cropper-image-container { width: 100%; height: 450px; }
+#fsbhoa-cropper-image-container { width: 100%; height: 450px; position: relative; }
 
 
+/* This forces Croppie's container to a higher layer to ensure
+   it can receive mouse events inside a jQuery UI Dialog. */
+#fsbhoa-cropper-image-container {
+    z-index: 1;
+}
 
+/* --- Croppie Click-Through Fix --- */
+/* This allows mouse events to "pass through" the viewport to the
+   draggable image underneath it, fixing the drag issue. */
+.cr-viewport {
+    pointer-events: none;
+}
+
+
+/* --- Croppie Viewport Centering Fix --- */
+/* This overrides conflicting styles (like flexbox from the parent form)
+   and forces the crop window back into the center of its container. */
+#fsbhoa-cropper-image-container .cr-viewport {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 2000px 2000px rgba(0, 0, 0, 0.55);
+}
