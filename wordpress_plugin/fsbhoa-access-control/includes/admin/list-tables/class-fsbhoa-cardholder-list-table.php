@@ -89,6 +89,7 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
         }
     }
 
+
     public function column_full_name( $item ) {
         $name_parts = array();
         if ( ! empty( $item['first_name'] ) ) $name_parts[] = $item['first_name'];
@@ -135,10 +136,11 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
         return $sortable_columns;
     }
 
+
+
     public function prepare_items() {
-        // ... (This method should be fine as it was, ensure version number used for per_page option is current)
         $this->_column_headers = array($this->get_columns(), array() , $this->get_sortable_columns(), $this->get_primary_column_name());
-        $per_page_option_name = 'cardholders_per_page'; // Make sure this is unique if used elsewhere
+        $per_page_option_name = 'cardholders_per_page';
         $per_page     = $this->get_items_per_page( $per_page_option_name, 20 );
         $current_page = $this->get_pagenum();
         $total_items  = self::record_count();

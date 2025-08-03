@@ -9,7 +9,7 @@ function fsbhoa_render_cardholder_list_view() {
     $cardholders = class_exists('Fsbhoa_Cardholder_List_Table') ? Fsbhoa_Cardholder_List_Table::get_cardholders(999, 1, 'last_name', 'asc') : array();
     $current_page_url = get_permalink(); 
     ?>
-    <div id="fsbhoa-cardholder-management-wrap" class="fsbhoa-frontend-wrap">
+    <div id="fsbhoa-cardholder-management-wrap" class="fsbhoa-frontend-wrap" data-export-nonce="<?php echo wp_create_nonce('fsbhoa_export_nonce'); ?>">
         <h1><?php echo esc_html__( 'Cardholder Management', 'fsbhoa-ac' ); ?></h1>
         
         <?php if (isset($_GET['message'])) : ?>
@@ -41,6 +41,8 @@ function fsbhoa_render_cardholder_list_view() {
 			    <?php echo esc_html__( 'Manage Properties', 'fsbhoa-ac' ); ?>
 		    </a>
 		    <button id="fsbhoa-sync-all-button" class="button button-secondary" style="margin-left: 5px;">Sync All Controllers</button>
+                    <button id="fsbhoa-export-selected-button" class="button button-secondary" style="margin-left: 5px;">Export Selected (.csv)</button>
+
 		    <span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
 
             <!-- Right Side: Container for Entries and Search -->
@@ -66,6 +68,7 @@ function fsbhoa_render_cardholder_list_view() {
         <table id="fsbhoa-cardholder-table" class="display" style="width:100%">
             <thead>
                 <tr>
+                    <th class="no-sort fsbhoa-checkbox-column"></th> 
                     <th class="no-sort fsbhoa-actions-column"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Name', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Property', 'fsbhoa-ac' ); ?></th>
@@ -76,7 +79,9 @@ function fsbhoa_render_cardholder_list_view() {
             </thead>
             <tbody>
                 <?php if ( ! empty($cardholders) ) : foreach ( $cardholders as $cardholder ) : ?>
-                    <tr>
+                    <tr data-cardholder-id="<?php echo esc_attr($cardholder['id']); ?>">
+                        <td class="fsbhoa-checkbox-column">
+                        </td>
                         <td class="fsbhoa-actions-column">
                             <?php
                             $edit_url = add_query_arg(array('action' => 'edit_cardholder', 'cardholder_id' => absint($cardholder['id'])), $current_page_url);
@@ -119,7 +124,7 @@ function fsbhoa_render_cardholder_list_view() {
                         </td>
                     </tr>
                 <?php endforeach; else : ?>
-                    <tr><td colspan="5"><?php esc_html_e( 'No cardholders found.', 'fsbhoa-ac' ); ?></td></tr>
+                    <tr><td colspan="6"><?php esc_html_e( 'No cardholders found.', 'fsbhoa-ac' ); ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

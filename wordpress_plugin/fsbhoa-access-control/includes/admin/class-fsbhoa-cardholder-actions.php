@@ -19,6 +19,7 @@ class Fsbhoa_Cardholder_Actions {
         add_action('admin_post_fsbhoa_delete_cardholder', array($this, 'handle_delete_cardholder_action'));
         add_action('admin_post_fsbhoa_do_add_cardholder', array($this, 'handle_add_or_update_cardholder'));
         add_action('admin_post_fsbhoa_do_update_cardholder', array($this, 'handle_add_or_update_cardholder'));
+        add_action('admin_post_fsbhoa_export_selected', array($this, 'handle_export_selected'));        
     }
 
     public function ajax_search_properties_callback() {
@@ -266,5 +267,90 @@ class Fsbhoa_Cardholder_Actions {
                 }
             }
         }
+    }
+
+/**
+     * Handles the CSV export for selected cardholders.
+     */
+    public function handle_export_selected() {
+        if ( empty( $_POST['cardholder'] ) ) {
+            return;
+        }
+
+        $nonce = isset($_POST['_wpnonce']) ? $_POST['_wpnonce'] : '';
+        if ( ! wp_verify_nonce($nonce, 'fsbhoa_export_nonce') ) {
+            wp_die( 'Security check failed. Please go back and try again.' );
+        }
+
+        $cardholder_ids = array_map('absint', $_POST['cardholder']);
+        if ( empty( $cardholder_ids ) ) {
+            return;
+        }
+
+        global $wpdb;
+        $cardholders_table = 'ac_cardholders';
+        $properties_table = 'ac_property';
+        $groups_table = 'ac_groups';
+        $memberships_table = 'ac_cardholder_groups';
+        
+        $default_group_names = $wpdb->get_col("SELECT group_name FROM {$groups_table} WHERE is_default = 1");
+
+        $ids_string = implode( ',', $cardholder_ids );
+        $sql = "
+            SELECT c.*, p.street_address 
+            FROM {$cardholders_table} c
+            LEFT JOIN {$properties_table} p ON c.property_id = p.property_id
+            WHERE c.id IN ({$ids_string})
+        ";
+
+        //error_log("EXPORT SQL DEBUG: The generated SQL is: " . $sql);
+
+        $items_to_export = $wpdb->get_results( $sql, ARRAY_A );
+
+        //error_log("EXPORT DEBUG 1: Initial records fetched from DB: " . count($items_to_export));
+        
+        if ($wpdb->last_error) {
+            wp_die('Database error while fetching cardholders for export: ' . esc_html($wpdb->last_error));
+        }
+        if ( empty( $items_to_export ) ) {
+            return;
+        }
+        
+        foreach ($items_to_export as $key => $item) {
+            $groups_query = $wpdb->prepare("
+                SELECT g.group_name
+                FROM {$groups_table} g
+                JOIN {$memberships_table} cg ON g.group_id = cg.group_id
+                WHERE cg.cardholder_id = %d
+            ", $item['id']);
+            
+            $explicit_group_names = $wpdb->get_col($groups_query);
+            $all_group_names = array_merge($default_group_names, $explicit_group_names);
+            $items_to_export[$key]['groups'] = implode(', ', array_unique($all_group_names));
+        }
+
+        $filename = 'cardholder-export-' . date('Y-m-d') . '.csv';
+
+        header( 'Content-Type: text/csv' );
+        header( 'Content-Disposition: attachment; filename=' . $filename );
+
+        $output = fopen( 'php://output', 'w' );
+        
+        $headers = array_keys( $items_to_export[0] );
+        $photo_key = array_search('photo', $headers);
+        if ($photo_key !== false) {
+            unset($headers[$photo_key]);
+        }
+        fputcsv( $output, $headers );
+
+        foreach ( $items_to_export as $item ) {
+            if ( isset( $item['photo'] ) ) {
+                unset( $item['photo'] );
+            }
+            fputcsv( $output, $item );
+        }
+
+        fclose( $output );
+        exit();
     }
 }

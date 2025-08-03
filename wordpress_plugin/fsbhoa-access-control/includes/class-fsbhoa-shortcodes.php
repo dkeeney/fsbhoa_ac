@@ -89,6 +89,8 @@ class Fsbhoa_Shortcodes {
         // Load the local DataTables files from the new vendor directory.
         wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
         wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
+        wp_enqueue_style('datatables-select-css', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/select.dataTables.css', ['datatables-css']);
+        wp_enqueue_script('datatables-select', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.select.js', ['jquery', 'datatables-script'], '2.0.2', true);
 
         $app_script_handle = 'fsbhoa-cardholder-admin-script';
         wp_enqueue_style('wp-jquery-ui-dialog');
@@ -136,7 +138,7 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
 
         $photo_settings = array('width'  => get_option('fsbhoa_ac_photo_width', 640), 'height' => get_option('fsbhoa_ac_photo_height', 800));
         wp_localize_script($app_script_handle, 'fsbhoa_photo_settings', $photo_settings);
-        $ajax_settings = array('ajax_url' => admin_url('admin-ajax.php'), 'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'));
+        $ajax_settings = array('ajax_url' => admin_url('admin-ajax.php'), 'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'), 'export_nonce' => wp_create_nonce('fsbhoa_export_nonce'));
         wp_localize_script($app_script_handle, 'fsbhoa_ajax_settings', $ajax_settings);
 
         wp_enqueue_style('fsbhoa-property-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-property-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);

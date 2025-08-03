@@ -95,6 +95,19 @@ jQuery(function($) {
                 "dom": 'tip', // 't' = table, 'i' = info, 'p' = pagination
                 "pageLength": 100,       // Set a default page length
                 "stateSave": false,      //  This makes the setting sticky
+                // --- OPTIONS FOR BULK SELECTION for export ---
+                "columnDefs": [ {
+                    "targets": 0, // Target the first column
+                    "orderable": false,
+                    "className": 'select-checkbox',
+                    "data": null,
+                    "defaultContent": ''
+                } ],
+                "select": {
+                    "style": 'multi+shift', // allow multiple rows to be selected (shift-click enabled)
+                    "selector": 'td:first-child'
+                },
+                "order": [[ 2, 'asc' ]] // Default sort by the Name column (now index 2)
 
              });
         },
@@ -112,6 +125,45 @@ jQuery(function($) {
             $('#fsbhoa-custom-length-menu').on('change', (e) => {
                 this.dataTableInstance.page.len(e.target.value).draw();
             });
+
+            // *** START: CODE FOR EXPORT BUTTON ***
+            $('#fsbhoa-export-selected-button').on('click', (e) => {
+                e.preventDefault();
+                
+                // Use the DataTables API to get the DOM nodes of the selected rows
+                const selectedNodes = this.dataTableInstance.rows({ selected: true }).nodes();
+                const ids = [];
+
+                // Use a standard 'for' loop for robust iteration
+                for (let i = 0; i < selectedNodes.length; i++) {
+                    const id = $(selectedNodes[i]).data('cardholder-id');
+                    if (id) {
+                        ids.push(id);
+                    }
+                }
+
+                
+                if (ids.length === 0) {
+                    alert('Please select at least one cardholder to export.');
+                    return;
+                }
+                
+                const exportNonce = fsbhoa_ajax_settings.export_nonce;
+                const adminPostUrl = fsbhoa_ajax_settings.ajax_url.replace('admin-ajax.php', 'admin-post.php');
+                const form = $('<form>', { 'method': 'POST', 'action': adminPostUrl });
+
+                form.append($('<input>', { 'type': 'hidden', 'name': 'action', 'value': 'fsbhoa_export_selected' }));
+                form.append($('<input>', { 'type': 'hidden', 'name': '_wpnonce', 'value': exportNonce }));
+                
+                ids.forEach(id => {
+                    form.append($('<input>', { 'type': 'hidden', 'name': 'cardholder[]', 'value': id }));
+                });
+
+                $('body').append(form);
+                form.submit();
+                form.remove();
+            });
+            // *** END: CODE FOR EXPORT BUTTON ***
         },
 
 
