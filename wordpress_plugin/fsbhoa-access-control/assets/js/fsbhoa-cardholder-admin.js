@@ -164,6 +164,56 @@ jQuery(function($) {
                 form.remove();
             });
             // *** END: CODE FOR EXPORT BUTTON ***
+
+            // *** START: CODE FOR PRINT REPORT BUTTON ***
+            $('#fsbhoa-print-report-button').on('click', (e) => {
+                e.preventDefault();
+                
+                const selectedNodes = this.dataTableInstance.rows({ selected: true }).nodes();
+                const ids = [];
+
+                for (let i = 0; i < selectedNodes.length; i++) {
+                    const id = $(selectedNodes[i]).data('cardholder-id');
+                    if (id) {
+                        ids.push(id);
+                    }
+                }
+                
+                if (ids.length === 0) {
+                    alert('Please select at least one cardholder to print a report for.');
+                    return;
+                }
+                
+                // --- Get the current sort order from the DataTable instance ---
+                const order = this.dataTableInstance.order()[0]; // e.g., [2, 'asc']
+                const orderColumnIndex = order[0];
+                const orderDirection = order[1];
+
+                const printNonce = fsbhoa_ajax_settings.print_report_nonce;
+                const adminPostUrl = fsbhoa_ajax_settings.ajax_url.replace('admin-ajax.php', 'admin-post.php');
+
+                const form = $('<form>', {
+                    'method': 'POST',
+                    'action': adminPostUrl,
+                    'target': '_blank'
+                });
+
+                form.append($('<input>', { 'type': 'hidden', 'name': 'action', 'value': 'fsbhoa_print_report' }));
+                form.append($('<input>', { 'type': 'hidden', 'name': '_wpnonce', 'value': printNonce }));
+                
+                // --- NEW: Add the sort order to the form submission ---
+                form.append($('<input>', { 'type': 'hidden', 'name': 'orderby_col', 'value': orderColumnIndex }));
+                form.append($('<input>', { 'type': 'hidden', 'name': 'order_dir', 'value': orderDirection }));
+
+                ids.forEach(id => {
+                    form.append($('<input>', { 'type': 'hidden', 'name': 'cardholder_ids[]', 'value': id }));
+                });
+
+                $('body').append(form);
+                form.submit();
+                form.remove();
+            });
+            // *** END:  CODE FOR PRINT REPORT BUTTON ***
         },
 
 

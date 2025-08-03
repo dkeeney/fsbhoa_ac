@@ -1,6 +1,6 @@
 
 
-- Export Cardholder List: Add a feature to the cardholder list page to export the currently filtered and sorted view as a .csv file.
+- import Cardholder List: Add a feature to import selected cardholder from a previously exported cardholder .csv file.
 
 - UI Cleanup: General improvements to the look and feel of the plugin pages.
 

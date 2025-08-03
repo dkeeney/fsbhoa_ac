@@ -17,6 +17,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_usage_analytics', array( $this, 'render_analytics_shortcode' ) );
         add_shortcode( 'fsbhoa_amenity_management', array( $this, 'render_amenity_management_shortcode' ) );
         add_shortcode( 'fsbhoa_groups_page', [$this, 'render_groups_page']);
+        add_shortcode( 'fsbhoa_cardholder_report', array( $this, 'render_cardholder_report_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
     }
 
@@ -78,9 +79,11 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_usage_analytics' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_amenity_management' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_groups_page' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' )
             ) ) {
             return;
         }
+
 
         wp_enqueue_script('jquery');
         wp_enqueue_style('dashicons');
@@ -138,7 +141,11 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
 
         $photo_settings = array('width'  => get_option('fsbhoa_ac_photo_width', 640), 'height' => get_option('fsbhoa_ac_photo_height', 800));
         wp_localize_script($app_script_handle, 'fsbhoa_photo_settings', $photo_settings);
-        $ajax_settings = array('ajax_url' => admin_url('admin-ajax.php'), 'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'), 'export_nonce' => wp_create_nonce('fsbhoa_export_nonce'));
+        $ajax_settings = array('ajax_url' => admin_url('admin-ajax.php'), 
+                               'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'), 
+                               'export_nonce' => wp_create_nonce('fsbhoa_export_nonce'), 
+                               'print_report_nonce' => wp_create_nonce('fsbhoa_print_report_nonce'));
+
         wp_localize_script($app_script_handle, 'fsbhoa_ajax_settings', $ajax_settings);
 
         wp_enqueue_style('fsbhoa-property-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-property-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
@@ -201,6 +208,16 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
 
         if ( has_shortcode( $post->post_content, 'fsbhoa_amenity_management' ) ) {
             wp_enqueue_style('fsbhoa-amenity-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-amenity-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+        }
+
+        // --- Load styles specifically for the print report page ---
+        if ( has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' ) ) {
+            wp_enqueue_style(
+                'fsbhoa-print-report-styles', 
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-print-report-styles.css', 
+                array('fsbhoa-shared-styles'), 
+                FSBHOA_AC_PLUGIN_VERSION
+            );
         }
     }
 
@@ -351,6 +368,20 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
         } else {
             return '<div class="error"><p>' . esc_html__('Error: The Groups Admin Page class was not found.', 'fsbhoa-ac') . '</p></div>';
         }
+    }
+
+    /**
+     * Renders the printable report page for selected cardholders.
+     */
+    public function render_cardholder_report_shortcode( $atts ) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have permission to view this page.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        ob_start();
+        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/view-cardholder-report.php';
+        fsbhoa_render_cardholder_report_view();
+        return ob_get_clean();
     }
 }
 

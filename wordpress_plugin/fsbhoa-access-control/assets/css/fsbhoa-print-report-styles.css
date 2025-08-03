@@ -1,0 +1,59 @@
+/* Hide the default theme page title on the Cardholder Report screen */
+body.page-id-111 .entry-title,
+body.fsbhoa-report-page .entry-title {
+    display: none !important;
+}
+
+/* On-screen styles */
+.fsbhoa-print-report-wrap { max-width: 8.5in; margin: 2em auto; }
+.report-instructions { font-style: italic; text-align: center; margin-bottom: 2em; }
+.report-actions { margin-bottom: 2em; text-align: center; }
+.cardholder-report-sheet { border: 1px solid #ccc; padding: 20px 30px; margin-bottom: 40px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.cardholder-report-sheet h2 { margin-top: 0; border-bottom: 2px solid #000; padding-bottom: 10px; }
+.report-sub-title { font-style: italic; color: #555; margin-top: -5px; margin-bottom: 2em; }
+.report-section { display: flex; gap: 20px; margin-bottom: 1.5em; border-bottom: 1px dotted #eee; padding-bottom: 1.5em; }
+.report-field { flex: 1; }
+.report-field.full-width { flex-basis: 100%; }
+.report-field label { display: block; font-weight: bold; font-size: 0.8em; color: #555; margin-bottom: 5px; }
+.report-field span { font-size: 1.1em; }
+
+/* ==========================================================================
+   PRINT-ONLY STYLES
+   ========================================================================== */
+@media print {
+    /* 1. Hide EVERYTHING on the page by default */
+    body * {
+        visibility: hidden;
+    }
+
+    /* 2. Now, make ONLY our report wrapper and everything inside it visible again */
+    .fsbhoa-print-report-wrap, .fsbhoa-print-report-wrap * {
+        visibility: visible;
+    }
+
+    /* 3. Position our wrapper at the very top-left of the printed page */
+    .fsbhoa-print-report-wrap {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: none;
+    }
+    
+    /* 4. Re-hide the on-screen action buttons */
+    .report-actions {
+        display: none !important;
+    }
+
+    .cardholder-report-sheet {
+        page-break-after: always; /* Each report starts on a new page */
+        box-shadow: none;
+        border: none;
+    }
+
+    .cardholder-report-sheet:last-of-type {
+        page-break-after: auto; /* Prevent a blank page at the end */
+    }
+}

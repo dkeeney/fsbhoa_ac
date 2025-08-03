@@ -42,6 +42,7 @@ function fsbhoa_render_cardholder_list_view() {
 		    </a>
 		    <button id="fsbhoa-sync-all-button" class="button button-secondary" style="margin-left: 5px;">Sync All Controllers</button>
                     <button id="fsbhoa-export-selected-button" class="button button-secondary" style="margin-left: 5px;">Export Selected (.csv)</button>
+                    <button id="fsbhoa-print-report-button" class="button button-secondary" style="margin-left: 5px;">Print Selected</button>
 
 		    <span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
 

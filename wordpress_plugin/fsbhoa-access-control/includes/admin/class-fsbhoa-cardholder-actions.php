@@ -20,6 +20,7 @@ class Fsbhoa_Cardholder_Actions {
         add_action('admin_post_fsbhoa_do_add_cardholder', array($this, 'handle_add_or_update_cardholder'));
         add_action('admin_post_fsbhoa_do_update_cardholder', array($this, 'handle_add_or_update_cardholder'));
         add_action('admin_post_fsbhoa_export_selected', array($this, 'handle_export_selected'));        
+        add_action('admin_post_fsbhoa_print_report', array($this, 'handle_print_report'));
     }
 
     public function ajax_search_properties_callback() {
@@ -352,5 +353,42 @@ class Fsbhoa_Cardholder_Actions {
 
         fclose( $output );
         exit();
+    }
+
+
+    /**
+     * Handles the submission for the "Print Report" bulk action.
+     * It saves the selected cardholder IDs to a transient and redirects to the print page.
+     */
+    public function handle_print_report() {
+        // 1. Verify the security nonce.
+        check_admin_referer('fsbhoa_print_report_nonce');
+
+        // 2. Get and sanitize the array of cardholder IDs.
+        if (empty($_POST['cardholder_ids']) || !is_array($_POST['cardholder_ids'])) {
+            wp_die('Error: No cardholders were selected. Please go back and select at least one.');
+        }
+        $cardholder_ids = array_map('absint', $_POST['cardholder_ids']);
+
+        // 3. Get and sanitize the sort order variables.
+        $orderby_col = isset($_POST['orderby_col']) ? absint($_POST['orderby_col']) : 2; // Default to column 2 (Name)
+        $order_dir = isset($_POST['order_dir']) && in_array(strtolower($_POST['order_dir']), ['asc', 'desc']) ? strtolower($_POST['order_dir']) : 'asc';
+
+        // 4. Get the URL of our "Cardholder Pages" page.
+        $print_page_url = get_permalink(get_page_by_path('cardholder-pages'));
+        if (!$print_page_url) {
+            wp_die('Configuration Error: The "Cardholder Pages" page has not been created in WordPress.');
+        }
+
+        // 5. Add all parameters to the URL.
+        $url_with_params = add_query_arg(array(
+            'selected_ids' => implode(',', $cardholder_ids),
+            'orderby_col'  => $orderby_col,
+            'order_dir'    => $order_dir
+        ), $print_page_url);
+
+        // 6. Redirect the user's browser to the new URL.
+        wp_safe_redirect($url_with_params);
+        exit;
     }
 }
