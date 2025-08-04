@@ -24,7 +24,6 @@ $toggle_url = wp_nonce_url(admin_url('admin-post.php?action=fsbhoa_toggle_group_
 
 ?>
 <tr class="<?php if ($is_child) echo 'child-row'; ?>">
-    <th scope="row" class="check-column"><input type="checkbox" name="group_ids[]" value="<?php echo esc_attr($item->group_id); ?>"></th>
     <td class="actions-column">
         <a href="<?php echo esc_url($edit_url); ?>" title="Edit Group"><span class="dashicons dashicons-edit"></span></a>
         <a href="<?php echo esc_url($delete_url); ?>" title="Delete Group" onclick="return confirm('Are you sure you want to permanently delete this group?');" class="delete-link"><span class="dashicons dashicons-trash"></span></a>
@@ -57,6 +56,10 @@ $toggle_url = wp_nonce_url(admin_url('admin-post.php?action=fsbhoa_toggle_group_
             // For a child group, members are inherited, so we don't show a count.
             if ($is_child) {
                 echo '<em>(Inherited)</em>';
+            } elseif ($item->is_default) {
+                // For the default group, all cardholders are members implicitly.
+                $member_count = $wpdb->get_var("SELECT COUNT(*) FROM ac_cardholders");
+                echo absint($member_count);
             } else {
                 $member_count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ac_cardholder_groups WHERE group_id = %d", $item->group_id));
                 echo absint($member_count);

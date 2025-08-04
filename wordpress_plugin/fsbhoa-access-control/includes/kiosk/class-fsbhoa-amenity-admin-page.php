@@ -25,7 +25,16 @@ class Fsbhoa_Amenity_Admin_Page {
         $edit_id = (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['amenity_id'])) ? absint($_GET['amenity_id']) : 0;
         $this->render_form_page($edit_id);
         $this->render_list_page();
+
+        ?>
+        <style>
+            .fsbhoa-amenity-page {
+                max-width: 650px  !important;
+            }
+        </style>
+        <?php
     }
+
 
     private function render_list_page() {
         global $wpdb;
@@ -43,7 +52,6 @@ class Fsbhoa_Amenity_Admin_Page {
                     <tr>
                         <th style="width: 50px;">Image</th>
                         <th>Name</th>
-                        <th style="width: 50px;">Status</th>
                         <th style="width: 160px;">Actions</th>
                     </tr>
                 </thead>
@@ -56,40 +64,64 @@ class Fsbhoa_Amenity_Admin_Page {
                                 <?php endif; ?>
                             </td>
                             <td><?php echo esc_html($amenity->name); ?></td>
-                            <td><?php echo $amenity->is_active ? 'Active' : 'Inactive'; ?></td>
                             <td class="fsbhoa-actions-column">
                                 <?php
                                 $page_url = get_permalink();
                                 // Reorder links
-                                $up_nonce = wp_create_nonce('fsbhoa_move_up_nonce_' . $amenity->id);
-                                $down_nonce = wp_create_nonce('fsbhoa_move_down_nonce_' . $amenity->id);
+                                $up_nonce = wp_create_nonce('fsbhoa_move_amenity_up_nonce_' . $amenity->id);
+                                $down_nonce = wp_create_nonce('fsbhoa_move_amenity_down_nonce_' . $amenity->id);
                                 $up_link = esc_url(admin_url('admin-post.php?action=fsbhoa_move_amenity_up&amenity_id=' . $amenity->id . '&_wpnonce=' . $up_nonce));
                                 $down_link = esc_url(admin_url('admin-post.php?action=fsbhoa_move_amenity_down&amenity_id=' . $amenity->id . '&_wpnonce=' . $down_nonce));
 
                                 // Status toggle link
+                                $is_active = (bool) $amenity->is_active;
                                 $toggle_nonce = wp_create_nonce('fsbhoa_toggle_amenity_nonce_' . $amenity->id);
-                                $toggle_link = esc_url(admin_url('admin-post.php?action=fsbhoa_toggle_amenity_status&amenity_id=' . $amenity->id . '&_wpnonce=' . $toggle_nonce));
-                                $toggle_icon = $amenity->is_active ? 'dashicons-visibility' : 'dashicons-hidden';
-                                $toggle_title = $amenity->is_active ? 'Deactivate' : 'Activate';
+                                $toggle_url = esc_url(admin_url('admin-post.php?action=fsbhoa_toggle_amenity_status&amenity_id=' . $amenity->id . '&_wpnonce=' . $toggle_nonce));
+                                $toggle_class = $is_active ? 'is-enabled' : 'is-disabled';
+                                $toggle_title = $is_active ? 'Amenity is Active. Click to deactivate.' : 'Amenity is Inactive. Click to activate.';
+                                $toggle_icon = $is_active ? 'dashicons-yes-alt' : 'dashicons-no-alt';
 
                                 // Edit and Delete links
                                 $delete_nonce = wp_create_nonce('fsbhoa_delete_amenity_nonce_' . $amenity->id);
                                 $edit_link = esc_url(add_query_arg(['action' => 'edit', 'amenity_id' => $amenity->id], $page_url));
-                                $delete_link = esc_url(add_query_arg(['action' => 'delete', 'amenity_id' => $amenity->id, '_wpnonce' => $delete_nonce], $page_url));
+                                $delete_link = esc_url(admin_url('admin-post.php?action=fsbhoa_delete_amenity&amenity_id=' . $amenity->id . '&_wpnonce=' . $delete_nonce));
                                 ?>
-                                <a href="<?php echo $up_link; ?>" title="Move Up"><span class="dashicons dashicons-arrow-up-alt"></span></a>
-                                <a href="<?php echo $down_link; ?>" title="Move Down"><span class="dashicons dashicons-arrow-down-alt"></span></a>
-                                <a href="<?php echo $toggle_link; ?>" title="<?php echo $toggle_title; ?>"><span class="dashicons <?php echo $toggle_icon; ?>"></span></a>
-                                <a href="<?php echo $edit_link; ?>" title="Edit"><span class="dashicons dashicons-edit"></span></a>
-                                <a href="<?php echo $delete_link; ?>" title="Delete" onclick="return confirm('Are you sure you want to delete this amenity?')" class="fsbhoa-delete-icon"><span class="dashicons dashicons-trash"></span></a>
+                                <a href="<?php echo $up_link; ?>" class="fsbhoa-action-icon button-link-delete" title="Move Up"><span class="dashicons dashicons-arrow-up-alt"></span></a>
+                                <a href="<?php echo $down_link; ?>" class="fsbhoa-action-icon button-link-delete" title="Move Down"><span class="dashicons dashicons-arrow-down-alt"></span></a>
+                                <a href="<?php echo $edit_link; ?>" class="fsbhoa-action-icon button-link-delete" title="Edit"><span class="dashicons dashicons-edit"></span></a>
+                                <a href="<?php echo $toggle_url; ?>" class="fsbhoa-action-icon amenity-status-toggle <?php echo $toggle_class; ?>" title="<?php echo esc_attr($toggle_title); ?>">
+                                    <span class="dashicons <?php echo $toggle_icon; ?>"></span>
+                                </a>
+                                <a href="<?php echo $delete_link; ?>" title="Delete" onclick="return confirm('Are you sure you want to delete this amenity?')" class="fsbhoa-action-icon button-link-delete"><span class="dashicons dashicons-trash"></span></a>
                             </td>
                         </tr>
                     <?php endforeach; else : ?>
-                        <tr><td colspan="4"><?php esc_html_e( 'No amenities found. Use the form above to add one.', 'fsbhoa-ac' ); ?></td></tr>
+                        <tr><td colspan="3"><?php esc_html_e( 'No amenities found. Use the form above to add one.', 'fsbhoa-ac' ); ?></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
+        
+        <style>
+            .fsbhoa-actions-column a, .amenity-status-toggle {
+                text-decoration: none;
+                box-shadow: none;
+            }
+            .amenity-status-toggle.is-enabled .dashicons{
+                color: #22c55e;
+            }
+            .amenity-status-toggle.is-disabled .dashicons {
+                color: #ef4444;
+            }
+            .fsbhoa-actions-column {
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+            }
+            .fsbhoa-actions-column .dashicons {
+                font-size: 1.4em;
+            }
+        </style>
         <?php
     }
 

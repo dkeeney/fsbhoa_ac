@@ -81,15 +81,15 @@ function fsbhoa_render_task_list_view() {
                                 $toggle_class = $is_enabled ? 'is-enabled' : 'is-disabled';
                                 $toggle_title = $is_enabled ? 'Task is currently ENABLED. Click to disable.' : 'Task is currently DISABLED. Click to enable.';
                                 // FIX: Use icons consistent with other screens
-                                $toggle_icon = $is_enabled ? 'dashicons-yes' : 'dashicons-no-alt';
+  $toggle_icon = $is_enabled ? 'dashicons-yes-alt' : 'dashicons-no-alt';
                                 ?>
-                                <a href="<?php echo esc_url($edit_url); ?>" class="fsbhoa-action-icon" title="Edit Task">
+                                <a href="<?php echo esc_url($edit_url); ?>" class="fsbhoa-action-icon button-link-delete" title="Edit Task">
                                     <span class="dashicons dashicons-edit"></span>
                                 </a>
-                                <a href="<?php echo esc_url($toggle_url); ?>" class="fsbhoa-action-icon task-status-toggle <?php echo $toggle_class; ?>" title="<?php echo esc_attr($toggle_title); ?>">
+                                <a href="<?php echo esc_url($toggle_url); ?>" class="fsbhoa-action-icon task-status-toggle <?php echo $toggle_class; ?> button-link-delete" title="<?php echo esc_attr($toggle_title); ?>">
                                     <span class="dashicons <?php echo $toggle_icon; ?>"></span>
                                 </a>
-                                <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon" title="Delete Task" onclick="return confirm('Are you sure you want to delete this task?');">
+                                <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon button-link-delete" title="Delete Task" onclick="return confirm('Are you sure you want to delete this task?');">
                                     <span class="dashicons dashicons-trash"></span>
                                 </a>
                             </td>
@@ -155,27 +155,45 @@ function fsbhoa_render_task_list_view() {
             padding-right: 5px;
         }
 
+        .fsbhoa-actions-column {
+            width: 90px;
+            padding: 0 5px;
+            /* Use Flexbox for perfect alignment */
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
         .fsbhoa-actions-column a.fsbhoa-action-icon {
-           text-decoration: none;
-       }
+            text-decoration: none;
+            box-shadow: none;
+        }
+        
+        /* Apply consistent size to ALL icons in the column */
+        .fsbhoa-actions-column .dashicons {
+            font-size: 1.4em;
+            vertical-align: middle;
+        }
 
-       /* Style for the enabled icon (green circle) */
-       .task-status-toggle.is-enabled .dashicons-yes {
-           color: #22c55e; /* Green color */
-           font-size: 1.6em; /* Adjust size if needed */
-           vertical-align: middle;
-       }
-       /* Style for the disabled icon (red 'x') */
-       .task-status-toggle.is-disabled .dashicons-no-alt {
-           color: #ef4444; /* Red color */
-           font-size: 1.4em;
-           vertical-align: middle;
-       }
-
-       /* General styling for the toggle icon container */
-       .task-status-toggle .dashicons {
-           line-height: 1; /* Adjust line height for better vertical alignment */
-       }
+        /* Set color for the Edit icon */
+        .fsbhoa-action-icon .dashicons-edit {
+            color: #50575e; /* Standard WordPress dark grey */
+        }
+        .fsbhoa-action-icon:hover .dashicons-edit {
+            color: #0073aa; /* WordPress blue */
+        }
+        
+        /* Set color for the Trash icon */
+        .fsbhoa-action-icon .dashicons-trash {
+            color: #d63638; /* WordPress red */
+        }
+        
+        /* Set colors for the toggle icon */
+        .task-status-toggle.is-enabled .dashicons-yes-alt {
+            color: #22c55e !important; /* Green */
+        }
+        .task-status-toggle.is-disabled .dashicons-no-alt {
+            color: #ef4444 !important; /* A slightly brighter Red */
+        }
     </style>
     <?php
 }

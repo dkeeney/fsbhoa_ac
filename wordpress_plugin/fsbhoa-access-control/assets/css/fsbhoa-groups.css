@@ -112,3 +112,7 @@ body.page-slug-permissions .entry-title {
     margin-right: 10px;
     color: #999;
 }
+
+.actions-column a {
+    text-decoration: none !important;
+}
