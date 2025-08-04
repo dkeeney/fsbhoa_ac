@@ -18,7 +18,9 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_amenity_management', array( $this, 'render_amenity_management_shortcode' ) );
         add_shortcode( 'fsbhoa_groups_page', [$this, 'render_groups_page']);
         add_shortcode( 'fsbhoa_cardholder_report', array( $this, 'render_cardholder_report_shortcode' ) );
+        add_shortcode( 'fsbhoa_task_list', array( $this, 'render_task_list_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
+        add_action( 'wp_body_open', array( $this, 'display_sync_banner' ) );
     }
 
     public function render_cardholder_management_shortcode( $atts ) {
@@ -69,6 +71,18 @@ class Fsbhoa_Shortcodes {
 
     public function enqueue_shortcode_assets() {
         global $post;
+
+        // --- START: DEBUGGING BLOCK ---
+        if ( is_a( $post, 'WP_Post' ) ) {
+            // Log the ID and Title of the post object being checked
+            error_log("ENQUEUE DEBUG: Checking Post ID: " . $post->ID . " with Title: " . $post->post_title);
+
+            // Check our specific shortcode and log the result
+            $has_task_shortcode = has_shortcode( $post->post_content, 'fsbhoa_task_list' );
+            error_log("ENQUEUE DEBUG: Result of has_shortcode('fsbhoa_task_list'): " . ($has_task_shortcode ? 'TRUE' : 'FALSE'));
+        }
+        // --- END: DEBUGGING BLOCK ---
+
         if ( ! is_a( $post, 'WP_Post' )
             || (! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_import_form' )
@@ -80,6 +94,7 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_amenity_management' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_groups_page' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_task_list' )
             ) ) {
             return;
         }
@@ -382,6 +397,50 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
         require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/view-cardholder-report.php';
         fsbhoa_render_cardholder_report_view();
         return ob_get_clean();
+    }
+
+    /**
+     * Renders the Task List page.
+     */
+    public function render_task_list_shortcode( $atts ) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have permission to view this page.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        ob_start();
+        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-task-list.php';
+        fsbhoa_render_task_list_view();
+        return ob_get_clean();
+    }
+
+    /**
+     * Checks for pending changes and displays a sync banner if needed.
+     * This is hooked into wp_body_open to be theme-independent.
+     */
+    public function display_sync_banner() {
+        global $wpdb;
+        $table_name = 'ac_pending_changes';
+
+        // This is a very fast query.
+        $pending_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+
+        // If there are no pending changes, do nothing.
+        if ($pending_count == 0) {
+            return;
+        }
+
+        // If there are pending changes, display the banner.
+        $sync_page_url = get_permalink(get_page_by_path('hardware-management')); // Assumes your sync page has this slug
+        $sync_url = add_query_arg('view', 'sync', $sync_page_url);
+        ?>
+        <div id="fsbhoa-sync-banner">
+            <div class="fsbhoa-sync-banner-content">
+                <span class="dashicons dashicons-warning"></span>
+                There are pending changes that need to be pushed to the controllers.
+                <a href="<?php echo esc_url($sync_url); ?>" class="button button-primary">Push Changes Now</a>
+            </div>
+        </div>
+        <?php
     }
 }
 

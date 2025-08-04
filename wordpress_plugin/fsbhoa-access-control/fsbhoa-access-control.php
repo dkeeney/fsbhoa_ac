@@ -67,6 +67,8 @@ add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
 /**
  * Load core plugin classes 
  */
+// For our Sync Banner
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
 
 // For Cardholder and property
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-cardholder-functions.php';

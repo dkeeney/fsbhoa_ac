@@ -132,6 +132,9 @@ function fsbhoa_render_task_list_view() {
         </div>
     </div>
     <style>
+        body.fsbhoa-task-list .entry-title {
+            display: none !important;
+        }
         .day-col {
             text-align: center;
             padding-left: 5px;

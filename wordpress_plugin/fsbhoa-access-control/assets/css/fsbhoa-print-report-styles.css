@@ -1,5 +1,4 @@
 /* Hide the default theme page title on the Cardholder Report screen */
-body.page-id-111 .entry-title,
 body.fsbhoa-report-page .entry-title {
     display: none !important;
 }

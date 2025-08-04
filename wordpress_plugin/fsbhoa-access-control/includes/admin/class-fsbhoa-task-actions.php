@@ -74,7 +74,7 @@ class Fsbhoa_Task_Actions {
             wp_die('Database operation failed. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true]);
         }
 
-        wp_schedule_single_event(time(), 'fsbhoa_run_background_sync');
+        fsbhoa_log_pending_change();
 
         $redirect_url = remove_query_arg(['action', 'task_id'], wp_get_referer());
         $redirect_url = add_query_arg('sync_started', '1', $redirect_url);
@@ -93,8 +93,8 @@ class Fsbhoa_Task_Actions {
         if (false === $result) {
             wp_die('Database delete operation failed. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true]);
         }
-        // Trigger the background sync to push changes to the hardware.
-        wp_schedule_single_event(time(), 'fsbhoa_run_background_sync');
+        // Request the background sync to push changes to the hardware.
+        fsbhoa_log_pending_change();
         
         
         $redirect_url = remove_query_arg(['action', 'task_id', '_wpnonce'], wp_get_referer());
@@ -103,7 +103,7 @@ class Fsbhoa_Task_Actions {
         exit;
     }
 
-/**
+    /**
      * Handles toggling the 'enabled' status of a task.
      */
     public function handle_toggle_enabled_action() {
@@ -124,8 +124,8 @@ class Fsbhoa_Task_Actions {
             wp_die('Database update operation failed. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true]);
         }
 
-        // Trigger a background sync to push the change
-        wp_schedule_single_event(time(), 'fsbhoa_run_background_sync');
+        // request a background sync to push the change
+        fsbhoa_log_pending_change();
 
         // Redirect back to the task list with a sync flag
         $redirect_url = remove_query_arg(['action', 'task_id', '_wpnonce'], wp_get_referer());

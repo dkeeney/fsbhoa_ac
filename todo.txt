@@ -2,23 +2,9 @@
 
 - import Cardholder List: Add a feature to import selected cardholder from a previously exported cardholder .csv file.
 
-- UI Cleanup: General improvements to the look and feel of the plugin pages.
-
 - A Backup/Restore feature.   Use a backup plugin.  No code needed.
 
-- On the Group list, the counts for the default group is missing
-
-- On photo section of cardholder edit, the Cropping windows is offset.
-
-- On controller edit screen, the gate entry array, needs column headings.
-
 - Card Preview screen, Name is one line not two....maybe we should use the template to generate.
-
-- Enable buttons need to be consistant (like Permission Groups) 
-    Task List Management
-    Amenities list
-    
-- Better edit imenity screen layout.
 
 - Sync Reminder (Red button in heading)
 

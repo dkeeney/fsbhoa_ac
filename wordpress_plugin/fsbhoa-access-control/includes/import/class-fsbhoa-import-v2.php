@@ -193,6 +193,7 @@ class Fsbhoa_Import_V2
             }
         }
         fclose($handle);
+        fsbhoa_log_pending_change(); // assume some records changed.
 
         $feedback_messages = [
             sprintf(__("Import complete. Processed %d rows.", 'fsbhoa-ac'), $stats['rows_processed']),

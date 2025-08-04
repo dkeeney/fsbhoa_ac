@@ -40,7 +40,6 @@ function fsbhoa_render_cardholder_list_view() {
 		    <a href="<?php echo esc_url( add_query_arg('view', 'properties', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
 			    <?php echo esc_html__( 'Manage Properties', 'fsbhoa-ac' ); ?>
 		    </a>
-		    <button id="fsbhoa-sync-all-button" class="button button-secondary" style="margin-left: 5px;">Sync All Controllers</button>
                     <button id="fsbhoa-export-selected-button" class="button button-secondary" style="margin-left: 5px;">Export Selected (.csv)</button>
                     <button id="fsbhoa-print-report-button" class="button button-secondary" style="margin-left: 5px;">Print Selected</button>
 

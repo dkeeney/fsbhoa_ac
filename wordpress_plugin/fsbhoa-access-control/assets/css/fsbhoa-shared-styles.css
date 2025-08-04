@@ -2,6 +2,11 @@
    Global & Shared Styles (The "Skin")
    ========================================================================== */
 
+/* --- Hide Theme Page Title on All Plugin Shortcode Pages --- */
+body.page .entry-title {
+    display: none !important;
+}
+
 /* --- Main Plugin Wrapper & Title --- */
 /*
  * Global override to remove extra top padding from the theme's
@@ -124,4 +129,53 @@ body.page .entry-title {
 }
 
 
+/* ==========================================================================
+   Sync Banner Styles
+   ========================================================================== */
+#fsbhoa-sync-banner {
+    position: fixed;
+    top: 32px; /* Default position below the WP Admin Bar */
+    left: 0;
+    width: 100%;
+    background-color: #dc3232; /* WordPress red */
+    color: #fff;
+    z-index: 99998; /* High z-index to stay on top */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
 
+/* Adjust top position if admin bar is not showing */
+body:not(.admin-bar) #fsbhoa-sync-banner {
+    top: 0;
+}
+
+.fsbhoa-sync-banner-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#fsbhoa-sync-banner .dashicons-warning {
+    margin-right: 8px;
+    font-size: 20px;
+    height: 20px;
+    width: 20px;
+}
+
+#fsbhoa-sync-banner .button-primary {
+    margin-left: 20px;
+    background: #fff !important;
+    color: #dc3232 !important;
+    border-color: #fff !important;
+    text-transform: none;
+    padding: 2px 10px;
+    font-size: 13px;
+    height: auto;
+    line-height: 1.8;
+}
+#fsbhoa-sync-banner .button-primary:hover {
+    background: #f0f0f1 !important;
+    border-color: #f0f0f1 !important;
+}

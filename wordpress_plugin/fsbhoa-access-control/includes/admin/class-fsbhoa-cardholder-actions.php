@@ -85,6 +85,7 @@ class Fsbhoa_Cardholder_Actions {
             $redirect_url = add_query_arg( array( 'message' => 'cardholder_delete_error', 'error' => urlencode($error_string) ), $redirect_url );
         } else {
             // If it returned true, it was successful.
+            fsbhoa_log_pending_change();
             $redirect_url = add_query_arg( array( 'message' => 'cardholder_deleted_successfully' ), $redirect_url );
         }
 
@@ -200,6 +201,7 @@ class Fsbhoa_Cardholder_Actions {
  
         // If we reach here, the operation was successful.
         $message_code = $is_update ? 'cardholder_updated' : 'cardholder_added';
+        fsbhoa_log_pending_change();
 
         // Check if our 'print' flag was sent from the JavaScript
         if ( isset($_POST['fsbhoa_after_save_action']) && $_POST['fsbhoa_after_save_action'] === 'print' ) {

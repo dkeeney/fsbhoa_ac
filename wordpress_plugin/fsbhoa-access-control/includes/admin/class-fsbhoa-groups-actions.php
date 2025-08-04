@@ -53,6 +53,7 @@ class FSBHOA_Groups_Actions {
                 add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error updating group status: ' . $wpdb->last_error, 'error');
             } else {
                 // Success
+                fsbhoa_log_pending_change();
                 $message = $new_status == 1 ? 'Group enabled successfully.' : 'Group disabled successfully.';
                 add_settings_error('fsbhoa-groups-notices', 'group_status_changed', __($message, 'fsbhoa-ac'), 'updated');
             }
@@ -87,6 +88,7 @@ class FSBHOA_Groups_Actions {
         if ($result === false) {
             add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error deleting group: ' . $wpdb->last_error, 'error');
         } else {
+            fsbhoa_log_pending_change();
             add_settings_error('fsbhoa-groups-notices', 'group_deleted', __('Group deleted successfully.', 'fsbhoa-ac'), 'updated');
         }
         set_transient('settings_errors', get_settings_errors(), 30);
@@ -148,6 +150,7 @@ class FSBHOA_Groups_Actions {
         $this->save_group_permissions($group_id, $permissions_data);
 
         // 5. Redirect with success message
+        fsbhoa_log_pending_change();
         add_settings_error('fsbhoa-groups-notices', 'group_saved', __('Group saved successfully.', 'fsbhoa-ac'), 'updated');
         set_transient('settings_errors', get_settings_errors(), 30);
         
@@ -235,6 +238,7 @@ class FSBHOA_Groups_Actions {
                 }
             }
         }
+        fsbhoa_log_pending_change();
     }
 }
 

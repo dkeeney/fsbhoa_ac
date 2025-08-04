@@ -124,6 +124,7 @@ class Fsbhoa_Controller_Actions {
 
 		$redirect_url = add_query_arg('message', $message_code, $list_page_url);
         $redirect_url = add_query_arg('sync_started', '1', $redirect_url);
+        fsbhoa_log_pending_change();
 		wp_safe_redirect($redirect_url);
 		exit;
     }
@@ -151,6 +152,7 @@ class Fsbhoa_Controller_Actions {
         // This is the correct block for the delete action
         $redirect_url = remove_query_arg( ['action', 'controller_id', '_wpnonce'], $redirect_url );
         $redirect_url = add_query_arg('message', 'controller_deleted', $redirect_url);
+        fsbhoa_log_pending_change();
 
         wp_safe_redirect($redirect_url);
         exit;
@@ -245,6 +247,7 @@ class Fsbhoa_Controller_Actions {
         $list_page_url = remove_query_arg( 'discovery-results', $redirect_url );
 
         self::regenerate_config_file();
+        fsbhoa_log_pending_change();
 
         // Add a success message to the final URL
         $final_url = add_query_arg('message', 'controller_added', $list_page_url);
