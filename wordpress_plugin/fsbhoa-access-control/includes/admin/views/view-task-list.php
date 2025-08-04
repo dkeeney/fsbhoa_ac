@@ -64,21 +64,34 @@ function fsbhoa_render_task_list_view() {
                     <?php if ( ! empty($tasks) ) : foreach ( $tasks as $task ) : ?>
                         <tr>
                             <td class="fsbhoa-actions-column">
-                                    <?php
-                                    $edit_url = add_query_arg(['view' => 'tasks', 'action' => 'edit', 'task_id' => absint($task['id'])], $current_page_url);
-                                    $delete_nonce = wp_create_nonce('fsbhoa_delete_task_nonce_' . $task['id']);
-                                    $delete_url = add_query_arg(['action'=> 'fsbhoa_delete_task', 'task_id' => absint($task['id']), '_wpnonce'=> $delete_nonce], admin_url('admin-post.php'));
-                                    $toggle_nonce = wp_create_nonce('fsbhoa_toggle_task_status_' . $task['id']);
-                                    $toggle_url = add_query_arg(['action'=> 'fsbhoa_toggle_task_status', 'task_id' => absint($task['id']), '_wpnonce'=> $toggle_nonce], admin_url('admin-post.php'));
+                                <?php
+                                $edit_url = add_query_arg(['view' => 'tasks', 'action' => 'edit', 'task_id' => absint($task['id'])], $current_page_url);
+                                $delete_nonce = wp_create_nonce('fsbhoa_delete_task_nonce_' . $task['id']);
+                                $delete_url = add_query_arg(['action'=> 'fsbhoa_delete_task', 'task_id' => absint($task['id']), '_wpnonce'=> $delete_nonce], admin_url('admin-post.php'));
+                                
+                                $toggle_nonce = wp_create_nonce('fsbhoa_toggle_task_status_' . $task['id']);
+                                $toggle_url = add_query_arg([
+                                    'action'      => 'fsbhoa_toggle_task_status',
+                                    'task_id'     => absint($task['id']),
+                                    'new_status'  => $task['enabled'] ? 0 : 1,
+                                    '_wpnonce'    => $toggle_nonce
+                                ], admin_url('admin-post.php'));
 
-                                    $is_enabled = ($task['enabled'] == 1);
-                                    $toggle_icon = $is_enabled ? 'dashicons-controls-pause' : 'dashicons-controls-play';
-                                    $toggle_title = $is_enabled ? 'Disable Task' : 'Enable Task';
-                                    $toggle_color = $is_enabled ? 'color: #d63638;' : 'color: #2271b1;';
-                                    ?>
-                                    <a href="<?php echo esc_url($edit_url); ?>" title="Edit"><span class="dashicons dashicons-edit"></span></a>
-                                    <a href="<?php echo esc_url($toggle_url); ?>" title="<?php echo esc_attr($toggle_title); ?>"><span class="dashicons <?php echo esc_attr($toggle_icon); ?>" style="<?php echo esc_attr($toggle_color); ?>"></span></a>
-                                    <a href="<?php echo esc_url($delete_url); ?>" title="Delete" onclick="return confirm('Are you sure?');"><span class="dashicons dashicons-trash"></span></a>
+                                $is_enabled = (bool) $task['enabled'];
+                                $toggle_class = $is_enabled ? 'is-enabled' : 'is-disabled';
+                                $toggle_title = $is_enabled ? 'Task is currently ENABLED. Click to disable.' : 'Task is currently DISABLED. Click to enable.';
+                                // FIX: Use icons consistent with other screens
+                                $toggle_icon = $is_enabled ? 'dashicons-yes' : 'dashicons-no-alt';
+                                ?>
+                                <a href="<?php echo esc_url($edit_url); ?>" class="fsbhoa-action-icon" title="Edit Task">
+                                    <span class="dashicons dashicons-edit"></span>
+                                </a>
+                                <a href="<?php echo esc_url($toggle_url); ?>" class="fsbhoa-action-icon task-status-toggle <?php echo $toggle_class; ?>" title="<?php echo esc_attr($toggle_title); ?>">
+                                    <span class="dashicons <?php echo $toggle_icon; ?>"></span>
+                                </a>
+                                <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon" title="Delete Task" onclick="return confirm('Are you sure you want to delete this task?');">
+                                    <span class="dashicons dashicons-trash"></span>
+                                </a>
                             </td>
                             <td class="task-id-column"><?php echo esc_html( $task['id'] ); ?></td>
                             <td>
@@ -123,24 +136,46 @@ function fsbhoa_render_task_list_view() {
             text-align: center;
             padding-left: 5px;
             padding-right: 5px;
-            width: 35px; /* Give a fixed small width */
+            width: 35px;
         }
         .task-id-column {
             text-align: center;
-            width: 60px; /* Give a fixed small width */
+            width: 60px;
             padding-left: 5px;
             padding-right: 5px;
         }
         .task-time-column {
-            width: 80px; /* Give a fixed small width */
+            width: 80px;
             padding-left: 5px;
             padding-right: 5px;
         }
         .fsbhoa-actions-column {
-             width: 80px; /* Give a fixed small width */
+             width: 80px;
             padding-left: 5px;
             padding-right: 5px;
         }
+
+        .fsbhoa-actions-column a.fsbhoa-action-icon {
+           text-decoration: none;
+       }
+
+       /* Style for the enabled icon (green circle) */
+       .task-status-toggle.is-enabled .dashicons-yes {
+           color: #22c55e; /* Green color */
+           font-size: 1.6em; /* Adjust size if needed */
+           vertical-align: middle;
+       }
+       /* Style for the disabled icon (red 'x') */
+       .task-status-toggle.is-disabled .dashicons-no-alt {
+           color: #ef4444; /* Red color */
+           font-size: 1.4em;
+           vertical-align: middle;
+       }
+
+       /* General styling for the toggle icon container */
+       .task-status-toggle .dashicons {
+           line-height: 1; /* Adjust line height for better vertical alignment */
+       }
     </style>
     <?php
 }

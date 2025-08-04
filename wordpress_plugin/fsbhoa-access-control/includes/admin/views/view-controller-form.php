@@ -72,6 +72,15 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] 
             <div class="fsbhoa-form-section" id="gates-section">
                 <h2>Associated Gates/Doors</h2>
                 <div class="gates-container">
+                    <div class="gate-form-row gate-header-row">
+                        <div class="gate-slot-label">&nbsp;</div>
+                        <div class="form-field gate-name-field">
+                            <strong>Gate Name</strong>
+                        </div>
+                        <div class="form-field gate-notes-field">
+                            <strong>Notes</strong>
+                        </div>
+                    </div>
                     <?php for ($i = 1; $i <= $form_data['door_count']; $i++) : 
                         $door_data = $form_data['doors'][$i] ?? null;
                         $door_record_id = $door_data['door_record_id'] ?? '';
@@ -131,6 +140,17 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] 
         }
         .gate-form-row .form-field input {
             width: 100%; /* Make inputs fill their container */
+        }
+        /* *** STYLES FOR THE GATE HEADER *** */
+        .gate-header-row {
+            font-size: 0.9em;
+            color: #555;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+        .gate-header-row .form-field {
+            flex-direction: row; /* Override default column direction for header text */
         }
     </style>
     <?php
