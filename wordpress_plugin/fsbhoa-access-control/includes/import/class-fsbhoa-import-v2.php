@@ -272,6 +272,92 @@ class Fsbhoa_Import_V2
         }
     }
 
+private function parse_cardholders_from_row($row)
+    {
+        $parsed_cardholders = [];
+
+        $owner1_first = $this->get_value_from_row($row, ['first name', 'firstname', 'first_name']);
+        $owner1_last = $this->get_value_from_row($row, ['last name', 'lastname', 'last_name']);
+
+        $owner2_first = $this->get_value_from_row($row, ['second owner first name', 'secondownerfirstname', 'second_owner_first_name']);
+        $owner2_last = $this->get_value_from_row($row, ['second owner last name', 'secondownerlastname', 'second_owner_last_name']);
+        
+        $phones_str = $this->get_value_from_row($row, ['phone', 'phonenumber']);
+        $phones_str_cleaned = str_replace(':', ',', $phones_str);
+        $owner_phones = !empty($phones_str_cleaned) ? array_map('trim', explode(',', $phones_str_cleaned)) : [];
+        
+        $emails_str = $this->get_value_from_row($row, ['email', 'emailaddress']);
+        $owner_emails = !empty($emails_str) ? array_map('trim', explode(',', $emails_str)) : [];
+
+        $tenant_names_str = $this->get_value_from_row($row, ['tenant name(s)', 'tenantname(s)', 'tenant_name(s)']);
+        $tenant_emails_str = $this->get_value_from_row($row, ['tenant email(s)', 'tenantemail(s)', 'tenant_email(s)']);
+        $tenant_phones_str = $this->get_value_from_row($row, ['tenant phone(s)', 'tenantphone(s)', 'tenant_phone(s)']);
+
+        // Owner 1
+        if (!empty($owner1_first) && !empty($owner1_last)) {
+            $email1 = $owner_emails[0] ?? '';
+            $parsed_cardholders[] = [
+                'first_name'        => trim($owner1_first),
+                'last_name'         => trim($owner1_last),
+                'import_first_name' => trim($owner1_first),
+                'import_last_name'  => trim($owner1_last),
+                'title'             => '', // Manually entered
+                'email'             => $email1,
+                'email_used'        => !empty($email1) ? 1 : 0, // Set default based on email presence
+                'phone'             => $this->normalize_phone($owner_phones[0] ?? ''),
+                'resident_type'     => 'Resident Owner',
+                'origin'            => 'import',
+            ];
+        }
+
+        // Owner 2
+        if (!empty($owner2_first) && !empty($owner2_last)) {
+            $email2 = $owner_emails[1] ?? '';
+            $parsed_cardholders[] = [
+                'first_name'        => trim($owner2_first),
+                'last_name'         => trim($owner2_last),
+                'import_first_name' => trim($owner2_first),
+                'import_last_name'  => trim($owner2_last),
+                'title'             => '', // Manually entered
+                'email'             => $email2,
+                'email_used'        => !empty($email2) ? 1 : 0, // Set default based on email presence
+                'phone'             => $this->normalize_phone($owner_phones[1] ?? ''),
+                'resident_type'     => 'Resident Owner',
+                'origin'            => 'import',
+            ];
+        }
+
+        // Tenants
+        if (!empty($tenant_names_str)) {
+            $tenant_names = array_map('trim', explode(',', $tenant_names_str));
+            $tenant_emails = !empty($tenant_emails_str) ? array_map('trim', explode(',', $tenant_emails_str)) : [];
+            $tenant_phones_str_cleaned = str_replace(':', ',', $tenant_phones_str);
+            $tenant_phones = !empty($tenant_phones_str_cleaned) ? array_map('trim', explode(',', $tenant_phones_str_cleaned)) : [];
+
+            foreach ($tenant_names as $index => $name) {
+                $name_parts = array_filter(explode(' ', trim($name)));
+                if (count($name_parts) < 2) continue;
+
+                $last_name = array_pop($name_parts);
+                $first_name = implode(' ', $name_parts);
+                $tenant_email = $tenant_emails[$index] ?? '';
+
+                $parsed_cardholders[] = [
+                    'first_name'        => $first_name,
+                    'last_name'         => $last_name,
+                    'import_first_name' => $first_name,
+                    'import_last_name'  => $last_name,
+                    'title'             => '', // Manually entered
+                    'email'             => $tenant_email,
+                    'email_used'        => !empty($tenant_email) ? 1 : 0, // Set default based on email presence
+                    'phone'             => $this->normalize_phone($tenant_phones[$index] ?? ''),
+                    'resident_type'     => 'Tenant',
+                    'origin'            => 'import',
+                ];
+            }
+        }
+        return $parsed_cardholders;
+    }
 
     private function get_or_create_property($raw_address, &$stats)
     {

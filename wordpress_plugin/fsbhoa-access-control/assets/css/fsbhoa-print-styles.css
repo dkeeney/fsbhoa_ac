@@ -159,6 +159,37 @@
     right: 0;
 }
 
+/* --- Card Preview Text Styles --- */
+.id-card-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start; /* Aligns text to the top */
+    text-align: center;
+    padding: 0px 5px;          /* 5px space above text block */
+    gap: 0px;                   /* 5px space BETWEEN each line */
+    box-sizing: border-box;
+}
+
+.id-card-info p {
+    margin: 0;
+    padding: 0;
+}
+
+/* More specific selector for the name */
+.id-card-info p.card-name {
+    font-size: 1.8em !important;
+    font-weight: bold;
+    line-height: 1.0;
+}
+
+/* More specific selector for the subtitle */
+.id-card-info p.card-subtitle {
+    font-size: 1.2em !important;
+    font-weight: normal;
+    padding: 0px 5px;          /* 5px space on sides of text block */
+}
+
+
 /* --- Print Media Query --- */
 @media print {
     body * { visibility: hidden; }

@@ -72,17 +72,6 @@ class Fsbhoa_Shortcodes {
     public function enqueue_shortcode_assets() {
         global $post;
 
-        // --- START: DEBUGGING BLOCK ---
-        if ( is_a( $post, 'WP_Post' ) ) {
-            // Log the ID and Title of the post object being checked
-            error_log("ENQUEUE DEBUG: Checking Post ID: " . $post->ID . " with Title: " . $post->post_title);
-
-            // Check our specific shortcode and log the result
-            $has_task_shortcode = has_shortcode( $post->post_content, 'fsbhoa_task_list' );
-            error_log("ENQUEUE DEBUG: Result of has_shortcode('fsbhoa_task_list'): " . ($has_task_shortcode ? 'TRUE' : 'FALSE'));
-        }
-        // --- END: DEBUGGING BLOCK ---
-
         if ( ! is_a( $post, 'WP_Post' )
             || (! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_import_form' )
@@ -432,12 +421,13 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
         // If there are pending changes, display the banner.
         $sync_page_url = get_permalink(get_page_by_path('hardware-management')); // Assumes your sync page has this slug
         $sync_url = add_query_arg('view', 'sync', $sync_page_url);
-        ?>
+?>
         <div id="fsbhoa-sync-banner">
             <div class="fsbhoa-sync-banner-content">
                 <span class="dashicons dashicons-warning"></span>
-                There are pending changes that need to be pushed to the controllers.
-                <a href="<?php echo esc_url($sync_url); ?>" class="button button-primary">Push Changes Now</a>
+                <span id="fsbhoa-sync-banner-message">There are pending changes that need to be pushed to the controllers.</span>
+                
+                <button id="fsbhoa-sync-banner-button" class="button button-primary">Push Changes Now</button>
             </div>
         </div>
         <?php

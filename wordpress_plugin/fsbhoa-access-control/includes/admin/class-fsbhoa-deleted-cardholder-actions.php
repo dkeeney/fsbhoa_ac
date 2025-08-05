@@ -62,6 +62,12 @@ class Fsbhoa_Deleted_Cardholder_Actions {
         $table_cardholders = 'ac_cardholders';
         $restore_data = $archived_record;
         $restore_data['origin'] = 'override';
+
+        // Separate the group data and remove fields that don't exist in the live table.
+        $group_ids_to_restore = !empty($restore_data['groups_csv']) ? explode(',', $restore_data['groups_csv']) : [];
+        unset( $restore_data['id'] );
+        unset( $restore_data['deleted_at'] );
+        unset( $restore_data['groups_csv'] );
         unset( $restore_data['id'] );
         unset( $restore_data['deleted_at'] );
 
@@ -70,6 +76,23 @@ class Fsbhoa_Deleted_Cardholder_Actions {
         if ( false === $restored ) {
             $wpdb->query( 'ROLLBACK' );
             wp_die( 'Failed to insert the record back into the main table. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true] );
+        }
+        // 5a. Restore the group memberships for the newly inserted cardholder.
+        if ( ! empty($group_ids_to_restore) ) {
+            foreach ($group_ids_to_restore as $group_id) {
+                $group_id = absint($group_id);
+                if ($group_id > 0) {
+                    $wpdb->insert($table_memberships, [
+                        'cardholder_id' => $new_cardholder_id,
+                        'group_id' => $group_id
+                    ], ['%d', '%d']);
+
+                    if ( $wpdb->last_error ) {
+                        $wpdb->query('ROLLBACK');
+                        wp_die('Failed to restore group memberships. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true]);
+                    }
+                }
+            }
         }
 
         // 6. Delete the record from the `ac_deleted_cardholders` table

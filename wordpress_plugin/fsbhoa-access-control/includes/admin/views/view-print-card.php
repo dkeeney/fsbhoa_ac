@@ -23,13 +23,17 @@ function fsbhoa_render_printable_card_view() {
     }
 
     // --- Prepare display variables ---
-    $full_name = trim($cardholder['first_name'] . ' ' . $cardholder['last_name']);
+    $first_name = trim($cardholder['first_name']);
+    $last_name = trim($cardholder['last_name']);
+    $full_name = $first_name . ' ' . $last_name;
     $title = trim($cardholder['title']);
-
     $photo_src = !empty($cardholder['photo']) ? 'data:image/jpeg;base64,' . base64_encode($cardholder['photo']) : '';
-    $expiration_text = '';
-    if ($cardholder['card_expiry_date'] && $cardholder['card_expiry_date'] !== '2099-12-31') {
+    $subtitle_text = '';
+    if (!empty($title)) {
+        $subtitle_text = $title;
+    } elseif ($cardholder['card_expiry_date'] && $cardholder['card_expiry_date'] !== '2099-12-31') {
         $expiration_text = date('m/d/Y', strtotime($cardholder['card_expiry_date']));
+        $subtitle_text = 'Expires: ' . $expiration_text;
     }
     ?>
 
@@ -46,12 +50,11 @@ function fsbhoa_render_printable_card_view() {
                             <?php endif; ?>
                         </div>
                         <div class="id-card-info">
-                            <p class="card-name"><?php echo esc_html($full_name); ?></p>
-                            <?php if (!empty($title)): ?>
-                                <p class="card-title"><?php echo esc_html($title); ?></p>
-                            <?php endif; ?>
-                            <?php if ($expiration_text): ?>
-                                <p class="card-expires">Expires: <?php echo esc_html($expiration_text); ?></p>
+                            <p class="card-name"><?php echo esc_html($first_name); ?></p>
+                            <p class="card-name"><?php echo esc_html($last_name); ?></p>
+                            
+                            <?php if (!empty($subtitle_text)): ?>
+                                <p class="card-subtitle"><?php echo esc_html($subtitle_text); ?></p>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -67,6 +70,7 @@ function fsbhoa_render_printable_card_view() {
                     <?php endif; ?>
                     <p><strong>Address:</strong> <?php echo esc_html($cardholder['street_address'] ?? 'N/A'); ?></p>
                     <p><strong>Phone:</strong> <?php echo esc_html($cardholder['phone'] ?? 'N/A'); ?></p>
+                    <p><strong>Phone:</strong> <?php echo esc_html( !empty($cardholder['phone']) ? $cardholder['phone'] . ' (' . $cardholder['phone_type'] . ')' : 'N/A' ); ?></p>
                     <p><strong>Email:</strong> <?php echo esc_html($cardholder['email'] ?? 'N/A'); ?></p>
                     <p><strong>Resident Type:</strong> <?php echo esc_html($cardholder['resident_type'] ?? 'N/A'); ?></p>
                 </div>

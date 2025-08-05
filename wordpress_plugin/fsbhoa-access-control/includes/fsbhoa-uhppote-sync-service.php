@@ -57,6 +57,10 @@ function fsbhoa_perform_full_sync() {
         return;
     }
 
+    if (FSBHOA_DEBUG_MODE) {
+        error_log("SYNC SERVICE: finished gathering data");
+    }
+
     $total_controllers = count($controllers);
     $processed_controllers = 0;
     foreach ($controllers as $controller) {
@@ -92,9 +96,11 @@ function fsbhoa_perform_full_sync() {
             }
 	}
         $cards_to_delete = array_diff_key($controller_cards, $db_cards);
-//error_log('SYNC DEBUG - DB Cards: ' . print_r(array_keys($db_cards), true));
-//error_log('SYNC DEBUG - Controller Cards: ' . print_r(array_keys($controller_cards), true));
-//error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete), true));
+
+error_log('SYNC DEBUG - DB Cards: ' . print_r(array_keys($db_cards), true));
+error_log('SYNC DEBUG - Controller Cards: ' . print_r(array_keys($controller_cards), true));
+error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete), true));
+ 
         if (!empty($cards_to_delete)) {
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Found " . count($cards_to_delete) . " card(s) to delete on '$friendly_name'."); }
             foreach ($cards_to_delete as $card_to_del) {
@@ -175,6 +181,10 @@ function fsbhoa_perform_full_sync() {
         }
         if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Finished pushing {$tasks_pushed_count} tasks."); }
     }
+
+    // *** CLEAR THE QUEUE ***
+    global $wpdb;
+    $wpdb->query("DELETE FROM ac_pending_changes");
 
     $final_message = "Sync and verification complete for all " . $total_controllers . " controllers.";
     update_option('fsbhoa_sync_final_status', ['status' => 'complete', 'message' => $final_message]);

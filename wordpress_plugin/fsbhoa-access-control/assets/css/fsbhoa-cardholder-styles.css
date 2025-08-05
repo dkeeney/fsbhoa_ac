@@ -63,9 +63,26 @@ table.dataTable th.select-checkbox.selected::after {
 
 /* Field-specific layout adjustments */
 #resident_type { width: 180px; }
-.fsbhoa-checkbox-field { width: 200px; padding-bottom: 6px; }
+.fsbhoa-checkbox-field { width: auto; padding-bottom: 6px; }
 .fsbhoa-checkbox-field label { flex-direction: row; align-items: center; gap: 5px; }
 .fsbhoa-checkbox-field p.description { margin: 0; line-height: 1.2; }
+
+/* --- Permissions Groups Checkbox Layout --- */
+.checkbox-group-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 10px; /* 5px vertical gap, 10px horizontal gap */
+    border: 1px solid #dcdcde;
+    background-color: #fafafa;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+.checkbox-group-container label {
+    /* Prevent wrapping between the checkbox and its text */
+    white-space: nowrap;
+    margin: 0; /* Override any default margins */
+}
 
 /* Photo section layout */
 #fsbhoa_photo_section .form-row { align-items: flex-start; }
