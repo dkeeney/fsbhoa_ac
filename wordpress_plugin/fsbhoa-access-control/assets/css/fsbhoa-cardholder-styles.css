@@ -114,3 +114,20 @@ table.dataTable th.select-checkbox.selected::after {
     transform: translate(-50%, -50%);
     box-shadow: 0 0 2000px 2000px rgba(0, 0, 0, 0.55);
 }
+
+/* Apply a background and border ONLY to the Croppie dialog wrapper */
+div[aria-describedby="fsbhoa-cropper-dialog"] {
+    background-color: #ffffff;
+    border: 3px solid #888;
+}
+
+/* Hide the close button ONLY on the Croppie dialog */
+div[aria-describedby="fsbhoa-cropper-dialog"] .ui-dialog-titlebar-close {
+    display: none;
+}
+
+/* Increase the font size of the Croppie dialog's title */
+div[aria-describedby="fsbhoa-cropper-dialog"] .ui-dialog-title {
+    font-size: 18px;
+    font-weight: 600;
+}

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Aug 02, 2025 at 04:46 PM
+-- Generation Time: Aug 06, 2025 at 04:13 PM
 -- Server version: 8.0.42-0ubuntu0.24.04.2
 -- PHP Version: 8.3.6
 
@@ -72,6 +72,7 @@ CREATE TABLE `ac_cardholders` (
   `import_last_name` varchar(255) DEFAULT NULL,
   `property_id` int DEFAULT NULL,
   `email` varchar(255) DEFAULT NULL,
+  `email_used` tinyint(1) NOT NULL DEFAULT '0',
   `phone` varchar(30) DEFAULT NULL,
   `phone_type` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'Mobile',
   `photo` longblob,
@@ -125,8 +126,12 @@ CREATE TABLE `ac_deleted_cardholders` (
   `rfid_id` varchar(8) DEFAULT NULL,
   `first_name` varchar(100) DEFAULT NULL,
   `last_name` varchar(100) DEFAULT NULL,
+  `title` varchar(50) DEFAULT NULL,
+  `import_first_name` varchar(255) DEFAULT NULL,
+  `import_last_name` varchar(255) DEFAULT NULL,
   `property_id` int DEFAULT NULL,
   `email` varchar(255) DEFAULT NULL,
+  `email_used` tinyint(1) NOT NULL DEFAULT '0',
   `phone` varchar(30) DEFAULT NULL,
   `phone_type` varchar(10) DEFAULT 'Mobile',
   `photo` longblob,
@@ -198,6 +203,16 @@ CREATE TABLE `ac_group_permissions` (
   `on_fri` tinyint(1) NOT NULL DEFAULT '0',
   `on_sat` tinyint(1) NOT NULL DEFAULT '0',
   `on_sun` tinyint(1) NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ac_pending_changes`
+--
+
+CREATE TABLE `ac_pending_changes` (
+  `id` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -348,6 +363,12 @@ ALTER TABLE `ac_group_permissions`
   ADD KEY `idx_door_id` (`door_id`);
 
 --
+-- Indexes for table `ac_pending_changes`
+--
+ALTER TABLE `ac_pending_changes`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `ac_print_log`
 --
 ALTER TABLE `ac_print_log`
@@ -420,6 +441,12 @@ ALTER TABLE `ac_groups`
 --
 ALTER TABLE `ac_group_permissions`
   MODIFY `permission_id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `ac_pending_changes`
+--
+ALTER TABLE `ac_pending_changes`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `ac_print_log`

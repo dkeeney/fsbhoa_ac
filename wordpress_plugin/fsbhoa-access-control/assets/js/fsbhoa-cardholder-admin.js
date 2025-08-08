@@ -4,18 +4,15 @@ jQuery(function($) {
         isInitialized: false,
         vars: {},
 
-        init: function() {
+init: function() {
             if (this.isInitialized) { return; }
             this.isInitialized = true;
 
             this.cacheSelectors();
 
-            // ---  Conditional Initialization ---
-            // This now safely checks for elements before trying to initialize them.
-
             if (this.vars.cardholderTable && this.vars.cardholderTable.length) {
                 this.initDataTable();
-                this.bindTableControlEvents(); //  Bind events for our custom controls
+                this.bindTableControlEvents();
             }
 
             if (this.vars.cardholderForm && this.vars.cardholderForm.length) {
@@ -24,6 +21,7 @@ jQuery(function($) {
                 this.updateMainPhotoDisplay(this.vars.initialMainPhotoSrc);
                 this.handleResidentTypeChange();
             }
+            
         },
 
         cacheSelectors: function() {
@@ -76,6 +74,7 @@ jQuery(function($) {
                 propertySearchInput: $('#fsbhoa_property_search_input'),
                 propertyIdHiddenInput: $('#fsbhoa_property_id_hidden'),
                 selectedPropertyDisplay: $('#fsbhoa_selected_property_display'),
+
             };
         },
 
@@ -201,7 +200,7 @@ jQuery(function($) {
                 form.append($('<input>', { 'type': 'hidden', 'name': 'action', 'value': 'fsbhoa_print_report' }));
                 form.append($('<input>', { 'type': 'hidden', 'name': '_wpnonce', 'value': printNonce }));
                 
-                // --- NEW: Add the sort order to the form submission ---
+                // --- Add the sort order to the form submission ---
                 form.append($('<input>', { 'type': 'hidden', 'name': 'orderby_col', 'value': orderColumnIndex }));
                 form.append($('<input>', { 'type': 'hidden', 'name': 'order_dir', 'value': orderDirection }));
 
@@ -218,6 +217,7 @@ jQuery(function($) {
 
 
         initFormLibraries: function() {
+            console.log("TRACE: 4. initFormLibraries() started.");
             if (typeof FSBHOA_Croppie !== 'undefined') {
                 FSBHOA_Croppie.init((croppedImageDataURL) => {
                     this.updateMainPhotoDisplay(croppedImageDataURL);
@@ -232,45 +232,44 @@ jQuery(function($) {
                     }
 
                 });
+                console.log("TRACE: 5. Croppie initialized.");
             }
             this.initPropertyAutocomplete();
+            console.log("TRACE: 6. initFormLibraries() finished.");
         },
 
         initPropertyAutocomplete: function() {
-             if (!this.vars.propertySearchInput.length) { return; }
-
-             this.vars.propertySearchInput.autocomplete({
-                source: (request, response) => {
-                    $.ajax({
-                        url: fsbhoa_ajax_settings.ajax_url,
-                        dataType: "json",
-                        data: {
-                            action: 'fsbhoa_search_properties',
-                            term: request.term,
-                            security: fsbhoa_ajax_settings.property_search_nonce
-                        },
-                        success: (data) => {
-                            if (data.success) {
-                                response(data.data.length ? data.data : [{ label: 'No results found', value: '' }]);
-                            } else {
-                                response([]);
+            if (this.vars.propertySearchInput.length) {
+                this.vars.propertySearchInput.autocomplete({
+                    source: (request, response) => {
+                        $.ajax({
+                            url: fsbhoa_ajax_settings.ajax_url,
+                            dataType: "json",
+                            data: {
+                                action: 'fsbhoa_search_properties',
+                                term: request.term,
+                                security: fsbhoa_ajax_settings.property_search_nonce
+                            },
+                            success: (data) => {
+                                if (data.success) {
+                                    response(data.data.length ? data.data : [{ label: 'No results found', value: '' }]);
+                                } else {
+                                    response([]);
+                                }
                             }
-                        },
-                        error: () => {
-                            response([]);
+                        });
+                    },
+                    minLength: 1,
+                    select: (event, ui) => {
+                        event.preventDefault();
+                        if (ui.item && ui.item.id) {
+                            this.vars.propertySearchInput.val(ui.item.label);
+                            this.vars.propertyIdHiddenInput.val(ui.item.id);
                         }
-                    });
-                },
-                minLength: 1,
-                select: (event, ui) => {
-                    event.preventDefault();
-                    if (ui.item && ui.item.id) {
-                        this.vars.propertySearchInput.val(ui.item.label);
-                        this.vars.propertyIdHiddenInput.val(ui.item.id);
+                        return false;
                     }
-                    return false;
-                }
-            });
+                });
+            }
         },
 
         bindFormEvents: function() {
@@ -549,8 +548,7 @@ jQuery(function($) {
         }
     };
 
-    //$(document).ready(function() {
-        App.init();
-    //});
+    App.init();
 });
+
 

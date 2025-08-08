@@ -77,6 +77,8 @@ class Fsbhoa_Property_Admin_Page {
     public function render_property_list_page() {
         // We get the data using our static method from the old List Table class.
         $properties = class_exists('Fsbhoa_Property_List_Table') ? Fsbhoa_Property_List_Table::get_properties(999, 1) : array();
+        $base_properties_url = add_query_arg('view', 'properties', get_permalink());
+ 
         $current_page_url = get_permalink();
         ?>
         <div class="wrap">
@@ -118,7 +120,7 @@ class Fsbhoa_Property_Admin_Page {
                         <tr>
                             <td class="fsbhoa-actions-column">
                                 <?php
-                                $edit_url = add_query_arg(array('action' => 'edit', 'property_id' => absint($property['property_id'])), $current_page_url);
+                                $edit_url = add_query_arg(array('action' => 'edit', 'property_id' => absint($property['property_id'])), $base_properties_url);
                                 $delete_nonce = wp_create_nonce('fsbhoa_delete_property_nonce_' . $property['property_id']);
                                 $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_property', 'property_id' => absint($property['property_id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
                                 ?>
@@ -139,7 +141,7 @@ class Fsbhoa_Property_Admin_Page {
                             <td><?php echo esc_html( $property['notes'] ?? '' ); ?></td>
                         </tr>
                     <?php endforeach; else : ?>
-                        <td><td colspan="3"><?php esc_html_e( 'No properties found.', 'fsbhoa-ac' ); ?></td></tr>
+                        <tr class="no-items"><td colspan="3"><?php esc_html_e( 'No properties found.', 'fsbhoa-ac' ); ?></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -202,11 +204,11 @@ class Fsbhoa_Property_Admin_Page {
                     <div class="form-row">
                         <div class="form-field" style="flex-basis: 30%; margin-right: 2%;">
                             <label for="house_number"><?php esc_html_e( 'House Number', 'fsbhoa-ac' ); ?></label>
-                            <input type="text" name="house_number" id="house_number" value="<?php echo esc_attr($form_data['house_number'] ?? ''); ?>" required>
+                            <input type="text" name="house_number" id="house_number" value="<?php echo esc_attr($form_data['house_number'] ?? ''); ?>">
                         </div>
                         <div class="form-field" style="flex-basis: 68%;">
                             <label for="street_name"><?php esc_html_e( 'Street Name', 'fsbhoa-ac' ); ?></label>
-                            <input type="text" name="street_name" id="street_name" value="<?php echo esc_attr($form_data['street_name'] ?? ''); ?>" required>
+                            <input type="text" name="street_name" id="street_name" value="<?php echo esc_attr($form_data['street_name'] ?? ''); ?>" >
                         </div>
                     </div>
                     <div class="form-row">

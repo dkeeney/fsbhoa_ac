@@ -21,6 +21,7 @@ class Fsbhoa_Cardholder_Actions {
         add_action('admin_post_fsbhoa_do_update_cardholder', array($this, 'handle_add_or_update_cardholder'));
         add_action('admin_post_fsbhoa_export_selected', array($this, 'handle_export_selected'));        
         add_action('admin_post_fsbhoa_print_report', array($this, 'handle_print_report'));
+        add_action('wp_ajax_fsbhoa_search_cardholders', array($this, 'ajax_search_cardholders_callback'));
     }
 
     public function ajax_search_properties_callback() {
@@ -392,5 +393,65 @@ class Fsbhoa_Cardholder_Actions {
         // 6. Redirect the user's browser to the new URL.
         wp_safe_redirect($url_with_params);
         exit;
+    }
+
+    /**
+     * AJAX callback to search for live cardholders by name or address.
+     */
+    public function ajax_search_cardholders_callback() {
+        check_ajax_referer('fsbhoa_cardholder_search_nonce', 'security');
+        
+        $term = isset($_GET['term']) ? sanitize_text_field(wp_unslash($_GET['term'])) : '';
+        if (strlen($term) < 2) {
+            wp_send_json_success([]);
+            return;
+        }
+
+        global $wpdb;
+        $cardholders_table = 'ac_cardholders';
+        $properties_table = 'ac_property';
+        $wildcard_term = '%' . $wpdb->esc_like($term) . '%';
+        
+        // UPDATED QUERY: Joins the property table and searches address fields as well.
+        $results = $wpdb->get_results($wpdb->prepare(
+            "SELECT c.id, c.first_name, c.last_name, c.rfid_id, p.street_address
+             FROM {$cardholders_table} c
+             LEFT JOIN {$properties_table} p ON c.property_id = p.property_id
+             WHERE c.first_name LIKE %s 
+                OR c.last_name LIKE %s 
+                OR p.house_number LIKE %s 
+                OR p.street_name LIKE %s
+             LIMIT 10",
+            $wildcard_term,
+            $wildcard_term,
+            $wildcard_term,
+            $wildcard_term
+        ));
+
+       // --- START: DEBUGGING BLOCK ---
+        error_log("MERGE SEARCH DEBUG: Last Query Ran: " . $wpdb->last_query);
+        if ($wpdb->last_error) {
+            error_log("MERGE SEARCH DEBUG: DB Error: " . $wpdb->last_error);
+        }
+        error_log("MERGE SEARCH DEBUG: Results Found: " . count($results));
+        // --- END: DEBUGGING BLOCK ---
+
+        $suggestions = [];
+        if ($results) {
+            foreach ($results as $result) {
+                // UPDATED LABEL: Includes the address for better clarity in search results.
+                $label = trim($result->first_name . ' ' . $result->last_name) . ' (' . ($result->street_address ?: 'No Address') . ')';
+                $suggestions[] = [
+                    'id' => $result->id,
+                    'label' => $label,
+                    'value' => $label,
+                    'first_name' => $result->first_name,
+                    'last_name' => $result->last_name,
+                    'street_address' => $result->street_address,
+                ];
+            }
+        }
+        
+        wp_send_json_success($suggestions);
     }
 }

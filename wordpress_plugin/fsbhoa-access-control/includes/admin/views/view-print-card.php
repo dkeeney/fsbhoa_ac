@@ -69,7 +69,6 @@ function fsbhoa_render_printable_card_view() {
                         <p><strong>Title:</strong> <?php echo esc_html($title); ?></p>
                     <?php endif; ?>
                     <p><strong>Address:</strong> <?php echo esc_html($cardholder['street_address'] ?? 'N/A'); ?></p>
-                    <p><strong>Phone:</strong> <?php echo esc_html($cardholder['phone'] ?? 'N/A'); ?></p>
                     <p><strong>Phone:</strong> <?php echo esc_html( !empty($cardholder['phone']) ? $cardholder['phone'] . ' (' . $cardholder['phone_type'] . ')' : 'N/A' ); ?></p>
                     <p><strong>Email:</strong> <?php echo esc_html($cardholder['email'] ?? 'N/A'); ?></p>
                     <p><strong>Resident Type:</strong> <?php echo esc_html($cardholder['resident_type'] ?? 'N/A'); ?></p>

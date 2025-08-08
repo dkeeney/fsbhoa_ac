@@ -160,10 +160,19 @@ class Fsbhoa_Amenity_Admin_Page {
                         <label for="name">Amenity Name</label>
                         <input name="name" type="text" id="name" value="<?php echo esc_attr($name); ?>" required>
                     </div>
-                    <div class="form-field-group">
-                         <label for="image_url">Image URL</label>
-                         <input name="image_url" type="url" id="image_url" value="<?php echo esc_attr($image_url); ?>" placeholder="Optional URL">
+<div class="form-field-group">
+                    <label for="image_url">Amenity Image</label>
+                    <div class="fsbhoa-image-preview">
+                        <?php if ($image_url): ?>
+                            <img src="<?php echo esc_url($image_url); ?>" alt="Amenity Preview">
+                        <?php else: ?>
+                            No image selected.
+                        <?php endif; ?>
                     </div>
+                    <input name="image_url" type="hidden" id="image_url" class="fsbhoa-image-url-input" value="<?php echo esc_attr($image_url); ?>">
+                    <button type="button" class="button fsbhoa-select-image-btn">Select Image</button>
+                    <button type="button" class="button fsbhoa-remove-image-btn">Remove Image</button>
+                </div>
                 </div>
                 <button type="submit" name="submit" id="submit" class="button button-primary"><?php echo esc_html($button_text); ?></button>
                  <?php if ($amenity) : ?>

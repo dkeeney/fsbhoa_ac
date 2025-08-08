@@ -90,19 +90,38 @@ class Fsbhoa_Import_V2
                     </div>
                 <?php endif; ?>
 
-                <p>This tool imports or synchronizes all property, owner, and tenant data from a single CSV file. The columns can be in any order, but the file must contain a header row with the following titles:</p>
-                <ul style="list-style: disc; padding-left: 20px; display: flex; flex-wrap: wrap; gap: 10px 40px;">
-                    <li><code>Property Address</code></li>
-                    <li><code>First Name</code></li>
-                    <li><code>Last Name</code></li>
-                    <li><code>Second Owner First Name</code></li>
-                    <li><code>Second Owner Last Name</code></li>
-                    <li><code>Phone</code></li>
-                    <li><code>Email</code></li>
-                    <li><code>Tenant Names(s)</code></li>
-                    <li><code>Tenant Email(s)</code></li>
-                    <li><code>Tenant Phone(s)</code></li>
-                </ul>
+                <p>This tool imports or synchronizes all data for addresses, owners, and tenants 
+                   from a single CSV file extracted from the property management database. 
+                   Any resident that is defined in this file will be added to our access control 
+                   database (See Cardholders). Any resident that is not in this CSV file but is 
+                   in our access control database will be archived (see Deleted Cardholders), 
+                   unless that record is marked with an override. 
+                    <a href="#" id="open-csv-info-dialog" style="text-decoration: underline;">More info on CSV file content.</a>
+                </p>
+
+                <div id="csv-info-dialog" title="CSV File Content" style="display:none;">
+                    <p>The columns in the CSV file can be in any order, but the file must contain 
+                     a header row with the following titles:</p>
+                    <ul class="fsbhoa-info-list">
+                        <li><strong>Property Address</strong> -- full address. The city, state, and zip matching the text in WordPress options will be removed.</li>
+                        <li><strong>First Name</strong> -- The formal First Name as on deed</li>
+                        <li><strong>Last Name</strong> -- The formal Last Name as on deed</li>
+                        <li><strong>Second Owner First Name</strong> -- formal first name as on deed</li>
+                        <li><strong>Second Owner Last Name</strong> -- formal last name as on deed.</li>
+                        <li><strong>Phone</strong> -- comma separated list of corresponding phone numbers</li>
+                        <li><strong>Email</strong> -- comma separated list of corresponding email addresses</li>
+                        <li><strong>Tenant Names(s)</strong> -- a comma separated list of tenant's Formal names</li>
+                        <li><strong>Tenant Email(s)</strong> -- a comma separated list of corresponding emails.</li>
+                        <li><strong>Tenant Phone(s)</strong> -- a comma separated list of corresponding phone numbers</li>
+                    </ul>
+                    <p>A separate cardholder record will be generated for each resident and address 
+                       combination; for owner, 2nd owner, and each tenant.</p>
+                    <p>Note that if a resident moves from one address to another within the community, 
+                       a new cardholder record will be created for the new resident and address 
+                       combination and the old cardholder record will be moved to the archive. To 
+                       recover the photo and rfid for this resident, go to the Deleted Cardholder 
+                       screen, click the merge icon, locate the new address, and merge.</p>
+                </div>
 
                 <form method="post" action="" enctype="multipart/form-data" class="fsbhoa-form">
                     <?php wp_nonce_field('fsbhoa_import_v2_action', 'fsbhoa_import_v2_nonce'); ?>
@@ -111,7 +130,7 @@ class Fsbhoa_Import_V2
                         <input type="file" id="csv_import_file" name="csv_file" accept=".csv, text/csv" required>
                     </p>
                     <p>
-                        <input type="submit" name="submit_import" class="button-primary" value="Run Sync">
+                        <input type="submit" name="submit_import" class="button-primary" value="Import CSV">
                     </p>
                 </form>
             </div>

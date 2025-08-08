@@ -1,0 +1,157 @@
+/*   Styles for deleted-cardholder's screen */
+
+.fsbhoa-frontend-wrap .fsbhoa-table-controls {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+}
+
+/* 1. Widen the Actions column to prevent wrapping */
+#fsbhoa-deleted-cardholder-table .fsbhoa-actions-column {
+    width: 140px;
+}
+
+/* 2. Style the top control bar */
+.fsbhoa-table-right-controls {
+    display: flex;
+    justify-content: flex-end;
+}
+#fsbhoa-deleted-cardholder-table_wrapper .fsbhoa-control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+#fsbhoa-deleted-cardholder-table_wrapper .fsbhoa-control-group input {
+    width: auto; /* Allow input to be its natural width */
+}
+
+/* --- DataTables Sorting Arrow Styles --- */
+/* Add space on the right of header cells for the arrow */
+#fsbhoa-deleted-cardholder-table thead th {
+    position: relative;
+    padding-right: 25px; 
+}
+
+/* Style the arrow icon using the Dashicons font */
+#fsbhoa-deleted-cardholder-table thead .sorting::after,
+#fsbhoa-deleted-cardholder-table thead .sorting_asc::after,
+#fsbhoa-deleted-cardholder-table thead .sorting_desc::after {
+    font-family: 'dashicons';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.4; /* Make it subtle by default */
+    font-size: 16px;
+}
+
+/* Which icon to show for each state */
+#fsbhoa-deleted-cardholder-table thead .sorting::after {
+    content: '\\f142'; /* Up/Down arrow icon */
+}
+#fsbhoa-deleted-cardholder-table thead .sorting_asc::after {
+    content: '\\f143'; /* Down arrow icon */
+    opacity: 1;
+}
+#fsbhoa-deleted-cardholder-table thead .sorting_desc::after {
+    content: '\\f140'; /* Up arrow icon */
+    opacity: 1;
+}
+
+/* Set a minimum width for the "Show Entries" dropdown on the deleted cardholders page */
+#fsbhoa-deleted-custom-length-menu {
+    min-width: 65px;
+    width: auto;
+}
+
+#fsbhoa-deleted-cardholder-search-input {
+    width: auto;
+}
+
+/* ==========================================================================
+   Deleted Cardholder Preview Layout Styles
+   ========================================================================== */
+
+#primary .fsbhoa-print-columns {
+    display: flex;
+    gap: 2em;
+    align-items: flex-start;
+}
+
+#primary .fsbhoa-card-preview-container,
+#primary .fsbhoa-cardholder-details-container {
+    flex: 1;
+    min-width: 0;
+}
+
+#primary .details-box {
+    background: #f9f9f9;
+    border: 1px solid #e5e5e5;
+    padding: 1em;
+    border-radius: 4px;
+}
+
+#primary .details-box p {
+    margin: 0 0 0.8em 0;
+    font-size: 14px;
+}
+
+#primary .details-box p:last-child {
+    margin-bottom: 0;
+}
+
+/* --- Card Preview Component Styles --- */
+.id-card-container {
+    width: 2.125in;
+    height: 3.375in;
+    border: 1px solid #333;
+    padding: 5px;
+    font-family: sans-serif;
+    background: #fff;
+    margin: 0 auto; /* Center the card in its column */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.id-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.id-card-photo {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 375 / 450;
+    margin-bottom: 15px;
+    flex-shrink: 0;
+    background-color: #f0f0f0;
+}
+
+.id-card-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.id-card-info {
+    width: 100%;
+    text-align: center;
+}
+
+.id-card-info p {
+    margin: 0 0 4px 0;
+    font-size: 12px;
+}
+
+.id-card-info p.card-name {
+    font-size: 1.8em;
+    font-weight: bold;
+    line-height: 1.0;
+}
+
+.id-card-info p.card-subtitle {
+    font-size: 1.2em;
+}

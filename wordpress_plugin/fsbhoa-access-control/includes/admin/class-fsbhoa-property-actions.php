@@ -67,8 +67,8 @@ class Fsbhoa_Property_Actions {
         $data_to_save['street_address'] = trim($data_to_save['house_number'] . ' ' . $data_to_save['street_name']);
         $data_to_save['notes'] = isset($_POST['notes']) ? trim(sanitize_textarea_field(wp_unslash($_POST['notes']))) : '';
     
-        if (empty($data_to_save['street_address'])) {
-            $errors[] = 'Street Address is required.';
+        if (empty($data_to_save['street_address']) && empty($data_to_save['street_name'])) {
+            $errors[] = 'Either a House Number or a Street Name is required.';
         } else {
             // --- Uniqueness Check with DB Error Handling ---
             if ($is_update) {

@@ -10,7 +10,6 @@ if ( ! defined( 'WPINC' ) ) {
 class Fsbhoa_Cardholder_Admin_Page {
 
     public function __construct() {
-        add_action('wp_ajax_fsbhoa_search_properties', array($this, 'ajax_search_properties_callback'));
     }
 
 

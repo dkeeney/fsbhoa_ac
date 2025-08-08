@@ -18,6 +18,8 @@ class Fsbhoa_Deleted_Cardholder_Actions {
      */
     public function __construct() {
         add_action( 'admin_post_fsbhoa_restore_deleted_cardholder', [ $this, 'handle_restore_action' ] );
+        add_action( 'admin_post_fsbhoa_permanent_delete', [ $this, 'handle_permanent_delete_action' ] );
+        add_action( 'admin_post_fsbhoa_confirm_merge', [ $this, 'handle_confirm_merge_action' ] );
     }
 
     /**
@@ -118,4 +120,139 @@ class Fsbhoa_Deleted_Cardholder_Actions {
         exit;
     }
 
+    /**
+     * Handles the permanent deletion of a cardholder record from the archive table.
+     */
+    public function handle_permanent_delete_action() {
+        global $wpdb;
+
+        // 1. Validate the incoming request
+        $cardholder_id = isset( $_GET['cardholder_id'] ) ? absint( $_GET['cardholder_id'] ) : 0;
+        if ( ! $cardholder_id ) {
+            wp_die( 'Invalid cardholder ID specified.', 'Error', ['back_link' => true] );
+        }
+        check_admin_referer('fsbhoa_permanent_delete_' . $cardholder_id, '_wpnonce');
+        if ( ! current_user_can('manage_options') ) {
+            wp_die('You do not have permission to permanently delete cardholders.');
+        }
+
+        // 2. Perform the delete operation
+        $table_deleted = 'ac_deleted_cardholders';
+        $result = $wpdb->delete( $table_deleted, [ 'id' => $cardholder_id ], [ '%d' ] );
+
+        if ( false === $result ) {
+            wp_die( 'Database error during permanent deletion. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true] );
+        }
+
+        $redirect_url = remove_query_arg( [ 'action', 'cardholder_id', '_wpnonce' ], wp_get_referer() );
+        $redirect_url = add_query_arg( 'message', 'perm_delete_success', $redirect_url );
+
+        wp_safe_redirect( $redirect_url );
+        exit;
+    }
+
+
+/**
+     * Handles the final merge action.
+     * Copies key data from an archived record to a live record, then deletes the archive.
+     */
+    public function handle_confirm_merge_action() {
+        // --- START: DEBUGGING BLOCK ---
+        error_log("MERGE DEBUG: handle_confirm_merge_action() function started.");
+        error_log("MERGE DEBUG: Raw POST data: " . print_r($_POST, true));
+        // --- END: DEBUGGING BLOCK ---
+        
+        global $wpdb;
+
+        // 1. Validate the incoming request
+        check_admin_referer('fsbhoa_confirm_merge_nonce');
+        if ( ! current_user_can('manage_options') ) {
+            wp_die('You do not have permission to merge cardholders.');
+        }
+
+        $source_id = isset($_POST['source_cardholder_id']) ? absint($_POST['source_cardholder_id']) : 0;
+        $destination_id = isset($_POST['destination_cardholder_id']) ? absint($_POST['destination_cardholder_id']) : 0;
+
+        if ( ! $source_id || ! $destination_id ) {
+            wp_die( 'Invalid source or destination cardholder ID specified.', 'Error', ['back_link' => true] );
+        }
+
+        error_log("MERGE DEBUG: Nonce passed. Source ID: {$source_id}, Destination ID: {$destination_id}");
+
+        // 2. Begin database transaction.
+        $wpdb->query( 'START TRANSACTION' );
+        
+        $table_deleted = 'ac_deleted_cardholders';
+        $table_cardholders = 'ac_cardholders';
+        $table_memberships = 'ac_cardholder_groups';
+
+        // 3. Fetch the archived record.
+        $source_record = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table_deleted} WHERE id = %d", $source_id ), ARRAY_A );
+
+        if ( $wpdb->last_error || ! $source_record ) {
+            $wpdb->query( 'ROLLBACK' );
+            wp_die( 'Could not find the archived record to merge.', 'Error', ['back_link' => true] );
+        }
+
+        // 4. Prepare the specific data to be merged/copied.
+        $data_to_merge = [
+            'rfid_id' => $source_record['rfid_id'],
+            'first_name' => $source_record['first_name'],
+            'last_name' => $source_record['last_name'],
+            'title' => $source_record['title'],
+            'email_used' => $source_record['email_used'],
+            'photo' => $source_record['photo'],
+            'notes' => $source_record['notes'],
+            'card_status' => $source_record['card_status'],
+            'card_issue_date' => $source_record['card_issue_date'],
+            'card_expiry_date' => $source_record['card_expiry_date'],
+            'resident_type' => $source_record['resident_type'],
+        ];
+
+        // 5. Update the live record with the data from the archive.
+        $updated = $wpdb->update( $table_cardholders, $data_to_merge, ['id' => $destination_id] );
+
+        if ( false === $updated ) {
+            $wpdb->query( 'ROLLBACK' );
+            wp_die( 'Database error while merging data into the live record. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true] );
+        }
+
+        // 6. Restore the group memberships.
+        $group_ids_to_restore = !empty($source_record['groups_csv']) ? explode(',', $source_record['groups_csv']) : [];
+        if ( ! empty($group_ids_to_restore) ) {
+            // First, clear any existing memberships for the destination user.
+            $wpdb->delete($table_memberships, ['cardholder_id' => $destination_id]);
+
+            // Now, insert the restored group memberships.
+            foreach ($group_ids_to_restore as $group_id) {
+                $group_id = absint($group_id);
+                if ($group_id > 0) {
+                    $wpdb->insert($table_memberships, [
+                        'cardholder_id' => $destination_id,
+                        'group_id' => $group_id
+                    ], ['%d', '%d']);
+                }
+            }
+        }
+
+        // 7. Delete the now-merged record from the archive.
+        $deleted = $wpdb->delete( $table_deleted, [ 'id' => $source_id ], [ '%d' ] );
+        
+        if ( false === $deleted ) {
+            $wpdb->query( 'ROLLBACK' );
+            wp_die( 'Failed to remove the record from the archive table after merging. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true] );
+        }
+
+        // 8. Commit transaction and log that a sync is needed.
+        $wpdb->query( 'COMMIT' );
+        fsbhoa_log_pending_change();
+
+        // 9. Redirect back with a success message.
+        // --- UPDATED: Use the correct page slug for the redirect ---
+        $redirect_url = get_permalink(get_page_by_path('deleted-cardholders'));
+        $redirect_url = add_query_arg( 'message', 'merge_success', $redirect_url );
+        
+        wp_safe_redirect( $redirect_url );
+        exit;
+    }
 }

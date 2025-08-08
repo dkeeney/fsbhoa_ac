@@ -10,7 +10,8 @@
 
 - Investigate a battery powered/ WiFi enabled webcam.
 
-- Better buttons
+- Guest count on kiosk
+
 ==================================================================================
 For testing:
 I have 5 cards.

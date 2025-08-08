@@ -93,7 +93,6 @@ function fsbhoa_render_task_form( $form_data, $adapt_to_options, $is_edit_mode, 
             </p>
         </form>
     </div>
-    <style>.weekday-checkbox-group label { display: inline-block; margin-right: 15px; }</style>
     <?php
 }
 

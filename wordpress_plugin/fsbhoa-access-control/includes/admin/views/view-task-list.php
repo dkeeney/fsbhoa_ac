@@ -26,7 +26,7 @@ function fsbhoa_render_task_list_view() {
         echo '<div class="notice notice-error"><p><strong>Database Error:</strong> Could not retrieve tasks. ' . esc_html( $wpdb->last_error ) . '</p></div>';
     }
 
-    $current_page_url = get_permalink();
+    $current_page_url = add_query_arg('view', 'tasks', get_permalink());
     ?>
     <div class="fsbhoa-frontend-wrap is-wide-view">
         <h1><?php esc_html_e( 'Task List Management', 'fsbhoa-ac' ); ?></h1>
@@ -37,9 +37,6 @@ function fsbhoa_render_task_list_view() {
             <a href="<?php echo esc_url( add_query_arg(['view' => 'tasks', 'action' => 'add'], $current_page_url) ); ?>" class="button button-primary">
                 <?php esc_html_e( 'Add New Task', 'fsbhoa-ac' ); ?>
             </a>
-            <a href="<?php echo esc_url( add_query_arg('view', 'controllers', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">Manage Controllers</a>
-	        <button id="fsbhoa-sync-all-button" class="button button-secondary" style="margin-left: 5px;">Sync All Controllers</button>
-			<span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
         </div>
 
         <div class="table-wrapper" style="overflow-x: auto;">
@@ -131,73 +128,6 @@ function fsbhoa_render_task_list_view() {
             </table>
         </div>
     </div>
-    <style>
-        body.fsbhoa-task-list .entry-title {
-            display: none !important;
-        }
-        .day-col {
-            text-align: center;
-            padding-left: 5px;
-            padding-right: 5px;
-            width: 35px;
-        }
-        .task-id-column {
-            text-align: center;
-            width: 60px;
-            padding-left: 5px;
-            padding-right: 5px;
-        }
-        .task-time-column {
-            width: 80px;
-            padding-left: 5px;
-            padding-right: 5px;
-        }
-        .fsbhoa-actions-column {
-             width: 80px;
-            padding-left: 5px;
-            padding-right: 5px;
-        }
-
-        .fsbhoa-actions-column {
-            width: 90px;
-            padding: 0 5px;
-            /* Use Flexbox for perfect alignment */
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-        }
-        .fsbhoa-actions-column a.fsbhoa-action-icon {
-            text-decoration: none;
-            box-shadow: none;
-        }
-        
-        /* Apply consistent size to ALL icons in the column */
-        .fsbhoa-actions-column .dashicons {
-            font-size: 1.4em;
-            vertical-align: middle;
-        }
-
-        /* Set color for the Edit icon */
-        .fsbhoa-action-icon .dashicons-edit {
-            color: #50575e; /* Standard WordPress dark grey */
-        }
-        .fsbhoa-action-icon:hover .dashicons-edit {
-            color: #0073aa; /* WordPress blue */
-        }
-        
-        /* Set color for the Trash icon */
-        .fsbhoa-action-icon .dashicons-trash {
-            color: #d63638; /* WordPress red */
-        }
-        
-        /* Set colors for the toggle icon */
-        .task-status-toggle.is-enabled .dashicons-yes-alt {
-            color: #22c55e !important; /* Green */
-        }
-        .task-status-toggle.is-disabled .dashicons-no-alt {
-            color: #ef4444 !important; /* A slightly brighter Red */
-        }
-    </style>
     <?php
 }
 

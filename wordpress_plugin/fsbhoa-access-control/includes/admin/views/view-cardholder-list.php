@@ -34,16 +34,13 @@ function fsbhoa_render_cardholder_list_view() {
             <a href="<?php echo esc_url( add_query_arg('action', 'add', $current_page_url) ); ?>" class="button button-primary">
                 <?php echo esc_html__( 'Add New Cardholder', 'fsbhoa-ac' ); ?>
             </a>
-            <a href="<?php echo esc_url( add_query_arg('view', 'deleted', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
-                <?php echo esc_html__( 'Restore Deleted', 'fsbhoa-ac' ); ?>
-            </a>
-		    <a href="<?php echo esc_url( add_query_arg('view', 'properties', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
-			    <?php echo esc_html__( 'Manage Properties', 'fsbhoa-ac' ); ?>
-		    </a>
-                    <button id="fsbhoa-export-selected-button" class="button button-secondary" style="margin-left: 5px;">Export Selected (.csv)</button>
-                    <button id="fsbhoa-print-report-button" class="button button-secondary" style="margin-left: 5px;">Print Selected</button>
+	    <a href="<?php echo esc_url( add_query_arg('view', 'properties', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
+		    <?php echo esc_html__( 'Manage Properties', 'fsbhoa-ac' ); ?>
+	    </a>
+            <button id="fsbhoa-export-selected-button" class="button button-secondary" style="margin-left: 5px;">Export Selected (.csv)</button>
+            <button id="fsbhoa-print-report-button" class="button button-secondary" style="margin-left: 5px;">Print Selected</button>
 
-		    <span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
+	    <span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
 
             <!-- Right Side: Container for Entries and Search -->
             <div class="fsbhoa-table-right-controls">

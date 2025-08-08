@@ -19,6 +19,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_groups_page', [$this, 'render_groups_page']);
         add_shortcode( 'fsbhoa_cardholder_report', array( $this, 'render_cardholder_report_shortcode' ) );
         add_shortcode( 'fsbhoa_task_list', array( $this, 'render_task_list_shortcode' ) );
+        add_shortcode( 'fsbhoa_deleted_cardholders', array( $this, 'render_deleted_cardholders_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
         add_action( 'wp_body_open', array( $this, 'display_sync_banner' ) );
     }
@@ -50,13 +51,6 @@ class Fsbhoa_Shortcodes {
             } else {
                 echo '<p>' . esc_html__( 'Error: Property management class not found.', 'fsbhoa-ac' ) . '</p>';
             }
-        } elseif ( $current_view === 'deleted' ) {
-            if ( class_exists('Fsbhoa_Deleted_Cardholder_Admin_Page') ) {
-                $deleted_cardholder_page = new Fsbhoa_Deleted_Cardholder_Admin_Page();
-                $deleted_cardholder_page->render_page();
-            } else {
-                echo '<p>' . esc_html__( 'Error: Deleted Cardholder management class not found.', 'fsbhoa-ac' ) . '</p>';
-            }
         } else {
             if ( class_exists('Fsbhoa_Cardholder_Admin_Page') ) {
                 $cardholder_admin_page = new Fsbhoa_Cardholder_Admin_Page();
@@ -84,142 +78,230 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_groups_page' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_task_list' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_deleted_cardholders' )
             ) ) {
             return;
         }
 
 
+        // These are needed by most pages, so we'll load them globally for simplicity.
         wp_enqueue_script('jquery');
         wp_enqueue_style('dashicons');
-        wp_enqueue_script('jquery-ui-autocomplete');
         wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
-        // Load the local DataTables files from the new vendor directory.
-        wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
-        wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
-        wp_enqueue_style('datatables-select-css', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/select.dataTables.css', ['datatables-css']);
-        wp_enqueue_script('datatables-select', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.select.js', ['jquery', 'datatables-script'], '2.0.2', true);
+        ////////wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery-ui/jquery-ui.css', array(), '1.12.1');
 
-        $app_script_handle = 'fsbhoa-cardholder-admin-script';
-        wp_enqueue_style('wp-jquery-ui-dialog');
+        // ASSETS FOR: sync.  They are used by every shortcode
+        wp_enqueue_script('fsbhoa-sync-script', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-sync-admin.js', ['jquery'], FSBHOA_AC_PLUGIN_VERSION, true);
+        wp_localize_script('fsbhoa-sync-script', 'fsbhoa_sync_vars', [ 'ajax_url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('fsbhoa_sync_nonce')]);
 
-        wp_enqueue_style('croppie-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/croppie/croppie.min.css', array(), '2.6.5');
-        wp_enqueue_script('croppie-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/croppie/croppie.min.js', array('jquery'), '2.6.5', true);
 
-        wp_enqueue_style('fsbhoa-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
-        wp_enqueue_script('fsbhoa-photo-croppie', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-photo-croppie.js', array('jquery', 'jquery-ui-dialog', 'croppie-script'), FSBHOA_AC_PLUGIN_VERSION, true);
-        wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('jquery', 'jquery-ui-autocomplete', 'datatables-script', 'fsbhoa-photo-croppie'), FSBHOA_AC_PLUGIN_VERSION, true);
 
-        $current_view = isset( $_GET['view'] ) ? sanitize_key( $_GET['view'] ) : '';
-        if ( has_shortcode( $post->post_content, 'fsbhoa_print_card' ) || $current_view === 'deleted' ) {
-            wp_enqueue_style('fsbhoa-print-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-print-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
+        // ASSETS FOR: [fsbhoa_cardholder_management]
+        if ( has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) ) {
+            wp_enqueue_script('jquery-ui-autocomplete');
+            wp_enqueue_script('jquery-ui-dialog');
+
+            wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
+            wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
+            wp_enqueue_style('datatables-select-css', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/select.dataTables.css', ['datatables-style']);
+            wp_enqueue_script('datatables-select', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.select.js', ['jquery', 'datatables-script'], '2.0.2', true);
+            
+            wp_enqueue_style('croppie-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/croppie/croppie.min.css', array(), '2.6.5');
+            wp_enqueue_script('croppie-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/croppie/croppie.min.js', array('jquery'), '2.6.5', true);
+
+            wp_enqueue_style('fsbhoa-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_script('fsbhoa-photo-croppie', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-photo-croppie.js', array('jquery', 'jquery-ui-dialog', 'croppie-script'), FSBHOA_AC_PLUGIN_VERSION, true);
+            
+
+            $app_script_handle = 'fsbhoa-cardholder-admin-script';
+            wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('jquery', 'jquery-ui-autocomplete', 'datatables-script', 'fsbhoa-photo-croppie'), FSBHOA_AC_PLUGIN_VERSION, true);
+
+            $ajax_settings = array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'),
+                'cardholder_search_nonce' => wp_create_nonce('fsbhoa_cardholder_search_nonce'),
+                'export_nonce' => wp_create_nonce('fsbhoa_export_nonce'),
+                'print_report_nonce' => wp_create_nonce('fsbhoa_print_report_nonce')
+            );
+            wp_localize_script($app_script_handle, 'fsbhoa_ajax_settings', $ajax_settings);
+
+            
+            wp_enqueue_style('fsbhoa-property-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-property-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_script('fsbhoa-property-admin', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-property-admin.js', array('jquery', 'datatables-script'), FSBHOA_AC_PLUGIN_VERSION, true);
+
+
+        }
+
+        // ASSETS FOR: [fsbhoa_deleted_cardholders] (includes list, preview, and merge)
+        if ( has_shortcode( $post->post_content, 'fsbhoa_deleted_cardholders' ) ) {
+            // Enqueue assets needed for this page
+            wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
+            wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
+            wp_enqueue_script('jquery-ui-autocomplete');
+            wp_enqueue_style('fsbhoa-deleted-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-deleted-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+
+            $handle = 'fsbhoa-deleted-cardholder-script';
+            wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-deleted-cardholder.js', ['jquery', 'jquery-ui-autocomplete', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
+
+            // Localize settings to OUR new handle
+            $ajax_settings = array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'cardholder_search_nonce' => wp_create_nonce('fsbhoa_cardholder_search_nonce')
+            );
+            wp_localize_script($handle, 'fsbhoa_ajax_settings', $ajax_settings);
+        }
+
+        // ASSETS FOR: [fsbhoa_print_card]
+        if ( has_shortcode( $post->post_content, 'fsbhoa_print_card' ) ) {
+            wp_enqueue_style('fsbhoa-print-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-print-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
             wp_enqueue_script('fsbhoa-print-workflow', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-print-workflow.js', array('jquery'), FSBHOA_AC_PLUGIN_VERSION, true);
-            wp_localize_script('fsbhoa-print-workflow', 'fsbhoa_print_vars', array('ajax_url' => admin_url('admin-ajax.php'), 'nonce'  => wp_create_nonce('fsbhoa_print_card_nonce'), 'cardholder_page_url' => get_permalink(get_page_by_path('cardholder'))));
+            wp_localize_script('fsbhoa-print-workflow', 'fsbhoa_print_vars', array(
+                'ajax_url' => admin_url('admin-ajax.php'), 
+                'nonce'    => wp_create_nonce('fsbhoa_print_card_nonce'), 
+                'cardholder_page_url' => get_permalink(get_page_by_path('cardholder'))
+            ));
         }
 
-        if ( has_shortcode( $post->post_content, 'fsbhoa_hardware_management' ) || has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' ) ) {
-            if ( has_shortcode( $post->post_content, 'fsbhoa_hardware_management' ) ) {
-                wp_enqueue_style('fsbhoa-controller-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-controller-styles.css', ['fsbhoa-shared-styles'], FSBHOA_AC_PLUGIN_VERSION);
-                wp_enqueue_script('fsbhoa-hardware-admin', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-hardware-admin.js', ['jquery', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
-            }
-            wp_enqueue_script('fsbhoa-sync-script', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-sync-admin.js', ['jquery'], FSBHOA_AC_PLUGIN_VERSION, true);
-            wp_localize_script('fsbhoa-sync-script', 'fsbhoa_sync_vars', [ 'ajax_url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('fsbhoa_sync_nonce')]);
+        // ASSETS FOR: [fsbhoa_hardware_management] (Controllers, Gates, Tasks)
+        if ( has_shortcode( $post->post_content, 'fsbhoa_hardware_management' ) ) {
+            // Needs DataTables for its lists
+            wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
+            wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
+
+            // Specific styles and scripts for this page
+            wp_enqueue_style('fsbhoa-controller-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-controller-styles.css', ['fsbhoa-shared-styles'], FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_script('fsbhoa-hardware-admin', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-hardware-admin.js', ['jquery', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
+
         }
 
+        // ASSETS FOR: [fsbhoa_task_list]
+        if ( has_shortcode( $post->post_content, 'fsbhoa_task_list' ) ) {
+            // This page uses DataTables for the list
+            wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
+            wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
+
+            // Enqueue the new dedicated script for the task list
+            wp_enqueue_script(
+                'fsbhoa-task-list-script', // A new, unique handle
+                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-task-list.js', // The new filename
+                ['jquery', 'datatables-script'], // Dependencies
+                FSBHOA_AC_PLUGIN_VERSION,
+                true // In footer
+            );
+            wp_enqueue_style(
+                'fsbhoa-task-list-styles', 
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-task-list-styles.css', 
+                ['fsbhoa-shared-styles'], 
+                FSBHOA_AC_PLUGIN_VERSION,
+            );
+        }
+
+        // ASSETS FOR: [fsbhoa_reports]
         if ( has_shortcode( $post->post_content, 'fsbhoa_reports' ) ) {
+            // Needs DataTables for the report list
+            wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
+            wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
+            
+            // Needs the Datepicker widget from jQuery UI
+            wp_enqueue_script('jquery-ui-datepicker');
+
+            // Its own specific styles and scripts
             $script_handle = 'fsbhoa-reports-admin';
             wp_enqueue_style('fsbhoa-reports-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-reports-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
-            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-reports-admin.js', array('jquery', 'datatables-script'), FSBHOA_AC_PLUGIN_VERSION, true);
-            wp_enqueue_script('jquery-ui-datepicker');
-wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery-ui/jquery-ui.css', array(), '1.12.1');
-            wp_localize_script($script_handle, 'fsbhoa_reports_vars', array('rest_nonce' => wp_create_nonce( 'wp_rest' ), 'export_nonce' => wp_create_nonce( 'fsbhoa_export_nonce' )));
+            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-reports-admin.js', array('jquery', 'datatables-script', 'jquery-ui-datepicker'), FSBHOA_AC_PLUGIN_VERSION, true);
+            
+            // Localize data for the reports script
+            wp_localize_script($script_handle, 'fsbhoa_reports_vars', array(
+                'rest_nonce' => wp_create_nonce( 'wp_rest' ), 
+                'export_nonce' => wp_create_nonce( 'fsbhoa_export_nonce' )
+            ));
         }
 
+
+        // ASSETS FOR: [fsbhoa_usage_analytics]
         if ( has_shortcode( $post->post_content, 'fsbhoa_usage_analytics' ) ) {
-            wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
+            // Reuses the same stylesheet as the reports page
             wp_enqueue_style('fsbhoa-reports-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-reports-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
-            $script_handle = 'fsbhoa-analytics-admin';
+            
+            // Needs the Chart.js library
             wp_enqueue_script('chart-js', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/chart.min.js', array(), '4.4.3', true);
+            
+            // Its own specific script
+            $script_handle = 'fsbhoa-analytics-admin';
             wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-analytics-admin.js', array('jquery', 'chart-js'), FSBHOA_AC_PLUGIN_VERSION, true);
+            
+            // Localize data for the analytics script
             wp_localize_script($script_handle, 'fsbhoa_reports_vars', array('rest_nonce' => wp_create_nonce( 'wp_rest' )));
         }
 
-        $photo_settings = array('width'  => get_option('fsbhoa_ac_photo_width', 640), 'height' => get_option('fsbhoa_ac_photo_height', 800));
-        wp_localize_script($app_script_handle, 'fsbhoa_photo_settings', $photo_settings);
-        $ajax_settings = array('ajax_url' => admin_url('admin-ajax.php'), 
-                               'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'), 
-                               'export_nonce' => wp_create_nonce('fsbhoa_export_nonce'), 
-                               'print_report_nonce' => wp_create_nonce('fsbhoa_print_report_nonce'));
 
-        wp_localize_script($app_script_handle, 'fsbhoa_ajax_settings', $ajax_settings);
-
-        wp_enqueue_style('fsbhoa-property-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-property-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
-        wp_enqueue_script('fsbhoa-property-admin', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-property-admin.js', array('jquery', 'datatables-script'), FSBHOA_AC_PLUGIN_VERSION, true);
-
+        // ASSETS FOR: [fsbhoa_import_form]
         if ( has_shortcode( $post->post_content, 'fsbhoa_import_form' ) ) {
-            wp_enqueue_style('fsbhoa-import-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-import-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_style('fsbhoa-import-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-import-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_script('fsbhoa-import-workflow', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-import-workflow.js', array('jquery'), FSBHOA_AC_PLUGIN_VERSION, true);
+            wp_enqueue_script('jquery-ui-dialog'); 
+            wp_enqueue_style('wp-jquery-ui-dialog'); 
         }
 
-        $current_view = isset( $_GET['view'] ) ? sanitize_key( $_GET['view'] ) : '';
-        if ( $current_view === 'deleted' ) {
-            $deleted_table_js = "
-                jQuery(document).ready(function($) {
-                    var deletedTableElement = $('#fsbhoa-deleted-cardholder-table');
-                    if ( deletedTableElement.length && deletedTableElement.find('tbody tr td').length > 1 ) {
-                        var deletedTable = deletedTableElement.DataTable({
-                            'paging': true, 'searching': true, 'info': true, 'autoWidth': true,
-                            'order': [[ 3, 'desc' ]], 'columnDefs': [ { 'orderable': false, 'targets': 'no-sort' } ], 'dom': 'lrtip'
-                        });
-                        $('#fsbhoa-deleted-cardholder-search-input').on('keyup', function() { deletedTable.search($(this).val()).draw(); });
-                    }
-                });
-            ";
-            wp_add_inline_script( 'datatables-script', $deleted_table_js );
-        }
-
+        // ASSETS FOR: [fsbhoa_live_monitor]
         if ( has_shortcode( $post->post_content, 'fsbhoa_live_monitor' ) ) {
             wp_enqueue_style('tailwindcss-cdn', 'https://cdn.tailwindcss.com');
             wp_enqueue_style('fsbhoa-live-monitor-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-monitor.css', array(), FSBHOA_AC_PLUGIN_VERSION);
+            
             $script_handle = 'fsbhoa-live-monitor-script';
             wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-live-monitor.js', [], FSBHOA_AC_PLUGIN_VERSION, true);
 
-            // Pass the WebSocket URL for the new monitor_service
-            $ws_port = get_option('fsbhoa_ac_monitor_port', 8082); // Use the new setting
-            $ws_host = get_option('fsbhoa_ac_wp_host', 'nas.fsbhoa.com');
-            $ws_url = sprintf('wss://%s:%d/ws', $ws_host, $ws_port); // Use secure wss://
+            $ws_port = get_option('fsbhoa_ac_monitor_port', 8082);
+            $ws_host = get_option('fsbhoa_ac_wp_host', 'access.fsbhoa.com');
+            $ws_url = sprintf('wss://%s:%d/ws', $ws_host, $ws_port);
 
-            wp_localize_script($script_handle, 'fsbhoa_monitor_vars', [ 'ws_url' => $ws_url, 'nonce'  => wp_create_nonce('wp_rest') ]);
-        }
-        if (has_shortcode($post->post_content, 'fsbhoa_groups_page')) {
-                // Enqueue the CSS for the groups page using the correct URL constant.
-                $css_path = FSBHOA_AC_PLUGIN_DIR . 'assets/css/fsbhoa-groups.css';
-                wp_enqueue_style(
-                    'fsbhoa-groups-style', 
-                    FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-groups.css', 
-                    [], 
-                    filemtime($css_path)
-                );
-
-                // Enqueue the JavaScript for the groups page using the correct URL constant.
-                $js_path = FSBHOA_AC_PLUGIN_DIR . 'assets/js/groups-admin.js';
-                wp_enqueue_script(
-                    'fsbhoa-groups-admin-js', 
-                    FSBHOA_AC_PLUGIN_URL . 'assets/js/groups-admin.js', 
-                    ['jquery'], 
-                    filemtime($js_path), 
-                    true
-                );
+            wp_localize_script($script_handle, 'fsbhoa_monitor_vars', [ 'ws_url' => $ws_url, 'nonce' => wp_create_nonce('wp_rest') ]);
         }
 
+        // ASSETS FOR: [fsbhoa_amenity_management]
         if ( has_shortcode( $post->post_content, 'fsbhoa_amenity_management' ) ) {
-            wp_enqueue_style('fsbhoa-amenity-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-amenity-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_style(
+                'fsbhoa-amenity-styles', 
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-amenity-styles.css', 
+                array('fsbhoa-shared-styles'), 
+                FSBHOA_AC_PLUGIN_VERSION,
+            );
+            wp_enqueue_media();
+            wp_enqueue_script(
+                'fsbhoa-amenity-admin', 
+                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-amenity-admin.js', 
+                array('jquery'), 
+                FSBHOA_AC_PLUGIN_VERSION, 
+                true,
+            );
         }
 
-        // --- Load styles specifically for the print report page ---
+        // ASSETS FOR: [fsbhoa_groups_page]
+        if (has_shortcode($post->post_content, 'fsbhoa_groups_page')) {
+            $css_path = FSBHOA_AC_PLUGIN_DIR . 'assets/css/fsbhoa-groups.css';
+            wp_enqueue_style(
+                'fsbhoa-groups-style',
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-groups.css',
+                ['fsbhoa-shared-styles'],
+                filemtime($css_path)
+            );
+
+            $js_path = FSBHOA_AC_PLUGIN_DIR . 'assets/js/groups-admin.js';
+            wp_enqueue_script(
+                'fsbhoa-groups-admin-js',
+                FSBHOA_AC_PLUGIN_URL . 'assets/js/groups-admin.js',
+                ['jquery'],
+                filemtime($js_path),
+                true
+            );
+        }
+
+        // ASSETS FOR: [fsbhoa_cardholder_report]
         if ( has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' ) ) {
             wp_enqueue_style(
-                'fsbhoa-print-report-styles', 
-                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-print-report-styles.css', 
-                array('fsbhoa-shared-styles'), 
+                'fsbhoa-print-report-styles',
+                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-print-report-styles.css',
+                array('fsbhoa-shared-styles'),
                 FSBHOA_AC_PLUGIN_VERSION
             );
         }
@@ -275,14 +357,6 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
                 $gate_page->render_page();
             } else {
                 echo '<p>' . esc_html__( 'Error: Gate management class not found.', 'fsbhoa-ac' ) . '</p>';
-            }
-        }
-        elseif ( $current_view === 'tasks' ) {
-            if ( class_exists('Fsbhoa_Task_Admin_Page') ) {
-                $task_page = new Fsbhoa_Task_Admin_Page();
-                $task_page->render_page();
-            } else {
-                echo '<p>' . esc_html__( 'Error: Task List management class not found.', 'fsbhoa-ac' ) . '</p>';
             }
         }
         return ob_get_clean();
@@ -397,8 +471,30 @@ wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery
         }
 
         ob_start();
-        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-task-list.php';
-        fsbhoa_render_task_list_view();
+        if ( class_exists('Fsbhoa_Task_Admin_Page') ) {
+            $task_page = new Fsbhoa_Task_Admin_Page();
+            $task_page->render_page();
+        } else {
+            echo '<p>Error: Task Admin Page class not found.</p>';
+        }
+        return ob_get_clean();
+    }
+
+    /**
+     * Renders the Deleted Cardholders management page.
+     */
+    public function render_deleted_cardholders_shortcode( $atts ) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        ob_start();
+        if ( class_exists('Fsbhoa_Deleted_Cardholder_Admin_Page') ) {
+            $deleted_cardholder_page = new Fsbhoa_Deleted_Cardholder_Admin_Page();
+            $deleted_cardholder_page->render_page();
+        } else {
+            echo '<p>' . esc_html__( 'Error: Deleted Cardholder management class not found.', 'fsbhoa-ac' ) . '</p>';
+        }
         return ob_get_clean();
     }
 

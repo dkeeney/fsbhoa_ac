@@ -35,13 +35,6 @@ function fsbhoa_render_controller_list_view() {
                 <?php esc_html_e( 'Discover Controllers', 'fsbhoa-ac' ); ?>
             </a>
 
-            <button id="fsbhoa-sync-all-button" class="button button-secondary" style="margin-left: 5px;">Sync All Controllers</button>
-            <span id="fsbhoa-sync-status" style="margin-left: 10px; font-style: italic;"></span>
-
-
-            <a href="<?php echo esc_url( add_query_arg('view', 'tasks', $current_page_url) ); ?>" class="button button-secondary" style="margin-left: 5px;">
-                <?php echo esc_html__( 'Manage Tasks', 'fsbhoa-ac' ); ?>
-            </a>
         </div>
 
         <table id="fsbhoa-controller-table" class="display" style="width:100%">

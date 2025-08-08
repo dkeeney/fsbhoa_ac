@@ -52,13 +52,22 @@ class Fsbhoa_Property_List_Table extends WP_List_Table {
         $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
 
         $result = $wpdb->get_results( $sql, 'ARRAY_A' );
+        if ( $wpdb->last_error ) {
+            error_log('FSBHOA DB Error (Get Properties): ' . $wpdb->last_error);
+            return []; // Return an empty array to prevent further errors on the page
+        }
         return $result;
     }
 
     public static function record_count() {
         global $wpdb;
         $table_name = 'ac_property';
-        return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" );
+        $count =  $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" );
+        if ( $wpdb->last_error ) {
+            error_log('FSBHOA DB Error (Count Properties): ' . $wpdb->last_error);
+            return 0; // Return 0 on error
+        }
+        return (int) $count;
     }
 
     public function no_items() {
@@ -119,6 +128,7 @@ class Fsbhoa_Property_List_Table extends WP_List_Table {
 
     function get_columns() {
         $columns = array(
+            'actions'        => __( 'Actions', 'fsbhoa-ac' ),
             'street_address' => __( 'Street Address', 'fsbhoa-ac' ),
             'notes'          => __( 'Notes', 'fsbhoa-ac' ),
         );

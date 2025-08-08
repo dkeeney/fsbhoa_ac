@@ -128,6 +128,33 @@ body.page .entry-title {
     background-color: #ef4444;
 }
 
+/* ==========================================================================
+   jQuery UI Autocomplete Styles
+   ========================================================================== */
+.ui-autocomplete {
+    background-color: #ffffff;
+    border: 1px solid #c5c5c5;
+    z-index: 99999; /* Ensure it appears on top of all other elements */
+    list-style: none;
+    padding: 5px 0;
+    margin: 0;
+    max-height: 250px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.ui-menu-item {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.ui-autocomplete .ui-menu-item:hover,
+.ui-autocomplete .ui-menu-item.ui-state-active {
+    background-color: #0073aa; /* WordPress blue for hover/active */
+    color: #fff;
+    border: none;
+}
+
 
 /* ==========================================================================
    Sync Banner Styles
