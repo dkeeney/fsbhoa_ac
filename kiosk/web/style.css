@@ -70,3 +70,39 @@ body { font-family: sans-serif; text-align: center; }
     margin-top: 10px;
 }
 
+/* --- Guest Button Styles --- */
+#guest-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 20px;
+}
+.guest-button {
+    width: 80px;
+    height: 80px;
+    border: 2px solid #ccc;
+    border-radius: 50%; /* Makes them circular */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: bold;
+    background-color: #f0f0f0;
+    transition: all 0.2s;
+}
+.guest-button:hover {
+    border-color: #0073aa;
+    background-color: #eaf6ff;
+}
+.guest-button.selected {
+    border-color: #0073aa;
+    background-color: #0073aa;
+    color: #fff;
+}
+
+.kiosk-step-container {
+    display: none; /* Hide steps by default */
+}

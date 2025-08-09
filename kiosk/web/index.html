@@ -16,10 +16,16 @@
     <hr>
     <div id="main-content" style="display: none;">
         <div id="last-card-swipe" style="font-size: 24px; font-weight: bold; min-height: 30px;"></div>
-        <div id="amenity-buttons"></div>
+	<div id="guest-buttons-container" class="kiosk-step-container">
+		<h2>How many guests are with you?</h2>
+		<div id="guest-buttons"></div>
+	</div>
+        <div id="amenity-buttons-container" class="kiosk-step-container">
+               <div id="amenity-buttons"></div>
+        </div>
         <div id="card-display" class="card-display-hidden">
-            <img id="card-photo" src="" alt="Cardholder Photo">
-            <div id="card-name"></div>
+               <img id="card-photo" src="" alt="Cardholder Photo">
+               <div id="card-name"></div>
         </div>
     </div>
     <script src="/app.js"></script>

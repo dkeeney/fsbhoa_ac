@@ -12,6 +12,7 @@ class Fsbhoa_Ac_Settings_Page {
     private $event_service_option_group = 'fsbhoa_event_service_options';
     private $monitor_settings_option_group = 'fsbhoa_monitor_options';
     private $print_service_config_path = '/var/lib/fsbhoa/zebra_print_service.json';
+    private $kiosk_config_path           = '/var/lib/fsbhoa/kiosk.json';
 
     public function __construct() {
         // Automatically set the default API token if it doesn't exist
@@ -27,6 +28,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_action( 'wp_ajax_fsbhoa_save_general_settings', array( $this, 'ajax_save_general_settings' ) );
         add_action( 'wp_ajax_fsbhoa_save_event_settings', array( $this, 'ajax_save_event_settings' ) );
 	add_action( 'wp_ajax_fsbhoa_save_print_settings', array( $this, 'ajax_save_print_settings' ) );
+        add_action('update_option', array($this, 'trigger_config_update_on_save'), 10, 3);
     }
 
     public function add_plugin_admin_menu() {
@@ -97,6 +99,16 @@ class Fsbhoa_Ac_Settings_Page {
             'debug_mode'   => (get_option('fsbhoa_ac_print_debug_mode', 'off') === 'on'),
         ];
         $this->write_config_file($this->print_service_config_path, $print_config);
+
+        // --- Build and write kiosk.json ---
+	$kiosk_config = [
+		'wordpress_api_base_url' => get_site_url(),
+		'ssl_cert_path'          => sanitize_text_field($tls_cert_path),
+		'ssl_key_path'           => sanitize_text_field($tls_key_path),
+		'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
+		'log_file'               => sanitize_text_field(get_option('fsbhoa_kiosk_log_file', '/var/log/fsbhoa/kiosk.log')),
+	];
+	$this->write_config_file($this->kiosk_config_path, $kiosk_config);
 
         // NOTE: Future config files (e.g., for print_service) can be added here.
     }
@@ -219,7 +231,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_settings_field(
             'fsbhoa_kiosk_logo_url_field',
             'Kiosk Logo URL',
-            array($this, 'render_field_callback'),
+            array($this, 'render_media_uploader_field'),
             $kiosk_page_slug,
             'fsbhoa_ac_kiosk_logo_section',
             [
@@ -256,6 +268,37 @@ class Fsbhoa_Ac_Settings_Page {
             'sanitize_text_field'
         );
 
+        // Add Port setting
+	add_settings_field(
+		'fsbhoa_kiosk_port_field',
+		'Kiosk Service Port',
+		array($this, 'render_field_callback'),
+		$kiosk_page_slug,
+		'fsbhoa_ac_kiosk_logo_section',
+		[
+			'id'      => 'fsbhoa_kiosk_port',
+			'type'    => 'number',
+			'default' => 8080,
+			'desc'    => 'The port the kiosk service listens on for secure HTTPS connections.'
+		]
+	);
+	register_setting($kiosk_option_group, 'fsbhoa_kiosk_port', 'absint');
+
+	// Add Log File setting
+	add_settings_field(
+		'fsbhoa_kiosk_log_file_field',
+		'Kiosk Log File Path',
+		array($this, 'render_field_callback'),
+		$kiosk_page_slug,
+		'fsbhoa_ac_kiosk_logo_section',
+		[
+			'id'      => 'fsbhoa_kiosk_log_file',
+			'type'    => 'text',
+			'default' => '/var/log/fsbhoa/kiosk.log',
+			'desc'    => 'Full server path to the kiosk service log file.'
+		]
+	);
+	register_setting($kiosk_option_group, 'fsbhoa_kiosk_log_file', 'sanitize_text_field');
 
     }
 
@@ -395,7 +438,8 @@ class Fsbhoa_Ac_Settings_Page {
         $settings_pages = [
             'toplevel_page_fsbhoa_ac_main_menu',
             'fsbhoa-ac_page_fsbhoa_event_service_settings',
-            'fsbhoa-ac_page_fsbhoa_print_service_settings'
+            'fsbhoa-ac_page_fsbhoa_print_service_settings',
+            'fsbhoa-ac_page_fsbhoa_kiosk_settings'
         ];
 
         if (in_array($hook, $settings_pages)) {
@@ -560,6 +604,21 @@ class Fsbhoa_Ac_Settings_Page {
         
 	$this->update_all_service_configs();
         wp_send_json_success('Print Service settings saved.');
+    }
+
+    // For kiosk
+    public function trigger_config_update_on_save($option_name, $old_value, $new_value) {
+        // A list of options that should trigger a config file rewrite
+        $kiosk_options = [
+            'fsbhoa_kiosk_logo_url',
+            'fsbhoa_kiosk_name',
+            'fsbhoa_kiosk_port',
+            'fsbhoa_kiosk_log_file'
+        ];
+
+        if (in_array($option_name, $kiosk_options)) {
+            $this->update_all_service_configs();
+        }
     }
 
     public function render_media_uploader_field($args) {

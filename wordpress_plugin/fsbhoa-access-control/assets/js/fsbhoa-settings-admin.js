@@ -98,5 +98,26 @@ jQuery(document).ready(function($) {
         frame.open();
     });
 
+    // --- Media Uploader for Kiosk Page Logo ---
+    $('#fsbhoa_kiosk_logo_url-button').on('click', function(e) {
+        e.preventDefault();
+        const button = $(this);
+        const inputField = $('#fsbhoa_kiosk_logo_url');
+
+        const frame = wp.media({
+            title: 'Select or Upload Kiosk Logo',
+            button: { text: 'Use this image' },
+            library: { type: 'image' },
+            multiple: false
+        });
+
+        frame.on('select', function() {
+            const attachment = frame.state().get('selection').first().toJSON();
+            inputField.val(attachment.url);
+        });
+
+        frame.open();
+    });
+
 });
 

@@ -58,6 +58,7 @@ class Fsbhoa_Kiosk_REST_API {
         $params = $request->get_json_params();
         $rfid = isset($params['rfid']) ? sanitize_text_field($params['rfid']) : '';
         $amenity_name = isset($params['amenity']) ? sanitize_text_field($params['amenity']) : '';
+        $guests = isset($params['guests']) ? absint($params['guests']) : 0; // <-- 1. GET THE GUESTS PARAMETER
 
         if (empty($rfid) || empty($amenity_name)) {
             return new WP_Error( 'bad_request', 'Missing rfid or amenity name.', ['status' => 400] );
@@ -68,6 +69,12 @@ class Fsbhoa_Kiosk_REST_API {
             return new WP_Error( 'db_error', 'Database error finding cardholder.', ['status' => 500, 'db_error' => $wpdb->last_error] );
         }
 
+        // --- 2. CREATE THE NEW, MORE DESCRIPTIVE LOG MESSAGE ---
+        $description = 'Amenity: ' . $amenity_name;
+        if ($guests > 0) {
+            $description .= ' (+' . $guests . ' ' . ($guests === 1 ? 'guest' : 'guests') . ')';
+        }
+
         $log_data = [
             'event_timestamp'       => current_time('mysql'),
             'controller_identifier' => 'kiosk',
@@ -75,7 +82,7 @@ class Fsbhoa_Kiosk_REST_API {
             'rfid_id'               => $rfid,
             'cardholder_id'         => $cardholder_id ? (int)$cardholder_id : null,
             'event_type_code'       => 100, // Kiosk Sign-in Success
-            'event_description'     => 'Amenity: ' . $amenity_name,
+            'event_description'     => $description, // <-- USE THE NEW DESCRIPTION
             'access_granted'        => 1,
         ];
 

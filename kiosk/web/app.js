@@ -8,6 +8,10 @@ const cardDisplay = document.getElementById('card-display');
 const cardPhoto = document.getElementById('card-photo');
 const cardName = document.getElementById('card-name');
 const cardReaderInput = document.getElementById('card-reader-input');
+const amenityButtonsContainer = document.getElementById('amenity-buttons-container');
+const guestButtonsContainer = document.getElementById('guest-buttons-container');
+const guestButtonsDiv = document.getElementById('guest-buttons');
+let selectedGuestCount = null;
 let rfidTimeout;
 
 let kioskConfig = {};
@@ -36,7 +40,11 @@ function beep(count, volume, duration) {
 }
 
 function connect() {
-    socket = new WebSocket(`ws://${window.location.host}/ws`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socketURL = `${protocol}//${window.location.host}/ws`;
+    
+    console.log(`Connecting to WebSocket at: ${socketURL}`);
+    socket = new WebSocket(socketURL);
 
     socket.addEventListener('open', () => {
         resetKiosk();
@@ -55,23 +63,22 @@ function connect() {
                 }
             } else if (message.event === 'cardSwiped') {
                 const swipeData = message.payload;
-                
+
                 if (swipeData.isValid) {
                     lastSwipedCard = swipeData.rfid;
-                    stopFocusCapture(); // Stop trapping focus to allow button clicks
+                    stopFocusCapture();
                     idleScreen.style.display = 'none';
                     mainContent.style.display = 'block';
-                    lastCardSwipeDiv.textContent = ``; 
-                    statusMessage.textContent = 'Please Select an Amenity';
+                    lastCardSwipeDiv.textContent = ``;
                     
                     cardName.textContent = swipeData.cardholder.name;
                     if (swipeData.cardholder.photo) {
                         cardPhoto.src = `data:image/jpeg;base64,${swipeData.cardholder.photo}`;
                     } else {
-                        cardPhoto.src = ''; 
+                        cardPhoto.src = '';
                     }
                     cardDisplay.className = 'card-display-visible';
-                    createAmenityButtons(kioskConfig.amenities);
+                    showGuestSelection();
                 } else {
                     statusMessage.textContent = swipeData.message;
                     statusMessage.style.color = 'red';
@@ -90,6 +97,38 @@ function connect() {
         statusMessage.style.color = 'orange';
         setTimeout(connect, 3000);
     });
+}
+
+
+function showGuestSelection() {
+    amenityButtonsContainer.style.display = 'none';
+    guestButtonsContainer.style.display = 'block';
+    statusMessage.textContent = 'Please Select Number of Guests';
+    createGuestButtons();
+}
+
+function createGuestButtons() {
+    guestButtonsDiv.innerHTML = '';
+    for (let i = 0; i <= 6; i++) {
+        const button = document.createElement('button');
+        button.className = 'guest-button';
+        button.textContent = i;
+        button.dataset.count = i;
+
+        button.addEventListener('click', function() {
+            selectedGuestCount = parseInt(this.dataset.count, 10);
+
+            // Optional: Add a visual cue for the selected button
+            document.querySelectorAll('.guest-button').forEach(btn => btn.classList.remove('selected'));
+            this.classList.add('selected');
+
+            guestButtonsContainer.style.display = 'none';
+            amenityButtonsContainer.style.display = 'block';
+            statusMessage.textContent = 'Please Select an Amenity';
+            createAmenityButtons(kioskConfig.amenities);
+        });
+        guestButtonsDiv.appendChild(button);
+    }
 }
 
 function createAmenityButtons(amenities) {
@@ -117,6 +156,7 @@ function createAmenityButtons(amenities) {
                 payload: {
                     rfid: lastSwipedCard,
                     amenity: this.dataset.name
+                    guests: selectedGuestCount
                 }
             }));
             statusMessage.textContent = `Thank you for signing in to ${this.dataset.name}!`;
@@ -130,6 +170,8 @@ function createAmenityButtons(amenities) {
 function resetKiosk() {
     mainContent.style.display = 'none';
     idleScreen.style.display = 'block';
+    guestButtonsContainer.style.display = 'none'; 
+    amenityButtonsContainer.style.display = 'none';
     cardDisplay.className = 'card-display-hidden';
     lastSwipedCard = null;
     lastCardSwipeDiv.textContent = '';
