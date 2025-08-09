@@ -226,8 +226,14 @@ func listenForLocalReader(cardChan chan<- string) {
 
 // handleConnections is the WebSocket handler for browser UI communication.
 func handleConnections(w http.ResponseWriter, r *http.Request, cardChan chan<- string) {
+        log.Println("==> Received a request to upgrade to WebSocket")
+
 	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil { log.Fatal(err) }
+        if err != nil {
+            log.Printf("ERROR: Failed to upgrade WebSocket connection: %v", err)
+            return // Exit this handler, but do not crash the server.
+        }
+        log.Println("==> WebSocket upgrade successful. A client is now connected.")
 	defer ws.Close()
 
 	clientsMutex.Lock()

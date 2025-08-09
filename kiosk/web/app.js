@@ -2,7 +2,6 @@ const statusMessage = document.getElementById('status-message');
 const lastCardSwipeDiv = document.getElementById('last-card-swipe');
 const amenityButtonsDiv = document.getElementById('amenity-buttons');
 const idleScreen = document.getElementById('idle-screen');
-const mainContent = document.getElementById('main-content');
 const logoImage = document.getElementById('logo-image');
 const cardDisplay = document.getElementById('card-display');
 const cardPhoto = document.getElementById('card-photo');
@@ -11,9 +10,9 @@ const cardReaderInput = document.getElementById('card-reader-input');
 const amenityButtonsContainer = document.getElementById('amenity-buttons-container');
 const guestButtonsContainer = document.getElementById('guest-buttons-container');
 const guestButtonsDiv = document.getElementById('guest-buttons');
+
 let selectedGuestCount = null;
 let rfidTimeout;
-
 let kioskConfig = {};
 let lastSwipedCard = null;
 let socket = null;
@@ -42,7 +41,7 @@ function beep(count, volume, duration) {
 function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socketURL = `${protocol}//${window.location.host}/ws`;
-    
+
     console.log(`Connecting to WebSocket at: ${socketURL}`);
     socket = new WebSocket(socketURL);
 
@@ -68,9 +67,8 @@ function connect() {
                     lastSwipedCard = swipeData.rfid;
                     stopFocusCapture();
                     idleScreen.style.display = 'none';
-                    mainContent.style.display = 'block';
-                    lastCardSwipeDiv.textContent = ``;
-                    
+                    document.getElementById('main-layout-table').style.display = 'table'; // Use new table ID
+
                     cardName.textContent = swipeData.cardholder.name;
                     if (swipeData.cardholder.photo) {
                         cardPhoto.src = `data:image/jpeg;base64,${swipeData.cardholder.photo}`;
@@ -78,7 +76,19 @@ function connect() {
                         cardPhoto.src = '';
                     }
                     cardDisplay.className = 'card-display-visible';
-                    showGuestSelection();
+
+                    selectedGuestCount = 0;
+
+                    guestButtonsContainer.style.display = 'block';
+                    amenityButtonsContainer.style.display = 'block';
+                    
+                    createGuestButtons();
+                    createAmenityButtons(kioskConfig.amenities);
+
+                    const zeroButton = document.querySelector('.guest-button[data-count="0"]');
+                    if(zeroButton) {
+                        zeroButton.classList.add('selected');
+                    }
                 } else {
                     statusMessage.textContent = swipeData.message;
                     statusMessage.style.color = 'red';
@@ -99,14 +109,6 @@ function connect() {
     });
 }
 
-
-function showGuestSelection() {
-    amenityButtonsContainer.style.display = 'none';
-    guestButtonsContainer.style.display = 'block';
-    statusMessage.textContent = 'Please Select Number of Guests';
-    createGuestButtons();
-}
-
 function createGuestButtons() {
     guestButtonsDiv.innerHTML = '';
     for (let i = 0; i <= 6; i++) {
@@ -117,15 +119,8 @@ function createGuestButtons() {
 
         button.addEventListener('click', function() {
             selectedGuestCount = parseInt(this.dataset.count, 10);
-
-            // Optional: Add a visual cue for the selected button
             document.querySelectorAll('.guest-button').forEach(btn => btn.classList.remove('selected'));
             this.classList.add('selected');
-
-            guestButtonsContainer.style.display = 'none';
-            amenityButtonsContainer.style.display = 'block';
-            statusMessage.textContent = 'Please Select an Amenity';
-            createAmenityButtons(kioskConfig.amenities);
         });
         guestButtonsDiv.appendChild(button);
     }
@@ -145,7 +140,7 @@ function createAmenityButtons(amenities) {
             img.src = amenity.image_url;
             button.appendChild(img);
         }
-        
+
         const span = document.createElement('span');
         span.textContent = amenity.name;
         button.appendChild(span);
@@ -155,12 +150,12 @@ function createAmenityButtons(amenities) {
                 event: 'amenitySelected',
                 payload: {
                     rfid: lastSwipedCard,
-                    amenity: this.dataset.name
+                    amenity: this.dataset.name,
                     guests: selectedGuestCount
                 }
             }));
             statusMessage.textContent = `Thank you for signing in to ${this.dataset.name}!`;
-            mainContent.style.display = 'none';
+            document.getElementById('main-layout-table').style.display = 'none'; // Use new table ID
             setTimeout(resetKiosk, 3000);
         });
         amenityButtonsDiv.appendChild(button);
@@ -168,9 +163,9 @@ function createAmenityButtons(amenities) {
 }
 
 function resetKiosk() {
-    mainContent.style.display = 'none';
+    document.getElementById('main-layout-table').style.display = 'none'; // Use new table ID
     idleScreen.style.display = 'block';
-    guestButtonsContainer.style.display = 'none'; 
+    guestButtonsContainer.style.display = 'none';
     amenityButtonsContainer.style.display = 'none';
     cardDisplay.className = 'card-display-hidden';
     lastSwipedCard = null;
@@ -185,21 +180,15 @@ function resetKiosk() {
 // Initial connection attempt
 connect();
 
-
-
-// --- New Functions for Focus and Input Handling ---
-
 function handleCardInput(event) {
-    // Sanitize input to only allow digits
     event.target.value = event.target.value.replace(/\D/g, '');
     const rfid = event.target.value;
 
     if (rfid.length === 1) {
-        // Start a 2-second timer when the first digit is entered
         clearTimeout(rfidTimeout);
         rfidTimeout = setTimeout(() => {
             console.log("RFID input timed out.");
-            cardReaderInput.value = ''; // Clear the input field
+            cardReaderInput.value = '';
         }, 2000);
     }
 
@@ -210,7 +199,7 @@ function handleCardInput(event) {
             event: 'manualSwipe',
             payload: { rfid: rfid }
         }));
-        event.target.value = ''; // Clear for the next swipe
+        event.target.value = '';
     }
 }
 
@@ -221,7 +210,7 @@ function forceFocus() {
 function startFocusCapture() {
     cardReaderInput.addEventListener('blur', forceFocus);
     cardReaderInput.addEventListener('input', handleCardInput);
-    forceFocus(); // Set initial focus
+    forceFocus();
 }
 
 function stopFocusCapture() {
@@ -229,3 +218,4 @@ function stopFocusCapture() {
     cardReaderInput.removeEventListener('input', handleCardInput);
     clearTimeout(rfidTimeout);
 }
+
