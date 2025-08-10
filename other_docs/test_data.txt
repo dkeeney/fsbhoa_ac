@@ -1,16 +1,5 @@
 
 
-- import Cardholder List: Add a feature to import selected cardholder from a previously exported cardholder .csv file.
-
-- A Backup/Restore feature.   Use a backup plugin.  No code needed.
-
-- Card Preview screen, Name is one line not two....maybe we should use the template to generate.
-
-- Sync Reminder (Red button in heading)
-
-- Investigate a battery powered/ WiFi enabled webcam.
-
-- Guest count on kiosk
 
 ==================================================================================
 For testing:
