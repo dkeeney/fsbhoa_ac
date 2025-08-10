@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+        "encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -35,37 +36,57 @@ type WSMessage struct {
 }
 
 // Run starts the hub's event loop.
-func (h *Hub) Run() {
-	for {
-		select {
-		case client := <-h.register:
-			h.mu.Lock()
-			h.clients[client] = true
-			h.mu.Unlock()
-			// Trigger a poll on new client connection
-			go h.triggerImmediatePoll()
-
-		case client := <-h.unregister:
-			h.mu.Lock()
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				close(client.send)
-			}
-			h.mu.Unlock()
-		case data := <-h.broadcastC:
-			h.mu.Lock()
-			for client := range h.clients {
-				select {
-				case client.send <- data:
-				default:
-					close(client.send)
-					delete(h.clients, client)
-				}
-			}
-			h.mu.Unlock()
-		}
-	}
-}
+    func (h *Hub) Run() {
+        for {
+            select {
+            case client := <-h.register:
+                h.mu.Lock()
+                h.clients[client] = true
+                h.mu.Unlock()
+    
+                // Create a config payload for the newly connected client
+                configPayload := map[string]interface{}{
+                    "photoEventLimit": h.config.PhotoEventLimit,
+                }
+                msg := WSMessage{
+                    Type:    "initialConfig",
+                    Payload: configPayload,
+                }
+    
+                // Marshal and send the config message
+                if data, err := json.Marshal(msg); err == nil {
+                    client.send <- data
+                } else {
+                    log.Printf("ERROR: Could not marshal initial config: %v", err)
+                }
+    
+                // Trigger a poll on new client connection
+                go h.triggerImmediatePoll()
+    
+            // The 'register' case ends here.
+    
+            case client := <-h.unregister:
+                h.mu.Lock()
+                if _, ok := h.clients[client]; ok {
+                    delete(h.clients, client)
+                    close(client.send)
+                }
+                h.mu.Unlock()
+    
+            case data := <-h.broadcastC:
+                h.mu.Lock()
+                for client := range h.clients {
+                    select {
+                    case client.send <- data:
+                    default:
+                        close(client.send)
+                        delete(h.clients, client)
+                    }
+                }
+                h.mu.Unlock()
+            }
+        }
+    }
 
 // Broadcast sends a message to all connected clients.
 func (h *Hub) Broadcast(data []byte) {

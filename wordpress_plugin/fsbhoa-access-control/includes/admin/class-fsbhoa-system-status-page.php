@@ -31,7 +31,7 @@ class Fsbhoa_System_Status_Page {
         ?>
         <div class="wrap">
             <h1>System Services Status</h1>
-            <p>This page shows the real-time status of the backend Go services and allows you to manage them.</p>
+            <p>This page shows the real-time status of the backend Go services that run on the server. The official `systemd` service name is listed in small text below each friendly name.</p>
 
             <table class="wp-list-table widefat fixed striped">
                 <thead>

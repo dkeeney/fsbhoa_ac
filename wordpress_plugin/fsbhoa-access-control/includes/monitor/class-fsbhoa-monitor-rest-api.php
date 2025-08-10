@@ -219,18 +219,19 @@ class Fsbhoa_Monitor_REST_API {
         $controllers_table = 'ac_controllers';
         $property_table = 'ac_property';
 
-        return $wpdb->prepare(
-            "SELECT l.event_timestamp, l.access_granted, l.event_description, l.rfid_id, l.controller_identifier, ch.first_name, ch.last_name, ch.photo, d.friendly_name AS gate_name, d.door_record_id, p.street_address
-             FROM {$log_table} AS l
-             LEFT JOIN {$cardholders_table} AS ch ON l.cardholder_id = ch.id
-             LEFT JOIN {$controllers_table} AS c ON l.controller_identifier = c.uhppoted_device_id
-             LEFT JOIN {$doors_table} AS d ON c.controller_record_id = d.controller_record_id AND l.door_number = d.door_number_on_controller
-             LEFT JOIN {$property_table} AS p ON ch.property_id = p.property_id
-             WHERE l.event_timestamp >= %s
-             ORDER BY l.event_timestamp DESC
-             LIMIT 50",
-             date('Y-m-d H:i:s', strtotime('-24 hours'))
-        );
+        // It uses the database's internal clock, to get records in the last 24 hrs.
+        $query = "
+            SELECT l.event_timestamp, l.access_granted, l.event_description, l.rfid_id, l.controller_identifier, ch.first_name, ch.last_name, ch.photo, d.friendly_name AS gate_name, d.door_record_id, p.street_address
+            FROM {$log_table} AS l
+            LEFT JOIN {$cardholders_table} AS ch ON l.cardholder_id = ch.id
+            LEFT JOIN {$controllers_table} AS c ON l.controller_identifier = c.uhppoted_device_id
+            LEFT JOIN {$doors_table} AS d ON c.controller_record_id = d.controller_record_id AND l.door_number = d.door_number_on_controller
+            LEFT JOIN {$property_table} AS p ON ch.property_id = p.property_id
+            WHERE l.event_timestamp >= NOW() - INTERVAL 24 HOUR
+            ORDER BY l.event_timestamp DESC
+            LIMIT 50";
+
+        return $query;
     }
 
     /**

@@ -128,6 +128,7 @@ jQuery(document).ready(function($) {
             nonce: fsbhoa_monitor_settings_vars.nonce,
             map_url: mapHiddenInput.val(),
             port: $('#fsbhoa_ac_monitor_port').val(),
+            photo_limit: $('#fsbhoa_ac_monitor_photo_limit').val(),
             gates: Object.keys(gatePositions).map(id => ({
                 id: id,
                 x: Math.round(gatePositions[id].x),

@@ -72,6 +72,7 @@ class Fsbhoa_Ac_Settings_Page {
             'tls_cert_path'     => sanitize_text_field($tls_cert_path),
             'tls_key_path'      => sanitize_text_field($tls_key_path),
             'event_service_url' => sprintf('https://127.0.0.1:%d', absint($websocket_port)),
+            'photo_event_limit' => (int) get_option('fsbhoa_ac_monitor_photo_limit', 3),
         ];
         $this->write_config_file($this->monitor_service_config_path, $monitor_config);
 
@@ -211,14 +212,18 @@ class Fsbhoa_Ac_Settings_Page {
 	register_setting($print_service_option_group, 'fsbhoa_ac_print_api_token', 'sanitize_text_field');
 
 
+        // ====================================================================
         // --- MONITOR SETTINGS ---
+        // ====================================================================
 
         register_setting($this->monitor_settings_option_group, 'fsbhoa_monitor_map_url', 'esc_url_raw');
         register_setting($this->monitor_settings_option_group, 'fsbhoa_ac_monitor_port', 'absint');
+        register_setting($this->monitor_settings_option_group, 'fsbhoa_ac_monitor_photo_limit', 'absint');
 
 
-
+        // ====================================================================
         // --- KIOSK SETTINGS ---
+        // ====================================================================
         $kiosk_option_group = 'fsbhoa_kiosk_options';
         $kiosk_page_slug = 'fsbhoa_kiosk_settings';
 
@@ -404,6 +409,15 @@ class Fsbhoa_Ac_Settings_Page {
                             <p class="description">The port the monitor_service listens on for secure WebSocket (WSS) connections.</p>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="fsbhoa_ac_monitor_photo_limit">Photo Event Limit</label>
+                        </th>
+                        <td>
+                            <input name="fsbhoa_ac_monitor_photo_limit" type="number" id="fsbhoa_ac_monitor_photo_limit" value="<?php echo esc_attr(get_option('fsbhoa_ac_monitor_photo_limit', 3)); ?>" class="small-text" />
+                            <p class="description">The number of recent events to display with a photo in the activity log.</p>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
     
@@ -511,6 +525,7 @@ class Fsbhoa_Ac_Settings_Page {
         $gates_data = isset($_POST['gates']) && is_array($_POST['gates']) ? $_POST['gates'] : [];
         $map_url = isset($_POST['map_url']) ? esc_url_raw($_POST['map_url']) : '';
         $port = isset($_POST['port']) ? absint($_POST['port']) : 8082;
+        $photo_limit = isset($_POST['photo_limit']) ? absint($_POST['photo_limit']) : 3;
         $errors = [];
         
         // 3. Save Gate Positions to the Database with detailed error checking
@@ -540,6 +555,7 @@ class Fsbhoa_Ac_Settings_Page {
         // 4. Save Other Settings to wp_options
         update_option('fsbhoa_monitor_map_url', $map_url);
         update_option('fsbhoa_ac_monitor_port', $port);
+        update_option('fsbhoa_ac_monitor_photo_limit', $photo_limit);
         
         // 5. Trigger the Master Config Writer
         // This runs regardless of gate update errors, so the config files are always

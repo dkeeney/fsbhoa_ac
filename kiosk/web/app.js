@@ -69,6 +69,8 @@ function connect() {
                     idleScreen.style.display = 'none';
                     document.getElementById('main-layout-table').style.display = 'table'; // Use new table ID
 
+                    statusMessage.textContent = '';
+
                     cardName.textContent = swipeData.cardholder.name;
                     if (swipeData.cardholder.photo) {
                         cardPhoto.src = `data:image/jpeg;base64,${swipeData.cardholder.photo}`;

@@ -5,7 +5,6 @@
 document.addEventListener('DOMContentLoaded', function () {
     // These variables are passed from WordPress via wp_localize_script
     const WS_URL = fsbhoa_monitor_vars.ws_url || ''; 
-    const MAX_EXPANDED_EVENTS = 3; 
 
     // --- DOM Elements ---
     const eventList = document.getElementById('event-list');
@@ -14,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusDot = connectionStatus ? connectionStatus.querySelector('div') : null;
     const statusText = connectionStatus ? connectionStatus.querySelector('span') : null;
     let lastEventTimestamp = '';
+    let maxExpandedEvents = 3;
     
     if (!eventList || !connectionStatus) {
         console.error("Live Monitor UI elements not found. Aborting script.");
@@ -43,6 +43,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Route message based on its type
                 switch (message.messageType) {
+                    case 'initialConfig':
+                        maxExpandedEvents = parseInt(message.payload.photoEventLimit, 10) || 3;
+                        loadRecentActivity();
+                        break;
                     case 'accessEvent':
                         addEventToLog(message.payload);
                         flashGateLight(message.payload.doorRecordId);
@@ -232,9 +236,12 @@ document.addEventListener('DOMContentLoaded', function () {
         eventList.prepend(newEventCard);
 
         const allEvents = eventList.querySelectorAll('li');
-        if (allEvents.length > MAX_EXPANDED_EVENTS) {
-            const cardToCollapse = allEvents[MAX_EXPANDED_EVENTS];
-            if (cardToCollapse.classList.contains('is-expanded')) {
+        
+        // Use the correct camelCase variable name here
+        if (allEvents.length > maxExpandedEvents) { 
+            // And also here
+            const cardToCollapse = allEvents[maxExpandedEvents]; 
+            if (cardToCollapse && cardToCollapse.classList.contains('is-expanded')) {
                 const originalData = JSON.parse(cardToCollapse.dataset.eventData);
                 const collapsedCard = createEventCard(originalData, false);
                 cardToCollapse.replaceWith(collapsedCard);
@@ -379,7 +386,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Run all initialization tasks, then connect the WebSocket.
     Promise.all([
         initializeMap(),
-        loadRecentActivity()
     ]).then(() => connect());
 
     
