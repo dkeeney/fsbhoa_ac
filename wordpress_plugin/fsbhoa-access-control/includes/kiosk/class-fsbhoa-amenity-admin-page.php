@@ -9,180 +9,110 @@ if ( ! defined( 'WPINC' ) ) {
 class Fsbhoa_Amenity_Admin_Page {
 
     public function render_page() {
-        if (isset($_GET['action']) && isset($_GET['amenity_id'])) {
-            $action = sanitize_key($_GET['action']);
-            
-            if ($action === 'toggle_status') {
-                // This is handled by the actions class, but we can add a handler here if we wanted
-                // For now, the actions class handles it via admin-post.php
-            }
+        // Check for our custom error message in the URL
+        if (isset($_GET['fsbhoa_error'])) {
+            $error_message = sanitize_text_field(urldecode($_GET['fsbhoa_error']));
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($error_message) . '</p></div>';
         }
-
-        if (isset($_GET['message'])) {
-            $this->display_admin_notice($_GET['message']);
-        }
-
-        $edit_id = (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['amenity_id'])) ? absint($_GET['amenity_id']) : 0;
-        $this->render_form_page($edit_id);
         $this->render_list_page();
-
-        ?>
-        <style>
-            .fsbhoa-amenity-page {
-                max-width: 650px  !important;
-            }
-        </style>
-        <?php
     }
-
 
     private function render_list_page() {
         global $wpdb;
         $table_name = 'ac_amenities';
         $amenities = $wpdb->get_results("SELECT * FROM {$table_name} ORDER BY display_order ASC, name ASC");
+
         if ($wpdb->last_error) {
-            echo '<div class="notice notice-error"><p>Database Error: Could not retrieve amenities. ' . esc_html( $wpdb->last_error ) . '</p></div>';
+            echo '<div class="notice notice-error"><p>Database Error: ' . esc_html( $wpdb->last_error ) . '</p></div>';
         }
         ?>
-        <div class="wrap fsbhoa-frontend-wrap fsbhoa-amenity-page" style="margin-top: 20px;">
+        <div class="wrap fsbhoa-frontend-wrap fsbhoa-amenity-page">
             <h1 class="wp-heading-inline">Current Amenities</h1>
             <hr class="wp-header-end">
-            <table class="wp-list-table widefat striped">
+            <table id="amenities-list-table" class="wp-list-table widefat striped">
                 <thead>
                     <tr>
-                        <th style="width: 50px;">Image</th>
-                        <th>Name</th>
-                        <th style="width: 160px;">Actions</th>
+                        <th class="amenity-col-image">Image</th>
+                        <th class="amenity-col-name">Name</th>
+                        <th class="amenity-col-actions">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="amenity-list-body">
                     <?php if ( ! empty($amenities) ) : foreach ( $amenities as $amenity ) : ?>
-                        <tr>
-                            <td>
-                                <?php if (!empty($amenity->image_url)) : ?>
-                                    <img src="<?php echo esc_url($amenity->image_url); ?>" style="width: 40px; height: 40px; object-fit: cover; border-radius: 3px;">
-                                <?php endif; ?>
+                        <tr id="amenity-<?php echo esc_attr($amenity->id); ?>" data-amenity-id="<?php echo esc_attr($amenity->id); ?>">
+                            
+                            <td class="amenity-image-cell">
+                                <div class="amenity-image-display">
+                                    <?php if (!empty($amenity->image_url)) : ?>
+                                        <img class="amenity-list-image" src="<?php echo esc_url($amenity->image_url); ?>">
+                                    <?php endif; ?>
+                                </div>
+                                <input type="hidden" class="amenity-image-url-input" value="<?php echo esc_attr($amenity->image_url); ?>">
                             </td>
-                            <td><?php echo esc_html($amenity->name); ?></td>
+                            
+                            <td>
+                                <span class="amenity-name-display"><?php echo esc_html($amenity->name); ?></span>
+                                <input type="text" class="amenity-name-input" value="<?php echo esc_attr($amenity->name); ?>" style="display: none; width: 100%;">
+                            </td>
+
                             <td class="fsbhoa-actions-column">
-                                <?php
-                                $page_url = get_permalink();
-                                // Reorder links
-                                $up_nonce = wp_create_nonce('fsbhoa_move_amenity_up_nonce_' . $amenity->id);
-                                $down_nonce = wp_create_nonce('fsbhoa_move_amenity_down_nonce_' . $amenity->id);
-                                $up_link = esc_url(admin_url('admin-post.php?action=fsbhoa_move_amenity_up&amenity_id=' . $amenity->id . '&_wpnonce=' . $up_nonce));
-                                $down_link = esc_url(admin_url('admin-post.php?action=fsbhoa_move_amenity_down&amenity_id=' . $amenity->id . '&_wpnonce=' . $down_nonce));
-
-                                // Status toggle link
-                                $is_active = (bool) $amenity->is_active;
-                                $toggle_nonce = wp_create_nonce('fsbhoa_toggle_amenity_nonce_' . $amenity->id);
-                                $toggle_url = esc_url(admin_url('admin-post.php?action=fsbhoa_toggle_amenity_status&amenity_id=' . $amenity->id . '&_wpnonce=' . $toggle_nonce));
-                                $toggle_class = $is_active ? 'is-enabled' : 'is-disabled';
-                                $toggle_title = $is_active ? 'Amenity is Active. Click to deactivate.' : 'Amenity is Inactive. Click to activate.';
-                                $toggle_icon = $is_active ? 'dashicons-yes-alt' : 'dashicons-no-alt';
-
-                                // Edit and Delete links
-                                $delete_nonce = wp_create_nonce('fsbhoa_delete_amenity_nonce_' . $amenity->id);
-                                $edit_link = esc_url(add_query_arg(['action' => 'edit', 'amenity_id' => $amenity->id], $page_url));
-                                $delete_link = esc_url(admin_url('admin-post.php?action=fsbhoa_delete_amenity&amenity_id=' . $amenity->id . '&_wpnonce=' . $delete_nonce));
-                                ?>
-                                <a href="<?php echo $up_link; ?>" class="fsbhoa-action-icon button-link-delete" title="Move Up"><span class="dashicons dashicons-arrow-up-alt"></span></a>
-                                <a href="<?php echo $down_link; ?>" class="fsbhoa-action-icon button-link-delete" title="Move Down"><span class="dashicons dashicons-arrow-down-alt"></span></a>
-                                <a href="<?php echo $edit_link; ?>" class="fsbhoa-action-icon button-link-delete" title="Edit"><span class="dashicons dashicons-edit"></span></a>
-                                <a href="<?php echo $toggle_url; ?>" class="fsbhoa-action-icon amenity-status-toggle <?php echo $toggle_class; ?>" title="<?php echo esc_attr($toggle_title); ?>">
-                                    <span class="dashicons <?php echo $toggle_icon; ?>"></span>
-                                </a>
-                                <a href="<?php echo $delete_link; ?>" title="Delete" onclick="return confirm('Are you sure you want to delete this amenity?')" class="fsbhoa-action-icon button-link-delete"><span class="dashicons dashicons-trash"></span></a>
+                                <div class="amenity-actions-display">
+                                    <?php
+                                    $page_url = admin_url('admin.php?page=fsbhoa-ac-amenities');
+                                    $up_nonce = wp_create_nonce('fsbhoa_move_amenity_up_nonce_' . $amenity->id);
+                                    $down_nonce = wp_create_nonce('fsbhoa_move_amenity_down_nonce_' . $amenity->id);
+                                    $up_link = esc_url(admin_url('admin-post.php?action=fsbhoa_move_amenity_up&amenity_id=' . $amenity->id . '&_wpnonce=' . $up_nonce));
+                                    $down_link = esc_url(admin_url('admin-post.php?action=fsbhoa_move_amenity_down&amenity_id=' . $amenity->id . '&_wpnonce=' . $down_nonce));
+                                    $is_active = (bool) $amenity->is_active;
+                                    $toggle_nonce = wp_create_nonce('fsbhoa_toggle_amenity_nonce_' . $amenity->id);
+                                    $toggle_url = esc_url(admin_url('admin-post.php?action=fsbhoa_toggle_amenity_status&amenity_id=' . $amenity->id . '&_wpnonce=' . $toggle_nonce));
+                                    $toggle_class = $is_active ? 'is-enabled' : 'is-disabled';
+                                    $toggle_title = $is_active ? 'Active. Click to deactivate.' : 'Inactive. Click to activate.';
+                                    $toggle_icon = $is_active ? 'dashicons-yes-alt' : 'dashicons-no-alt';
+                                    $delete_nonce = wp_create_nonce('fsbhoa_delete_amenity_nonce_' . $amenity->id);
+                                    $delete_link = esc_url(admin_url('admin-post.php?action=fsbhoa_delete_amenity&amenity_id=' . $amenity->id . '&_wpnonce=' . $delete_nonce));
+                                    ?>
+                                    <a href="<?php echo $up_link; ?>" class="fsbhoa-action-icon" title="Move Up"><span class="dashicons dashicons-arrow-up-alt"></span></a>
+                                    <a href="<?php echo $down_link; ?>" class="fsbhoa-action-icon" title="Move Down"><span class="dashicons dashicons-arrow-down-alt"></span></a>
+                                    <a href="#" class="fsbhoa-action-icon edit-amenity-btn" title="Edit"><span class="dashicons dashicons-edit"></span></a>
+                                    <a href="<?php echo $toggle_url; ?>" class="fsbhoa-action-icon amenity-status-toggle <?php echo $toggle_class; ?>" title="<?php echo esc_attr($toggle_title); ?>">
+                                        <span class="dashicons <?php echo $toggle_icon; ?>"></span>
+                                    </a>
+                                    <a href="<?php echo $delete_link; ?>" title="Delete" class="fsbhoa-action-icon"><span class="dashicons dashicons-trash"></span></a>
+                                </div>
+                                <div class="amenity-actions-edit" style="display: none;">
+                                    <button type="button" class="button button-primary save-amenity-btn">Save</button>
+                                    <button type="button" class="button button-secondary cancel-edit-btn">Cancel</button>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; else : ?>
-                        <tr><td colspan="3"><?php esc_html_e( 'No amenities found. Use the form above to add one.', 'fsbhoa-ac' ); ?></td></tr>
+                        <tr><td colspan="3"><?php esc_html_e( 'No amenities found.', 'fsbhoa-ac' ); ?></td></tr>
                     <?php endif; ?>
                 </tbody>
+                <tfoot>
+                    <tr id="add-amenity-form">
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <td class="fsbhoa-actions-column">
+                                <span class="dashicons dashicons-plus-alt"></span>
+                            </td>
+                            <td>
+                                <input type="text" name="name" placeholder="Enter New Amenity Name" required>
+                            </td>
+                            <td>
+                                <input type="hidden" name="action" value="fsbhoa_add_amenity">
+                                <?php wp_nonce_field('fsbhoa_amenity_nonce'); ?>
+                                <input type="hidden" name="_wp_http_referer" value="<?php echo esc_url(remove_query_arg(['message'])); ?>">
+                                <button type="submit" class="button button-primary">Add New Amenity</button>
+                            </td>
+                        </form>
+                    </tr>
+                </tfoot>
             </table>
         </div>
-        
-        <style>
-            .fsbhoa-actions-column a, .amenity-status-toggle {
-                text-decoration: none;
-                box-shadow: none;
-            }
-            .amenity-status-toggle.is-enabled .dashicons{
-                color: #22c55e;
-            }
-            .amenity-status-toggle.is-disabled .dashicons {
-                color: #ef4444;
-            }
-            .fsbhoa-actions-column {
-                display: flex;
-                justify-content: space-around;
-                align-items: center;
-            }
-            .fsbhoa-actions-column .dashicons {
-                font-size: 1.4em;
-            }
-        </style>
         <?php
     }
 
-
-    private function render_form_page($edit_id = 0) {
-        $amenity = null;
-        if ($edit_id > 0) {
-            global $wpdb;
-            $table_name = 'ac_amenities';
-            $amenity = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_name} WHERE id = %d", $edit_id));
-            if ($wpdb->last_error) {
-                echo '<div class="notice notice-error"><p>Database Error: Could not retrieve amenity for editing. ' . esc_html( $wpdb->last_error ) . '</p></div>';
-                return;
-            }
-        }
-
-        $page_title = $amenity ? 'Edit Amenity' : 'Add New Amenity';
-        $name = $amenity ? $amenity->name : '';
-        $image_url = $amenity ? $amenity->image_url : '';
-        $display_order = $amenity ? $amenity->display_order : '0';
-        $is_active = $amenity ? $amenity->is_active : '1';
-        $button_text = $amenity ? 'Update Amenity' : 'Add Amenity';
-        $form_action = $amenity ? 'fsbhoa_edit_amenity' : 'fsbhoa_add_amenity';
-        ?>
-        <div class="wrap fsbhoa-frontend-wrap  fsbhoa-amenity-page">
-            <h1 class="wp-heading-inline"><?php echo esc_html($page_title); ?></h1>
-            <hr class="wp-header-end">
-            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <input type="hidden" name="action" value="<?php echo esc_attr($form_action); ?>">
-                <input type="hidden" name="amenity_id" value="<?php echo esc_attr($edit_id); ?>">
-                <?php wp_nonce_field('fsbhoa_amenity_nonce'); ?>
-                 <input type="hidden" name="_wp_http_referer" value="<?php echo esc_url(remove_query_arg(['action', 'amenity_id', 'message'])); ?>">
-
-<div class="fsbhoa-add-form-fields">
-                    <div class="form-field-group">
-                        <label for="name">Amenity Name</label>
-                        <input name="name" type="text" id="name" value="<?php echo esc_attr($name); ?>" required>
-                    </div>
-<div class="form-field-group">
-                    <label for="image_url">Amenity Image</label>
-                    <div class="fsbhoa-image-preview">
-                        <?php if ($image_url): ?>
-                            <img src="<?php echo esc_url($image_url); ?>" alt="Amenity Preview">
-                        <?php else: ?>
-                            No image selected.
-                        <?php endif; ?>
-                    </div>
-                    <input name="image_url" type="hidden" id="image_url" class="fsbhoa-image-url-input" value="<?php echo esc_attr($image_url); ?>">
-                    <button type="button" class="button fsbhoa-select-image-btn">Select Image</button>
-                    <button type="button" class="button fsbhoa-remove-image-btn">Remove Image</button>
-                </div>
-                </div>
-                <button type="submit" name="submit" id="submit" class="button button-primary"><?php echo esc_html($button_text); ?></button>
-                 <?php if ($amenity) : ?>
-                    <a href="<?php echo esc_url(remove_query_arg(['action', 'amenity_id'])); ?>" class="button button-secondary" style="margin-left: 10px;">Cancel Edit</a>
-                <?php endif; ?>
-            </form>
-        </div>
-        <?php
-    }
-    
     private function display_admin_notice($message_code) {
         $message = '';
         $class = 'notice-success';
@@ -190,8 +120,8 @@ class Fsbhoa_Amenity_Admin_Page {
             case 'added': $message = 'Amenity added successfully.'; break;
             case 'updated': $message = 'Amenity updated successfully.'; break;
             case 'deleted': $message = 'Amenity deleted successfully.'; break;
-            case 'error': 
-                $message = 'An error occurred. Please try again.'; 
+            case 'error':
+                $message = 'An error occurred. Please try again.';
                 $class = 'notice-error';
                 break;
         }
@@ -199,34 +129,4 @@ class Fsbhoa_Amenity_Admin_Page {
             echo '<div class="notice ' . $class . ' is-dismissible"><p>' . esc_html($message) . '</p></div>';
         }
     }
-
-    private function handle_delete_action() {
-        $amenity_id = isset($_GET['amenity_id']) ? absint($_GET['amenity_id']) : 0;
-        $nonce = $_GET['_wpnonce'] ?? '';
-
-        if (!$amenity_id || !wp_verify_nonce($nonce, 'fsbhoa_delete_amenity_nonce_' . $amenity_id)) {
-            wp_die('Security check failed.');
-        }
-
-        if (!current_user_can('manage_options')) {
-            wp_die('You do not have permission to perform this action.');
-        }
-        
-        global $wpdb;
-        $table_name = 'ac_amenities';
-        $result = $wpdb->delete($table_name, ['id' => $amenity_id], ['%d']);
-
-        $redirect_url = wp_get_referer();
-        $redirect_url = $redirect_url ? remove_query_arg(['action', 'amenity_id', '_wpnonce'], $redirect_url) : '';
-        
-        if ($result === false) {
-            $redirect_url = add_query_arg('message', 'error', $redirect_url);
-        } else {
-            $redirect_url = add_query_arg('message', 'deleted', $redirect_url);
-        }
-
-        wp_safe_redirect($redirect_url);
-        exit;
-    }
 }
-

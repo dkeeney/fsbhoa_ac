@@ -28,6 +28,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_action( 'wp_ajax_fsbhoa_save_general_settings', array( $this, 'ajax_save_general_settings' ) );
         add_action( 'wp_ajax_fsbhoa_save_event_settings', array( $this, 'ajax_save_event_settings' ) );
 	add_action( 'wp_ajax_fsbhoa_save_print_settings', array( $this, 'ajax_save_print_settings' ) );
+        add_action( 'wp_ajax_fsbhoa_save_kiosk_settings', array( $this, 'ajax_save_kiosk_settings' ) );
         add_action('update_option', array($this, 'trigger_config_update_on_save'), 10, 3);
     }
 
@@ -420,15 +421,16 @@ class Fsbhoa_Ac_Settings_Page {
 
     public function render_kiosk_settings_page() {
         ?>
-        <div class="wrap">
+        <div class="wrap" id="fsbhoa-kiosk-settings-page">
             <h1>Kiosk Settings</h1>
-            <form action="options.php" method="post">
-                <?php
-                settings_fields('fsbhoa_kiosk_options');
+            <?php
+                // We manually render the sections and fields without a <form> tag
                 do_settings_sections('fsbhoa_kiosk_settings');
-                submit_button('Save Kiosk Settings');
-                ?>
-            </form>
+            ?>
+            <p class="submit">
+                <button type="button" id="fsbhoa-save-kiosk-settings-button" class="button button-primary">Save Kiosk Settings</button>
+                <span id="fsbhoa-save-feedback" style="display: none; margin-left: 10px; vertical-align: middle;"></span>
+            </p>
         </div>
         <?php
     }
@@ -455,6 +457,7 @@ class Fsbhoa_Ac_Settings_Page {
                     'general_nonce' => wp_create_nonce('fsbhoa_general_settings_nonce'),
                     'event_nonce'   => wp_create_nonce('fsbhoa_event_settings_nonce'),
                     'print_nonce'   => wp_create_nonce('fsbhoa_print_settings_nonce'),
+                    'kiosk_nonce'   => wp_create_nonce('fsbhoa_kiosk_settings_nonce'),
                 )
             );
         }
@@ -604,6 +607,26 @@ class Fsbhoa_Ac_Settings_Page {
         
 	$this->update_all_service_configs();
         wp_send_json_success('Print Service settings saved.');
+    }
+
+    public function ajax_save_kiosk_settings() {
+        check_ajax_referer('fsbhoa_kiosk_settings_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied.', 403);
+        }
+
+        $options = isset($_POST['options']) ? $_POST['options'] : [];
+        if (!empty($options)) {
+            foreach ($options as $option) {
+                // Manually save each registered setting for the kiosk page
+                if (in_array($option['name'], ['fsbhoa_kiosk_logo_url', 'fsbhoa_kiosk_name', 'fsbhoa_kiosk_port', 'fsbhoa_kiosk_log_file'])) {
+                    update_option(sanitize_key($option['name']), sanitize_text_field($option['value']));
+                }
+            }
+        }
+
+        $this->update_all_service_configs();
+        wp_send_json_success('Kiosk settings saved.');
     }
 
     // For kiosk

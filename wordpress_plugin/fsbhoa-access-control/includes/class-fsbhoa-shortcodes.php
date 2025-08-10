@@ -274,6 +274,14 @@ class Fsbhoa_Shortcodes {
                 FSBHOA_AC_PLUGIN_VERSION, 
                 true,
             );
+            wp_localize_script(
+                'fsbhoa-amenity-admin',
+                'fsbhoa_amenity_data',
+                array(
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'nonce'    => wp_create_nonce('fsbhoa_amenity_nonce')
+                )
+            );
         }
 
         // ASSETS FOR: [fsbhoa_groups_page]

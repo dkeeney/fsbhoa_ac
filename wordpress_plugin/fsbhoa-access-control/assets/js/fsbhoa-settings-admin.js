@@ -29,6 +29,8 @@ jQuery(document).ready(function($) {
             options: options
         };
 
+console.log('Data to send:', dataToSend);
+
         $.post(fsbhoa_settings_vars.ajax_url, dataToSend)
             .done(function(response) {
                 if (response.success) {
@@ -96,6 +98,16 @@ jQuery(document).ready(function($) {
         });
 
         frame.open();
+    });
+
+    // --- Kiosk Settings Saver ---
+    $('#fsbhoa-save-kiosk-settings-button').on('click', function() {
+        handleAjaxSave(
+            '#fsbhoa-save-kiosk-settings-button',
+            '#fsbhoa-kiosk-settings-page',
+            'fsbhoa_save_kiosk_settings',
+            fsbhoa_settings_vars.kiosk_nonce
+        );
     });
 
     // --- Media Uploader for Kiosk Page Logo ---

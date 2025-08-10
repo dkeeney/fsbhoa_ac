@@ -1,86 +1,58 @@
-/* Scoped Styles for Amenity Page ONLY */
+/* Scoped Styles for Amenity Page */
 
-/* Constrain the width of the amenity page */
-.fsbhoa-amenity-page {
-    max-width: 750px;
+
+/* By combining the two classes, this rule becomes more specific and will override the shared style. */
+.fsbhoa-frontend-wrap.fsbhoa-amenity-page {
+    max-width: 450px;
 }
 
-/* Style for the compact, single-line "Add New" form */
-.fsbhoa-amenity-page .fsbhoa-add-form {
-    display: flex;
-    align-items: flex-end; /* Aligns labels and inputs nicely */
-    gap: 15px; /* Adds space between form elements */
-}
-
-/* Make the container FOR THE FIELDS a flex container too */
-.fsbhoa-amenity-page .fsbhoa-add-form-fields {
-    display: flex;
-    gap: 15px; /* Add a gap between the fields */
-    align-items: flex-end;
-}
-
-.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group {
-    display: flex;
-    flex-direction: column;
-}
-
-.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group label {
-    margin-bottom: 3px;
-    font-size: 12px;
-}
+/* Column Widths */
+.fsbhoa-amenity-page .amenity-col-image { width: 60px; }
+.fsbhoa-amenity-page .amenity-col-actions { width: 160px; }
 
 
-.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group {
-    flex-grow: 1; /* Allow fields to grow */
-}
-
-.fsbhoa-amenity-page .fsbhoa-add-form .form-field-group input {
-    width: 100%; /* Make inputs fill their container */
-}
-
-/* Ensure actions column has enough space */
-.fsbhoa-amenity-page .fsbhoa-actions-column {
-    white-space: nowrap;
-    text-align: center;
-}
-
-.form-field-group .fsbhoa-image-preview {
-    width: 100px;
-    height: 100px;
-    border: 1px dashed #ccc;
-    background-color: #f9f9f9;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: #999;
-    font-size: 13px;
-}
-
-.form-field-group .fsbhoa-image-preview img {
-    max-width: 100%;
-    max-height: 100%;
+/* Styles for the main list */
+.fsbhoa-amenity-page .amenity-list-image {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 3px;
     display: block;
 }
 
-.form-field-group .fsbhoa-remove-image-btn {
-    margin-left: 5px;
-    color: #b32d2e;
-    border-color: #b32d2e;
-}
-
-.form-field-group .fsbhoa-remove-image-btn:hover {
-    background-color: #b32d2e;
-    color: #fff;
-}
-
-.fsbhoa-amenity-page .fsbhoa-add-form-fields {
+.fsbhoa-amenity-page .fsbhoa-actions-column {
     display: flex;
-    align-items: flex-start;
-    gap: 20px;
-    border: 2px solid #888;
-    padding: 20px;
-    border-radius: 4px;
-    margin-bottom: 1.5em;
+    justify-content: space-around;
+    align-items: center;
 }
+
+.fsbhoa-amenity-page .fsbhoa-actions-column a {
+    text-decoration: none;
+    box-shadow: none;
+}
+
+.fsbhoa-amenity-page .fsbhoa-actions-column .dashicons {
+    font-size: 1.4em;
+}
+
+.fsbhoa-amenity-page .amenity-status-toggle.is-enabled .dashicons {
+    color: #22c55e;
+}
+
+.fsbhoa-amenity-page .amenity-status-toggle.is-disabled .dashicons {
+    color: #ef4444;
+}
+
+/* Styles for the "Add New" row in the footer */
+.fsbhoa-amenity-page tfoot td {
+    padding: 12px;
+}
+
+.fsbhoa-amenity-page tfoot input[type="text"] {
+    width: 100%;
+}
+
+.fsbhoa-amenity-page tfoot .fsbhoa-actions-column .dashicons {
+    color: #999;
+}
+
