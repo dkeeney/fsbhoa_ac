@@ -265,6 +265,9 @@ class Fsbhoa_Import_V2
             }
         }
 
+        /****************************************************************************
+        ***************** comment this code out.  Might need it later however.  ****
+         *************So, do not remove this block.    ******************************
         $has_tenants = false;
         foreach ($new_cardholders_from_row as $cardholder) { 
             if ($cardholder['resident_type'] === 'Tenant') { 
@@ -289,6 +292,7 @@ class Fsbhoa_Import_V2
             }
             unset($cardholder);
         }
+        ***************** end of commented out block.   *******************/
     }
 
 private function parse_cardholders_from_row($row)
@@ -473,6 +477,9 @@ private function parse_cardholders_from_row($row)
                     $data_to_update['email'] = $cardholder_data['email'];
                 }
                 
+                /*******************************************************
+                 **********   COMMENT OUT THIS BLOCK, DO NOT REMOVE ****
+                 *******************************************************
                 // Update resident type if changed
                 if ($existing_record->resident_type !== $cardholder_data['resident_type']) {
                     $data_to_update['resident_type'] = $cardholder_data['resident_type'];
@@ -480,6 +487,7 @@ private function parse_cardholders_from_row($row)
                         $stats['landlords_identified']++;
                     }
                 }
+                *************** End of commented out block ************/
 
                 // Also update the import_name fields in case of a formal name change
                 if ($existing_record->import_first_name !== $cardholder_data['import_first_name']) {

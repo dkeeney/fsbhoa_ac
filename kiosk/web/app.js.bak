@@ -19,7 +19,6 @@ let kioskConfig = {};
 let lastSwipedCard = null;
 let socket = null;
 let audioCtx;
-let hasConnectedBefore = false; // Flag to track initial connection
 
 // Function to play beeps
 function beep(count, volume, duration) {
@@ -49,15 +48,7 @@ function connect() {
     socket = new WebSocket(socketURL);
 
     socket.addEventListener('open', () => {
-        // If we have connected before, a successful 'open' means we have reconnected.
-        // A hard refresh is now safe and will load the latest code.
-        if (hasConnectedBefore) {
-            location.reload(true);
-        } else {
-            // This is the very first connection on initial page load.
-            hasConnectedBefore = true;
-            resetKiosk();
-        }
+        resetKiosk();
     });
 
     socket.addEventListener('message', (event) => {
@@ -104,7 +95,7 @@ function connect() {
                     }
                     // Add these two lines to start the after-swipe idle timer
                     clearTimeout(idleTimeout);
-                    idleTimeout = setTimeout(handleIdleTimeout, AMENITY_SELECTION_TIMEOUT);
+                    idleTimeout = setTimeout(resetKiosk, AMENITY_SELECTION_TIMEOUT);
                 } else {
                     statusMessage.textContent = swipeData.message;
                     statusMessage.style.color = 'red';
@@ -121,7 +112,7 @@ function connect() {
         console.log('WebSocket connection closed. Retrying in 3 seconds.');
         statusMessage.textContent = 'Status: Disconnected. Attempting to reconnect...';
         statusMessage.style.color = 'orange';
-        setTimeout(connect, 5000);
+        setTimeout(connect, 3000);
     });
 }
 
@@ -179,44 +170,19 @@ function createAmenityButtons(amenities) {
     });
 }
 
-function handleIdleTimeout() {
-        if (!lastSwipedCard) {
-            resetKiosk(); // Failsafe in case there's no card
-            return;
-        }
-
-        // Send the 'Lobby' event to the server
-        socket.send(JSON.stringify({
-            event: 'amenitySelected',
-            payload: {
-                rfid: lastSwipedCard,
-                amenity: 'Lobby', // Default to Lobby
-                guests: selectedGuestCount
-            }
-        }));
-
-        // Briefly show a message before resetting
-        statusMessage.textContent = 'Sign-in for Lobby recorded due to inactivity.';
-        
-        // Reset the kiosk after a short delay
-        setTimeout(resetKiosk, 4000);
-}
-
 function resetKiosk() {
-        clearTimeout(idleTimeout);
-        clearTimeout(resetKiosk);
-        document.getElementById('main-layout-table').style.display = 'none';
-        idleScreen.style.display = 'block';
-        guestButtonsContainer.style.display = 'none';
-        amenityButtonsContainer.style.display = 'none';
-        cardDisplay.className = 'card-display-hidden';
-        lastSwipedCard = null;
-        lastCardSwipeDiv.textContent = '';
-        amenityButtonsDiv.innerHTML = '';
-        statusMessage.textContent = 'Please Swipe Your Card';
-        statusMessage.style.color = '';
-        cardReaderInput.value = '';
-        startFocusCapture();
+    document.getElementById('main-layout-table').style.display = 'none'; // Use new table ID
+    idleScreen.style.display = 'block';
+    guestButtonsContainer.style.display = 'none';
+    amenityButtonsContainer.style.display = 'none';
+    cardDisplay.className = 'card-display-hidden';
+    lastSwipedCard = null;
+    lastCardSwipeDiv.textContent = '';
+    amenityButtonsDiv.innerHTML = '';
+    statusMessage.textContent = 'Please Swipe Your Card';
+    statusMessage.style.color = '';
+    cardReaderInput.value = '';
+    startFocusCapture();
 }
 
 // Initial connection attempt
