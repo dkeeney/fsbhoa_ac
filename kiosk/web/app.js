@@ -172,7 +172,6 @@ function createAmenityButtons(amenities) {
                 }
             }));
             statusMessage.textContent = `Thank you for signing in to ${this.dataset.name}!`;
-            document.getElementById('main-layout-table').style.display = 'none'; // Use new table ID
             setTimeout(resetKiosk, 3000);
         });
         amenityButtonsDiv.appendChild(button);
