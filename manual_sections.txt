@@ -1,0 +1,47 @@
+
+     tasks to document:
+
+Data Management
+How to Perform a CSV Import
+
+How to Manually Add or Edit a Property
+
+How to Use the Cardholder Archive (Restore, Merge, and Permanently Delete)
+
+Cardholder Tasks
+How to Onboard a Resident and Issue an ID Card (Completed)
+
+How to Change a Cardholder's Access Permissions
+
+How to Enable or Disable a Card
+
+How to Off-board a Cardholder (Archiving)
+
+How to Use Bulk Actions (Export and Print Reports)
+
+Hardware & Access Rules
+How to Configure Hardware (Discovering Controllers & Naming Gates)
+
+How to Set Up a Permission Group
+
+How to Create a Holiday Schedule (as a Sub-Group)
+
+How to Use the Task List (Scheduling Automatic Gate Actions)
+
+Daily Operations
+How to Use the Real-Time Monitor
+
+How to Manually Control a Gate's State (Lock/Unlock)
+
+How to Modify the Kiosk Amenity List
+
+Reporting & Analytics
+How to Generate Reports and View Usage Graphs
+
+System Administration
+How to Use the System Status Page (Restarting Services)
+
+How to Use the Diagnostics Page
+
+How to Configure System Settings
+

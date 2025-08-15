@@ -20,8 +20,8 @@ function fsbhoa_render_cardholder_list_view() {
                         esc_html_e('Cardholder updated successfully.', 'fsbhoa-ac');
                     } elseif ($_GET['message'] === 'cardholder_added') {
                         esc_html_e('Cardholder added successfully.', 'fsbhoa-ac');
-                    } elseif ($_GET['message'] === 'cardholder_deleted') {
-                        esc_html_e('Cardholder deleted.', 'fsbhoa-ac');
+                    } elseif ($_GET['message'] === 'cardholder_deleted_successfully') {
+                        esc_html_e('Cardholder archived.', 'fsbhoa-ac');
                     }
                     ?>
                 </p>
@@ -94,8 +94,9 @@ function fsbhoa_render_cardholder_list_view() {
                             <a href="<?php echo esc_url($print_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Print ID Card', 'fsbhoa-ac'); ?>">
                                <span class="dashicons dashicons-printer"></span>
                             </a>
-                            <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Delete Cardholder', 'fsbhoa-ac'); ?>" onclick="return confirm('Are you sure you want to delete this cardholder?');">
-                                <span class="dashicons dashicons-trash"></span>
+                            <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Archive Cardholder', 'fsbhoa-ac'); ?>" onclick="return confirm('Are you sure you want to archive this cardholder?');">
+        <span class="dashicons dashicons-archive"></span>
+                            </a>
                             </a>
                         </td>
 

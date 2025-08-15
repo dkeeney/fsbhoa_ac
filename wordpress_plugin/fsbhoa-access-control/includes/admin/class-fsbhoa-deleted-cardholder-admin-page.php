@@ -22,11 +22,11 @@ class Fsbhoa_Deleted_Cardholder_Admin_Page {
 
         ?>
         <div class="fsbhoa-frontend-wrap">
-            <h1><?php esc_html_e( 'Deleted Cardholders', 'fsbhoa-ac' ); ?></h1>
+            <h1><?php esc_html_e( 'Archived Cardholders', 'fsbhoa-ac' ); ?></h1>
 
             <?php // The "Back" button now only shows on sub-pages
             if ( $action === 'preview_deleted' || $action === 'merge_cardholder' ) : ?>
-                <a href="<?php echo esc_url( remove_query_arg(['action', 'cardholder_id', 'source_id']) ); ?>" class="button">&larr; Back to Deleted List</a>
+                <a href="<?php echo esc_url( remove_query_arg(['action', 'cardholder_id', 'source_id']) ); ?>" class="button">&larr; Back to Archive List</a>
             <?php endif; ?>
 
             <hr style="margin-top: 1em; margin-bottom: 1em;">

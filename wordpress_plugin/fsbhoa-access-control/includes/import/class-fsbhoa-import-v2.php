@@ -94,7 +94,7 @@ class Fsbhoa_Import_V2
                    from a single CSV file extracted from the property management database. 
                    Any resident that is defined in this file will be added to our access control 
                    database (See Cardholders). Any resident that is not in this CSV file but is 
-                   in our access control database will be archived (see Deleted Cardholders), 
+                   in our access control database will be archived (see Archived Cardholders), 
                    unless that record is marked with an override. 
                     <a href="#" id="open-csv-info-dialog" style="text-decoration: underline;">More info on CSV file content.</a>
                 </p>
@@ -119,7 +119,7 @@ class Fsbhoa_Import_V2
                     <p>Note that if a resident moves from one address to another within the community, 
                        a new cardholder record will be created for the new resident and address 
                        combination and the old cardholder record will be moved to the archive. To 
-                       recover the photo and rfid for this resident, go to the Deleted Cardholder 
+                       recover the photo and rfid for this resident, go to the Archive Cardholder 
                        screen, click the merge icon, locate the new address, and merge.</p>
                 </div>
 
