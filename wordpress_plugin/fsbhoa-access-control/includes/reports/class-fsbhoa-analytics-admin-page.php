@@ -42,14 +42,18 @@ class Fsbhoa_Analytics_Admin_Page {
                     </div>
                 </div>
                 <div class="fsbhoa-charts-container">
-                    <div class="chart-wrapper" id="gate-usage-chart-container">
-                         <h3>Usage by Gate</h3>
-                        <canvas id="gate-usage-chart"></canvas>
-                    </div>
-                    <div class="chart-wrapper" id="peak-hours-chart-container">
-                        <h3>Peak Usage Hours</h3>
-                        <canvas id="peak-hours-chart"></canvas>
-                    </div>
+                            <div class="chart-wrapper" id="amenity-usage-chart-container">
+                                <h3>Usage by Amenity</h3>
+                                <canvas id="amenity-usage-chart"></canvas>
+                            </div>
+                            <div class="chart-wrapper" id="peak-hours-chart-container">
+                                <h3>Peak Usage Hours</h3>
+                                <canvas id="peak-hours-chart"></canvas>
+                            </div>
+                            <div class="chart-wrapper" id="gate-usage-chart-container">
+                                <h3>Usage by Gate</h3>
+                                <canvas id="gate-usage-chart"></canvas>
+                            </div>
                 </div>
             </div>
         </div>

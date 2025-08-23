@@ -1,23 +1,18 @@
 #!/bin/bash
 
 # =================================================================
-# WordPress Restore Script
+# WordPress Restore Script (Final Version)
 #
 # WARNING: THIS SCRIPT IS DESTRUCTIVE.
 # It will overwrite your WordPress database and wp-content/uploads
 # directory with the contents of the backup files provided.
+# It relies on a ~/.my.cnf file for secure database credentials.
 # =================================================================
 
 # --- BEGIN CONFIGURATION ---
 
 # Your WordPress database name
 DB_NAME="your_db_name"
-
-# Your WordPress database username
-DB_USER="your_db_user"
-
-# Your WordPress database password
-DB_PASS="your_db_password"
 
 # The full path to your WordPress installation's root directory
 WP_PATH="/path/to/your/wordpress"
@@ -64,9 +59,12 @@ echo "-----------------------------------"
 
 # 1. Restore the Database
 echo "Restoring database from: $DB_BACKUP_FILE..."
-gunzip < "$DB_BACKUP_FILE" | mysql -u"$DB_USER" -p"$DB_PASS" "$DB_NAME"
+# This command decompresses the backup and pipes it to the mysql client,
+# which securely gets credentials from ~/.my.cnf.
+gunzip < "$DB_BACKUP_FILE" | mysql "$DB_NAME"
 
-# Check if mysql import was successful
+# This correctly checks the exit status of the mysql command (the second
+# command in the pipe) to ensure the database import was successful.
 if [ ${PIPESTATUS[1]} -ne 0 ]; then
   echo "ERROR: Database restore failed."
   exit 1
@@ -81,7 +79,7 @@ UPLOADS_DIR="$WP_PATH/wp-content/uploads"
 UPLOADS_OLD_DIR="$WP_PATH/wp-content/uploads_old_$(date +"%F_%H%M%S")"
 
 echo "Moving existing uploads directory to $UPLOADS_OLD_DIR..."
-mv "$UPLOADS_DIR" "$UPLOADS_OLD_DIR"
+mv "$UPLOADS_DIR" "$UPLOADS_OLD_DIR" 2>/dev/null
 
 echo "Restoring media library from: $UPLOADS_BACKUP_FILE..."
 tar -xzf "$UPLOADS_BACKUP_FILE" -C "$WP_PATH/wp-content/"
@@ -92,14 +90,6 @@ if [ $? -ne 0 ]; then
 else
   echo "Media library restore complete."
 fi
-
-# Optional but highly recommended: Set correct file permissions
-# The user/group (e.g., www-data) depends on your server setup.
-# echo "Setting file permissions..."
-# chown -R www-data:www-data "$UPLOADS_DIR"
-# find "$UPLOADS_DIR" -type d -exec chmod 755 {} \;
-# find "$UPLOADS_DIR" -type f -exec chmod 644 {} \;
-# echo "Permissions set."
 
 echo "-----------------------------------"
 echo "WordPress restore process finished successfully."

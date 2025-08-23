@@ -1,12 +1,5 @@
 
-   Archive list goes empty -- alert.
-   restore a cardholder -- does not set sync button.
 
-
-   If a cardholder record is archive manually and then there was a subsequent merge, the code does not prevent a restore from creating a duplicae record.
-
-   When exporting a selection from the cardholder's list, we need to include a URL of the photo.
-   When printing a selection from the cardholder's list, need to be able to choose the block layout or a single line layout for each record.
 
 
    Anayitics report.  Not seeing all of the data for the range.

@@ -14,7 +14,7 @@ function fsbhoa_log_pending_change() {
 
     // Insert a dummy row. We only care about the COUNT, so the data doesn't matter.
     // A column named 'id' with AUTO_INCREMENT is all that's needed.
-    $wpdb->insert($table_name, array('id' => null));
+    $wpdb->query("INSERT INTO {$table_name} (id) VALUES (NULL)");
 
     if ($wpdb->last_error) {
         error_log('FSBHOA SYNC ERROR: Could not log a pending change. ' . $wpdb->last_error);

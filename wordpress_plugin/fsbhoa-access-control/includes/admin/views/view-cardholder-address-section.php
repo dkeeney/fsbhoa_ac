@@ -26,7 +26,7 @@ function fsbhoa_render_address_section( $form_data ) {
                     <?php $current_resident_type = isset($form_data['resident_type']) ? $form_data['resident_type'] : ''; ?>
                     <option value="" <?php selected($current_resident_type, ''); ?>>-- Select Type --</option>
                     <option value="Resident Owner" <?php selected($current_resident_type, 'Resident Owner'); ?>>Resident Owner</option>
-                    <option value="Landlord" <?php selected($current_resident_type, 'Landlord'); ?>>Resident Owner</option>
+                    <option value="Landlord" <?php selected($current_resident_type, 'Landlord'); ?>>Landlord</option>
                     <option value="Guest" <?php selected($current_resident_type, 'Guest'); ?>>Guest</option>
                     <option value="Tenant" <?php selected($current_resident_type, 'Tenant'); ?>>Tenant</option>
                     <option value="Staff" <?php selected($current_resident_type, 'Staff'); ?>>Staff</option>

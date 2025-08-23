@@ -22,6 +22,7 @@ class Fsbhoa_Cardholder_Actions {
         add_action('admin_post_fsbhoa_export_selected', array($this, 'handle_export_selected'));        
         add_action('admin_post_fsbhoa_print_report', array($this, 'handle_print_report'));
         add_action('wp_ajax_fsbhoa_search_cardholders', array($this, 'ajax_search_cardholders_callback'));
+        add_action('admin_post_fsbhoa_get_cardholder_photo', array($this, 'handle_get_cardholder_photo'));
     }
 
     public function ajax_search_properties_callback() {
@@ -70,9 +71,9 @@ class Fsbhoa_Cardholder_Actions {
         // 2. Build the redirect URL back to the page the user came from.
         $redirect_url = wp_get_referer();
         if ( ! $redirect_url ) {
-            // Provide a sensible fallback if the referer is not available for some reason.
-            // You may need to adjust the page slug 'cardholder' if it's different.
-            $redirect_url = get_permalink( get_page_by_path('cardholder') );
+            $page_object = get_page_by_path('cardholder');
+            // Only get permalink if page exists, otherwise fallback to home URL.
+            $redirect_url = $page_object ? get_permalink($page_object->ID) : home_url('/');
         }
 
         // Clean up the URL from any action parameters
@@ -89,7 +90,6 @@ class Fsbhoa_Cardholder_Actions {
             fsbhoa_log_pending_change();
             $redirect_url = add_query_arg( array( 'message' => 'cardholder_deleted_successfully' ), $redirect_url );
         }
-
 
         wp_safe_redirect( $redirect_url );
         exit;
@@ -172,6 +172,13 @@ class Fsbhoa_Cardholder_Actions {
                     }
                     error_log('FSBHOA DB Update Error: ' . $wpdb->last_error);
                 }
+                // ===  get the original groups for comparison ===
+                $existing_groups = $wpdb->get_col($wpdb->prepare("SELECT group_id FROM ac_cardholder_groups WHERE cardholder_id = %d", $item_id));
+                if ($wpdb->last_error) {
+                    wp_die('Database error: Could not retrieve existing groups. ' . esc_html($wpdb->last_error), 'Database Error', ['back_link' => true]);
+                }
+                    // Sort for a reliable comparison later.
+                sort($existing_groups);
             } else {
                 $result = $wpdb->insert( $table_name, $data_to_save );
                 if ($result === false) {
@@ -202,7 +209,33 @@ class Fsbhoa_Cardholder_Actions {
  
         // If we reach here, the operation was successful.
         $message_code = $is_update ? 'cardholder_updated' : 'cardholder_added';
-        fsbhoa_log_pending_change();
+
+        // ===  Conditional Sync Logic ===
+        $sync_needed = false;
+        if (!$is_update) {
+            // Always trigger a sync for a brand new cardholder.
+            $sync_needed = true;
+        } else {
+            // For an update, check if critical fields have changed.
+            $submitted_groups = isset($_POST['cardholder_groups']) ? (array) array_map('absint', $_POST['cardholder_groups']) : [];
+            sort($submitted_groups);
+
+            // Compare new data ($data_to_save) with old data ($existing_data).
+            if ( (string) $data_to_save['rfid_id'] !== (string) $existing_data['rfid_id'] ||
+                 $data_to_save['card_status'] !== $existing_data['card_status'] ||
+                 $submitted_groups !== $existing_groups )
+            {
+                $sync_needed = true;
+            }
+        }
+
+        if ($sync_needed) {
+            if (FSBHOA_DEBUG_MODE) { error_log('ACTIONS: Critical field changed. Logging pending change for sync.'); }
+            fsbhoa_log_pending_change();
+        } else {
+            if (FSBHOA_DEBUG_MODE) { error_log('ACTIONS: No critical fields changed. Skipping sync log.'); }
+        }
+
 
         // Check if our 'print' flag was sent from the JavaScript
         if ( isset($_POST['fsbhoa_after_save_action']) && $_POST['fsbhoa_after_save_action'] === 'print' ) {
@@ -300,12 +333,12 @@ class Fsbhoa_Cardholder_Actions {
         $default_group_names = $wpdb->get_col("SELECT group_name FROM {$groups_table} WHERE is_default = 1");
 
         $ids_string = implode( ',', $cardholder_ids );
-        $sql = "
-            SELECT c.*, p.street_address 
+        $sql = $wpdb->prepare("
+            SELECT c.*, p.street_address
             FROM {$cardholders_table} c
             LEFT JOIN {$properties_table} p ON c.property_id = p.property_id
-            WHERE c.id IN ({$ids_string})
-        ";
+            WHERE c.id IN ($ids_string)
+        ");
 
         //error_log("EXPORT SQL DEBUG: The generated SQL is: " . $sql);
 
@@ -331,6 +364,14 @@ class Fsbhoa_Cardholder_Actions {
             $explicit_group_names = $wpdb->get_col($groups_query);
             $all_group_names = array_merge($default_group_names, $explicit_group_names);
             $items_to_export[$key]['groups'] = implode(', ', array_unique($all_group_names));
+
+            // --- Add Photo URL ---
+            // Generate the URL to our new endpoint for each cardholder.
+            $photo_url = add_query_arg([
+                'action' => 'fsbhoa_get_cardholder_photo',
+                'id'     => $item['id']
+            ], admin_url('admin-post.php'));
+            $items_to_export[$key]['photo_url'] = $photo_url;
         }
 
         $filename = 'cardholder-export-' . date('Y-m-d') . '.csv';
@@ -453,5 +494,45 @@ class Fsbhoa_Cardholder_Actions {
         }
         
         wp_send_json_success($suggestions);
+    }
+
+    /**
+     * Serves a cardholder's photo directly from the database blob.
+     * This action is protected and requires the user to be logged in.
+     */
+    public function handle_get_cardholder_photo() {
+        // Security Check: Ensure the user is logged in and has privileges.
+        if ( ! is_user_logged_in() || ! current_user_can('manage_options') ) {
+            // If not logged in, you could show a placeholder image or just a 403 error.
+            status_header(403);
+            die('Access Denied: You must be logged in as an administrator to view this image.');
+        }
+
+        $cardholder_id = isset($_GET['id']) ? absint($_GET['id']) : 0;
+        if ( ! $cardholder_id ) {
+            status_header(404);
+            die('Not Found: Invalid ID.');
+        }
+
+        global $wpdb;
+        $table_name = 'ac_cardholders';
+        $photo_data = $wpdb->get_var($wpdb->prepare(
+            "SELECT photo FROM {$table_name} WHERE id = %d",
+            $cardholder_id
+        ));
+
+        if ( empty($photo_data) ) {
+            status_header(404);
+            // Optional: You could create and display a "No Image Available" placeholder here.
+            die('Not Found: No photo available for this cardholder.');
+        }
+
+        // Serve the image
+        header('Content-Type: image/jpeg');
+        header('Content-Length: ' . strlen($photo_data));
+        echo $photo_data;
+
+        // Stop WordPress from sending any more output
+        exit;
     }
 }

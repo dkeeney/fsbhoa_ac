@@ -152,19 +152,13 @@ function fsbhoa_validate_rfid_data( $post_data, $existing_data, $cardholder_id, 
     $sanitized_data['rfid_id'] = $submitted_rfid;
     // If the submitted RFID is empty, explicitly set it to NULL for the database.
     if ( empty($sanitized_data['rfid_id']) ) {
+        $sanitized_data['card_status'] = 'inactive';
+        $sanitized_data['card_issue_date'] = null;
         $sanitized_data['rfid_id'] = null;
-    }
-
-    // Card Status and Issue Date
-    if ( !empty($submitted_rfid) && $submitted_rfid !== $existing_data['rfid_id'] ) {
+    } elseif ( !empty($submitted_rfid) && $submitted_rfid !== $existing_data['rfid_id'] ) {
         // If a new RFID is assigned, card becomes active and issue date is set to today.
         $sanitized_data['card_status'] = 'active';
         $sanitized_data['card_issue_date'] = current_time('Y-m-d');
-    } elseif ( empty($submitted_rfid) && !empty($existing_data['rfid_id']) ) {
-        // If an RFID is removed, card becomes inactive and dates are cleared.
-        $sanitized_data['card_status'] = 'inactive';
-        $sanitized_data['card_issue_date'] = null;
-        $sanitized_data['card_expiry_date'] = null;
     } else {
         // Otherwise, trust the status from the checkbox UI.
         $sanitized_data['card_status'] = ($submitted_status === 'active') ? 'active' : 'disabled';

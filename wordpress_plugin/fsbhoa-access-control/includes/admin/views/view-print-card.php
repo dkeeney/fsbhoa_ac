@@ -63,6 +63,17 @@ function fsbhoa_render_printable_card_view() {
 
             <div class="fsbhoa-cardholder-details-container">
                 <h3>Cardholder Details</h3>
+                <?php
+                   $report_page = get_page_by_path('cardholder-pages');
+                   if ($report_page) {
+                       $report_url = add_query_arg('selected_ids', $cardholder_id, get_permalink($report_page->ID));
+                 ?>
+                       <a href="<?php echo esc_url($report_url); ?>" target="_blank" class="button button-secondary" style="float: right; margin-top: -40px;">
+                           <?php esc_html_e('Print Paper Record', 'fsbhoa-ac'); ?>
+                       </a>
+                <?php
+                   } 
+                ?>
                 <div class="details-box">
                     <p><strong>Name:</strong> <?php echo esc_html($full_name); ?></p>
                     <?php if (!empty($title)): ?>

@@ -152,15 +152,23 @@ func createImage(payload PrintRequestPayload) (string, error) {
                     if !ok {
                         sizeStr = "28"
                     }
-                    size, err := strconv.ParseFloat(sizeStr, 64)
+                    initialSize, err := strconv.ParseFloat(sizeStr, 64)
                     if err != nil {
-                        size = 28.0
+                        initialSize = 28.0
                         log.Printf("Warning: Could not parse font size '%s', using default", sizeStr)
                     }
                     x, _ := strconv.Atoi(text.X)
                     y, _ := strconv.Atoi(text.Y)
                     boxWidth, _ := strconv.Atoi(text.Width) // Get box width for centering
-                    addLabel(cardCanvas, x, y, boxWidth, text.Alignment, textValue, size)
+
+                    finalSize := initialSize
+
+                    // Only perform dynamic sizing for firstName and lastName fields
+                    if text.Field == "firstName" || text.Field == "lastName" {
+log.Printf("DEBUG: Checking field '%s' with text '%s'. BoxWidth: %d, InitialSize: %.1f", text.Field, textValue, boxWidth, initialSize)
+                        finalSize = calculateFittingFontSize(textValue, initialSize, boxWidth)
+                    }
+                    addLabel(cardCanvas, x, y, boxWidth, text.Alignment, textValue, finalSize)
                 }
             }
         }
@@ -332,5 +340,36 @@ func main() {
     if err := http.ListenAndServe(addr, nil); err != nil {
         log.Fatal("ListenAndServe: ", err)
     }
+}
+
+// calculateFittingFontSize determines the largest font size that allows the label to fit within the boxWidth.
+func calculateFittingFontSize(label string, initialSize float64, boxWidth int) float64 {
+    size := initialSize
+    
+    // Iteratively reduce the font size by 10% until the text fits.
+    for size > 8.0 { // Don't allow the font to become unreadably small
+        face, err := opentype.NewFace(loadedFont, &opentype.FaceOptions{
+            Size:    size,
+            DPI:     72,
+            Hinting: font.HintingFull,
+        })
+        if err != nil {
+            log.Printf("Warning: Failed to create font face for size check: %v", err)
+            return size // Return current size on error
+        }
+        
+        textWidth := font.MeasureString(face, label).Ceil()
+        log.Printf("DEBUG: > Trying size %.1f, Measured width: %d", size, textWidth)
+        
+        if textWidth <= boxWidth {
+            // It fits! Return this size.
+            return size
+        }
+        
+        // It doesn't fit, reduce the size and try again.
+        size *= 0.90
+    }
+    
+    return size // Return the smallest calculated size if it never fits
 }
 

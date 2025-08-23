@@ -71,7 +71,7 @@ class Fsbhoa_Ac_Settings_Page {
             'wordpress_api'     => get_site_url() . '/wp-json/fsbhoa/v1/monitor/event',
             'tls_cert_path'     => sanitize_text_field($tls_cert_path),
             'tls_key_path'      => sanitize_text_field($tls_key_path),
-            'event_service_url' => sprintf('https://127.0.0.1:%d', absint($websocket_port)),
+            'event_service_url' => sprintf( $wp_host, absint($websocket_port)),
             'photo_event_limit' => (int) get_option('fsbhoa_ac_monitor_photo_limit', 3),
         ];
         $this->write_config_file($this->monitor_service_config_path, $monitor_config);
@@ -109,6 +109,7 @@ class Fsbhoa_Ac_Settings_Page {
 		'ssl_key_path'           => sanitize_text_field($tls_key_path),
 		'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
 		'log_file'               => sanitize_text_field(get_option('fsbhoa_kiosk_log_file', '/var/log/fsbhoa/kiosk.log')),
+                'max_guests'             => (int) get_option('fsbhoa_kiosk_max_guests', 8),
 	];
 	$this->write_config_file($this->kiosk_config_path, $kiosk_config);
 
@@ -306,6 +307,20 @@ class Fsbhoa_Ac_Settings_Page {
 	);
 	register_setting($kiosk_option_group, 'fsbhoa_kiosk_log_file', 'sanitize_text_field');
 
+        add_settings_field(
+            'fsbhoa_kiosk_max_guests_field',
+            'Max Guests',
+            array($this, 'render_field_callback'),
+            $kiosk_page_slug,
+            'fsbhoa_ac_kiosk_logo_section',
+            [
+                'id'      => 'fsbhoa_kiosk_max_guests',
+                'type'    => 'number',
+                'default' => 8,
+                'desc'    => 'The maximum number of guests a resident can sign in (e.g., 8 creates buttons for 0-8 guests).'
+            ]
+        );
+        register_setting($kiosk_option_group, 'fsbhoa_kiosk_max_guests', 'absint');
     }
 
 
@@ -635,7 +650,12 @@ class Fsbhoa_Ac_Settings_Page {
         if (!empty($options)) {
             foreach ($options as $option) {
                 // Manually save each registered setting for the kiosk page
-                if (in_array($option['name'], ['fsbhoa_kiosk_logo_url', 'fsbhoa_kiosk_name', 'fsbhoa_kiosk_port', 'fsbhoa_kiosk_log_file'])) {
+                if (in_array($option['name'], 
+                   ['fsbhoa_kiosk_logo_url', 
+                    'fsbhoa_kiosk_name', 
+                    'fsbhoa_kiosk_port', 
+                    'fsbhoa_kiosk_log_file',
+                    'fsbhoa_kiosk_max_guests'])) {
                     update_option(sanitize_key($option['name']), sanitize_text_field($option['value']));
                 }
             }

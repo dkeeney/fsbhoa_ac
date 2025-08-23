@@ -2,6 +2,7 @@ jQuery(document).ready(function($) {
     // --- Global Chart Variables ---
     let gateUsageChart = null;
     let peakHoursChart = null;
+    let amenityUsageChart = null;
 
     // --- Analytics Logic ---
     function fetchAndRenderCharts() {
@@ -21,6 +22,7 @@ jQuery(document).ready(function($) {
                 $('.loading-spinner').remove();
                 renderGateUsageChart(data.gateUsage);
                 renderPeakHoursChart(data.hourlyUsage);
+                renderAmenityUsageChart(data.amenityUsage);
             },
             error: function(err) {
                 console.error("Error fetching analytics data:", err);
@@ -102,6 +104,45 @@ jQuery(document).ready(function($) {
                         } 
                     } 
                 } 
+            }
+        });
+    }
+
+    function renderAmenityUsageChart(amenityData) {
+        const ctx = document.getElementById('amenity-usage-chart');
+        if (!ctx) return;
+
+        // Clean up labels by removing the "Amenity: " prefix
+        const labels = amenityData.map(item => item.event_description.replace('Amenity: ', ''));
+        
+        // --- FIX: Convert the count string to a number using parseInt() ---
+        const data = amenityData.map(item => parseInt(item.count, 10));
+
+        if (amenityUsageChart) {
+            amenityUsageChart.destroy();
+        }
+        amenityUsageChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Check-ins',
+                    data: data,
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)', // Greenish color
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        }
+                    }
+                }
             }
         });
     }

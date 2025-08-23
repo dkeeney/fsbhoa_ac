@@ -46,6 +46,7 @@ class Fsbhoa_Deleted_Cardholder_Actions {
 
         // 3. Fetch the archived record and lock the row for this transaction.
         $table_deleted = 'ac_deleted_cardholders';
+        $table_cardholders = 'ac_cardholders';
         $archived_record = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table_deleted} WHERE id = %d FOR UPDATE", $cardholder_id ), ARRAY_A );
 
         // DB Error Check for the SELECT
@@ -59,6 +60,31 @@ class Fsbhoa_Deleted_Cardholder_Actions {
             $wpdb->query( 'ROLLBACK' );
             wp_die( 'Could not find the archived record to restore. It may have already been restored by another process.', 'Error', ['back_link' => true] );
         }
+
+        // --- START: DUPLICATE CHECK ---
+        // 3a. Check for potential duplicates in the live table based on formal name and property.
+        $first_name_to_check = $archived_record['import_first_name'];
+        $last_name_to_check = $archived_record['import_last_name'];
+        $property_id_to_check = $archived_record['property_id'];
+
+        $existing_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$table_cardholders} WHERE import_first_name = %s AND import_last_name = %s AND property_id = %d",
+            $first_name_to_check,
+            $last_name_to_check,
+            $property_id_to_check
+        ) );
+
+        if ($existing_id) {
+            $wpdb->query('ROLLBACK');
+            $error_message = sprintf(
+                'Cannot restore this cardholder. A record for "%s %s" at property ID %d already exists in the live table. Please use the Merge feature to combine the records.',
+                esc_html($first_name_to_check),
+                esc_html($last_name_to_check),
+                absint($property_id_to_check)
+            );
+            wp_die( $error_message, 'Error', ['back_link' => true] );
+        }
+        // --- END: DUPLICATE CHECK ---
 
         // 4. Prepare data for insertion
         $table_cardholders = 'ac_cardholders';
@@ -106,6 +132,7 @@ class Fsbhoa_Deleted_Cardholder_Actions {
 
         // 7. Commit transaction if all steps were successful
         $wpdb->query( 'COMMIT' );
+        fsbhoa_log_pending_change();
 
         // 8. Redirect back with a cache-buster
         $redirect_url = wp_get_referer();
@@ -114,7 +141,9 @@ class Fsbhoa_Deleted_Cardholder_Actions {
             $redirect_url = add_query_arg( 'view', 'deleted', get_permalink( get_page_by_path( $page_slug ) ) );
         }
         $redirect_url = add_query_arg( [ 'message' => 'cardholder_restored', 'ts' => time() ], $redirect_url );
-        $redirect_url = remove_query_arg( [ 'action', 'cardholder_id', '_wpnonce' ], $redirect_url );
+        // Clean the URL of action parameters and add the success message.
+        $redirect_url = remove_query_arg( ['action', 'cardholder_id', 'source_id', '_wpnonce', '_wp_http_referer'], $redirect_url );
+        $redirect_url = add_query_arg( 'message', 'merge_success', $redirect_url );
 
         wp_safe_redirect( $redirect_url );
         exit;

@@ -53,7 +53,7 @@ function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_gro
                 <?php $current_phone_type = isset($form_data['phone_type']) ? $form_data['phone_type'] : 'Mobile'; ?>
                 <option value="" <?php selected($current_phone_type, ''); ?>>-- Select --</option>
                 <option value="Mobile" <?php selected($current_phone_type, 'Mobile'); ?>>Mobile</option>
-                <option value="Home" <?php selected($current_phone_type, 'Home'); ?>>Home</option>
+                <option value="Landline" <?php selected($current_phone_type, 'Landline'); ?>>Landline</option>
                 <option value="Work" <?php selected($current_phone_type, 'Work'); ?>>Work</option>
                 <option value="Other" <?php selected($current_phone_type, 'Other'); ?>>Other</option>
             </select>

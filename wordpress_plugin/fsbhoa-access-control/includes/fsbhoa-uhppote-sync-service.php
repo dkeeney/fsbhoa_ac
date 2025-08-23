@@ -68,10 +68,7 @@ function fsbhoa_perform_full_sync() {
         $device_id = $controller->uhppoted_device_id;
         $friendly_name = $controller->friendly_name;
         $controller_id = $controller->controller_record_id;
-
-        $listen_host = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
-        $listen_port = get_option('fsbhoa_ac_listen_port', '60002');
-        $listen_address = $listen_host . ':' . $listen_port;
+        error_log("SYNC SERVICE - Controller: $device_id, $friendly_name");
 
 
         // Build and Sync Permission Time Profiles for this controller.
@@ -83,10 +80,12 @@ function fsbhoa_perform_full_sync() {
         set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking for cards to delete on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
         $controller_cards = [];
         $get_cards_command = sprintf('uhppote-cli get-cards %s', $device_id);
-        $cards_output = shell_exec($get_cards_command . " 2>&1");
+        if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: ".$get_cards_command); }
+        $output = shell_exec($get_cards_command . " 2>&1");
+        if (FSBHOA_DEBUG_MODE && !empty(trim($output))) { error_log("output: " . trim($output)); }
  
-        if (!empty($cards_output)) {
-            $lines = explode("\n", trim($cards_output));
+        if (!empty($output)) {
+            $lines = explode("\n", trim($output));
             foreach ($lines as $line) {
                 if (!empty($line)) {
                     $parts = preg_split('/\s+/', $line);
@@ -97,19 +96,15 @@ function fsbhoa_perform_full_sync() {
 	}
         $cards_to_delete = array_diff_key($controller_cards, $db_cards);
 
-error_log('SYNC DEBUG - DB Cards: ' . print_r(array_keys($db_cards), true));
-error_log('SYNC DEBUG - Controller Cards: ' . print_r(array_keys($controller_cards), true));
 error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete), true));
  
         if (!empty($cards_to_delete)) {
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Found " . count($cards_to_delete) . " card(s) to delete on '$friendly_name'."); }
             foreach ($cards_to_delete as $card_to_del) {
-                if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: >>> Deleting Card #{$card_to_del} from '$friendly_name'"); }
                 $delete_card_command = sprintf('uhppote-cli delete-card %s %d',  $device_id, $card_to_del);
-                $delete_output = shell_exec($delete_card_command . " 2>&1");
-                //if (defined('FSBHOA_DEBUG_MODE') && FSBHOA_DEBUG_MODE && !empty(trim($delete_output))) {
-                //    error_log("SYNC SERVICE: Response from deleting Card #{$card_to_del}: " . trim($delete_output));
-                //}
+                if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: ".$delete_card_command); }
+                $output = shell_exec($delete_card_command . " 2>&1");
+                if (FSBHOA_DEBUG_MODE && !empty(trim($output))) { error_log("output: " . trim($output)); }
  
             }
         } else {
@@ -131,25 +126,22 @@ error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete
                 $permissions_string
             );
 
-            if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $put_card_command); }
-            $put_output = shell_exec($put_card_command . " 2>&1");
-            if (FSBHOA_DEBUG_MODE && strpos($put_output, 'ERROR') !== false) {
-                error_log("SYNC SERVICE: ERROR put Card #{$card_number}. Response: " . $put_output);
-            }
+            if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: " . $put_card_command); }
+            $output = shell_exec($put_card_command . " 2>&1");
+            if (FSBHOA_DEBUG_MODE && !empty(trim($output))) { error_log("output: " . trim($output)); }
         }
 
         // --- Task Synchronization Logic ---
         if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Using uhppote-cli to sync tasks for '$friendly_name'..."); }
-        $clear_command = sprintf('uhppote-cli --debug clear-task-list %s', $device_id);
-        $clear_output = shell_exec($clear_command . " 2>&1");
-        if (FSBHOA_DEBUG_MODE && strpos($clear_output, 'ERROR') !== false) {
-            error_log("SYNC SERVICE: ERROR clear-task-list. Response: " . $clear_output);
-        }
+        $clear_command = sprintf('uhppote-cli clear-task-list %s', $device_id);
+        if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: ".$clear_command); }
+        $output = shell_exec($clear_command . " 2>&1");
+        if (FSBHOA_DEBUG_MODE && !empty(trim($output))) { error_log("output: " . trim($output)); }
 
         $tasks_pushed_count = 0;
         foreach ($tasks as $task) {
             if ($task->controller_id === null || $task->controller_id == $controller_id) {
-                $weekdays = rtrim(($task->on_sun ? 'Su,' : '') . ($task->on_mon ? 'Mo,' : '') . ($task->on_tue ? 'Tu,' : '') . ($task->on_wed ? 'We,' : '') . ($task->on_thu ? 'Th,' : '') . ($task->on_fri ? 'Fr,' : '') . ($task->on_sat ? 'Sa,' : ''), ',');
+                $weekdays = rtrim(($task->on_sun ? 'Sun,' : '') . ($task->on_mon ? 'Mon,' : '') . ($task->on_tue ? 'Tue,' : '') . ($task->on_wed ? 'Wed,' : '') . ($task->on_thu ? 'Thu,' : '') . ($task->on_fri ? 'Fri,' : '') . ($task->on_sat ? 'Sat,' : ''), ',');
 
                 $doors_to_set = [];
                 // Check if door_number is NULL, which means all doors for that controller
@@ -159,26 +151,39 @@ error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete
                     $doors_to_set[] = intval($task->door_number);
                 }
 
+                $task_description = '';
+                switch (intval($task->task_type)) {
+                    case 1: $task_description = "'control door'"; break;
+                    case 2: $task_description = "'unlock door'"; break;
+                    case 3: $task_description = "'lock door'"; break;
+                    // Add other task types here as you use them
+                    default:
+                        if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Unknown or unsupported task type ID: " . $task->task_type); }
+                        continue; // Skip this invalid task
+                }
                 foreach ($doors_to_set as $door) {
                     $add_task_command = sprintf(
-                        'uhppote-cli add-task %s %d %d %s %s %s %s',
+                        'uhppote-cli add-task %s %s %d %s:%s %s %s 0',
                         $device_id,
+                        $task_description,
                         $door,
-                        intval($task->task_type),
-                        $task->valid_from . ':' . $task->valid_to,
+                        $task->valid_from ,
+                        $task->valid_to,
                         $weekdays,
-                        substr($task->start_time, 0, 5),
-                        '0'
+                        substr($task->start_time, 0, 5)
                     );
                     if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $add_task_command); }
                     $output = shell_exec($add_task_command . " 2>&1");
-                    if (FSBHOA_DEBUG_MODE && strpos($output, 'ERROR') !== false) {
-                        error_log("SYNC SERVICE: ERROR add-task Response: " . $output);
-                    }
+                    if (FSBHOA_DEBUG_MODE && !empty(trim($output))) { error_log("output: " . trim($output)); }
                 }
                 $tasks_pushed_count++;
             }
         }
+        //  Trigger the controller to immediately apply the new task list.
+        $refresh_command = sprintf('uhppote-cli refresh-task-list %s', $device_id);
+        if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Executing: " . $refresh_command); }
+        $output = shell_exec($refresh_command . " 2>&1");
+        if (FSBHOA_DEBUG_MODE && !empty(trim($output))) { error_log("output: " . trim($output)); }
         if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Finished pushing {$tasks_pushed_count} tasks."); }
     }
 

@@ -88,18 +88,20 @@ class Fsbhoa_Reports_REST_API {
         return new WP_REST_Response( $response, 200 );
     }
 
-    public function get_usage_analytics_callback( WP_REST_Request $request ) {
+public function get_usage_analytics_callback( WP_REST_Request $request ) {
         global $wpdb;
 
         $year = $request->get_param('year') ? absint($request->get_param('year')) : date('Y');
         $month = $request->get_param('month') ? absint($request->get_param('month')) : date('m');
 
         $response_data = [
-            'gateUsage' => [],
-            'hourlyUsage' => array_fill(0, 24, 0)
+            'gateUsage'   => [],
+            'hourlyUsage' => array_fill(0, 24, 0),
+            'amenityUsage' => [],
         ];
 
-        $gate_usage_query = $wpdb->prepare(
+        // --- Gate Usage Query (Correct) ---
+        $gate_results = $wpdb->get_results( $wpdb->prepare(
             "SELECT COALESCE(d.friendly_name, 'Unknown Gate') as friendly_name, COUNT(l.log_id) as count
             FROM ac_access_log l
             LEFT JOIN ac_controllers c ON l.controller_identifier = c.uhppoted_device_id
@@ -109,34 +111,38 @@ class Fsbhoa_Reports_REST_API {
             ORDER BY COUNT(l.log_id) DESC",
             $year,
             $month
-        );
-        $gate_results = $wpdb->get_results($gate_usage_query);
-// --- TEMPORARY DEBUGGING to error_log ---
-        error_log('--- FSBHOA Analytics Debug ---');
-        error_log('Gate Usage SQL: ' . $gate_usage_query);
-        error_log('Gate Usage Result: ' . print_r($gate_results, true));
-        error_log('WPDB Error: ' . $wpdb->last_error);
-// --- END DEBUGGING ---
-        if ( $wpdb->last_error ) {
-            return new WP_Error( 'db_error', 'Database error getting gate usage.', array( 'status' => 500, 'db_error' => $wpdb->last_error ) );
+        ) );
+        if ( ! $wpdb->last_error ) {
+            $response_data['gateUsage'] = $gate_results;
         }
-        $response_data['gateUsage'] = $gate_results;
-        
-        $hourly_usage_query = $wpdb->prepare(
+
+        // --- Hourly Usage Query (FIXED) ---
+        $hourly_results = $wpdb->get_results( $wpdb->prepare(
             "SELECT HOUR(l.event_timestamp) as hour, COUNT(l.log_id) as count
             FROM ac_access_log l
-            WHERE l.access_granted = 1 AND l.event_description LIKE 'Card swipe%%' AND YEAR(l.event_timestamp) = %d AND MONTH(l.event_timestamp) = %d
+            WHERE (l.event_description LIKE 'Card swipe%%' OR l.event_description LIKE 'Amenity: %%') AND YEAR(l.event_timestamp) = %d AND MONTH(l.event_timestamp) = %d
             GROUP BY HOUR(l.event_timestamp)",
             $year,
             $month
-        );
-        $hourly_results = $wpdb->get_results($hourly_usage_query);
-        if ( $wpdb->last_error ) {
-            return new WP_Error( 'db_error', 'Database error getting hourly usage.', array( 'status' => 500, 'db_error' => $wpdb->last_error ) );
+        ) );
+        if ( ! $wpdb->last_error ) {
+            foreach ($hourly_results as $result) {
+                $response_data['hourlyUsage'][$result->hour] = (int)$result->count;
+            }
         }
-
-        foreach ($hourly_results as $result) {
-            $response_data['hourlyUsage'][$result->hour] = (int)$result->count;
+        
+        // --- Amenity Usage Query (Correct) ---
+        $amenity_results = $wpdb->get_results( $wpdb->prepare(
+            "SELECT event_description, COUNT(log_id) as count
+            FROM ac_access_log
+            WHERE event_description LIKE 'Amenity: %%' AND YEAR(event_timestamp) = %d AND MONTH(event_timestamp) = %d
+            GROUP BY event_description
+            ORDER BY count DESC",
+            $year,
+            $month
+        ));
+        if ( ! $wpdb->last_error ) {
+            $response_data['amenityUsage'] = $amenity_results;
         }
 
         return new WP_REST_Response($response_data, 200);

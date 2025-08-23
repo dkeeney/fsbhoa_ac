@@ -192,3 +192,170 @@ The Go print service relies on a proprietary command-line tool from Zebra. You m
 **The server platform installation is now complete. Proceed to `CONFIGURATION.md` for application setup.**
 
 
+
+In order to rotate logs, install this script:
+sudo vi /usr/local/bin/generate_logrotate_config.sh
+
+'''
+#!/bin/bash
+
+# Define the paths to your service config files
+EVENT_CONFIG_FILE="/var/lib/fsbhoa/event_service.json"
+KIOSK_CONFIG_FILE="/var/lib/fsbhoa/kiosk.json"
+# Add other service config files here in the future
+
+# Define the output path for the logrotate config
+LOGROTATE_CONFIG_FILE="/etc/logrotate.d/fsbhoa-services"
+
+# Start with an empty config file
+echo "" > "$LOGROTATE_CONFIG_FILE"
+
+# Function to add a log file to the logrotate config
+add_log_to_rotate() {
+  local config_file=$1
+  local json_key=$2
+  local owner=$3 # The user:group that owns the log file, e.g., fsbhoa:fsbhoa
+
+  if [ -f "$config_file" ]; then
+    # Use jq to extract the log file path, ignore if null or empty
+    log_path=$(jq -r ".$json_key | select( . != null and . != \"\" )" "$config_file")
+
+    if [ -n "$log_path" ]; then
+      echo "Found log for rotation: $log_path"
+      # Append the logrotate configuration block for this file
+      cat <<EOT >> "$LOGROTATE_CONFIG_FILE"
+$log_path {
+    daily
+    rotate 7
+    size 1M
+    compress
+    delaycompress
+    missingok
+    copytruncate
+    create 644 $owner
+}
+EOT
+    fi
+  fi
+}
+
+# Process each service's log file
+add_log_to_rotate "$EVENT_CONFIG_FILE" "logFile" "fsbhoa:fsbhoa"
+add_log_to_rotate "$KIOSK_CONFIG_FILE" "log_file" "fsbhoa:fsbhoa"
+
+echo "Logrotate config written to $LOGROTATE_CONFIG_FILE"
+'''
+
+
+
+
+
+
+
+## 3. Kiosk Client GUI Autostart
+This procedure configures the Ubuntu desktop to automatically launch the kiosk browser when a user logs in. It also creates a manual shortcut on the desktop.
+
+### 3.1 Install Dependencies
+The monitor script requires jq to parse its configuration file and a web browser.
+
+Open a terminal on the kiosk machine.
+
+Update your package list and install jq and firefox:
+
+Bash
+
+sudo apt update
+sudo apt install jq firefox
+### 3.2 Configure Automatic Startup
+This will create a launcher that automatically runs the monitor script at login.
+
+Create the autostart directory if it doesn't exist:
+
+Bash
+
+mkdir -p ~/.config/autostart
+Create the autostart launcher file. This command writes the entire file at once. Make sure the Exec path points to the script inside your repository.
+
+Bash
+
+cat <<EOF > ~/.config/autostart/start_kiosk.sh.desktop
+[Desktop Entry]
+Type=Application
+Name=Kiosk Monitor
+Exec=/home/fsbhoa/fsbhoa_ac/start_kiosk.sh
+Terminal=false
+EOF
+### 3.3 Create Manual Desktop Shortcut (Optional)
+This creates a clickable icon on the desktop to manually restart the kiosk display without needing to reboot.
+
+Create the desktop shortcut file:
+
+Bash
+
+cat <<EOF > ~/Desktop/Restart_Kiosk.desktop
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Restart Kiosk Display
+Comment=Restarts the web browser for the FSBHOA Kiosk
+Exec=/home/fsbhoa/fsbhoa_ac/start_kiosk.sh
+Icon=/home/fsbhoa/fsbhoa_ac/images/Four-Seasons-Icon.jpg
+Terminal=false
+EOF
+
+Move the Launcher to the System-Wide Applications Folder.
+This step requires sudo and is what makes the application trusted by the system.
+
+Bash
+
+sudo mv ~/Restart_Kiosk.desktop /usr/share/applications/
+Add the Shortcut to the Desktop.
+The launcher is now a trusted application. To create the icon on the desktop:
+
+Click the "Show Applications" button (the grid of dots).
+
+Find the "Restart Kiosk Display" icon.
+
+Drag the icon from the application list and drop it onto the desktop.
+
+
+## Enabling Automatic Login
+Open the Configuration File
+You need to edit the GDM3 custom configuration file with root privileges. Open it with a text editor like vi or nano:
+
+Bash
+
+sudo vi /etc/gdm3/custom.conf
+Edit the [daemon] Section
+Look for the [daemon] section in the file. You will need to uncomment (remove the # from the beginning of the line) and edit two lines:
+
+AutomaticLoginEnable = true
+
+AutomaticLogin = fsbhoa
+
+The final section should look like this:
+
+Ini, TOML
+
+[daemon]
+# Uncoment the line below to force the login screen to use Xorg
+#WaylandEnable=false
+
+# Enabling automatic login
+AutomaticLoginEnable = true
+AutomaticLogin = fsbhoa
+
+# Enabling timed login
+# TimedLoginEnable = true
+# TimedLogin = user1
+# TimedLoginDelay = 10
+Save and Reboot
+Save the file and exit the editor. After you reboot the machine, it will now bypass the login screen and automatically start the fsbhoa user's desktop session, which in turn will trigger your autostart script.
+
+Bash
+
+
+After completing these steps, reboot the kiosk machine. It should automatically log in and launch the Firefox browser in kiosk mode.
+
+
+

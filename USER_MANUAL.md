@@ -159,7 +159,7 @@ Bulk actions allow you to perform an operation on multiple cardholders at once f
 * **Print Selected**:
     This action opens a new, printer-friendly browser tab showing a detailed report for each selected person. This feature is ideal for creating a physical document with updated contact information that can be passed to the person who maintains the property management database when changes are needed. You can use your browser's standard print function (**Ctrl+P** or **Cmd+P**) to print the report.
 * **Export Selected (.csv)**:
-    This action creates and downloads a CSV spreadsheet file containing the textual data (name, address, etc.) for the selected cardholders. Photos are not included in the export.
+    This action creates and downloads a CSV spreadsheet file containing the textual data (name, address, etc.) for the selected cardholders. Photos are not included in the export.  However, there will be a link.  If you are still logged into WordPress, the link will fetch the photo.
     **Important**: This exported file is for viewing and analysis only. It is in a different format and cannot be used with the Data Import tool.
 
 ### How to Configure Hardware (Discovering Controllers & Naming Gates)

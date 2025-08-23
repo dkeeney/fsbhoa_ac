@@ -186,6 +186,7 @@ class Fsbhoa_Print_Actions {
         if ($result === false) {
             wp_send_json_error(['message' => 'Database error during card activation: ' . $wpdb->last_error], 500);
         } else {
+            fsbhoa_log_pending_change();
             wp_send_json_success(['message' => 'Card activated successfully!']);
         }
     }

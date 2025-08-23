@@ -1,19 +1,19 @@
 package main 
 
 import (
-	"bytes"
+    "bytes"
     "bufio"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"os"
-	"sync"
+    "encoding/json"
+    "fmt"
+    "io"
+    "log"
+    "net/http"
+    "os"
+    "sync"
     "time"
     "strings"
 
-	"github.com/gorilla/websocket"
+"github.com/gorilla/websocket"
 )
 
 // --- Data Structs ---
@@ -23,6 +23,7 @@ type Config struct {
 	SSLKeyPath          string `json:"ssl_key_path"`
 	Port                string `json:"port"`
 	LogFile             string `json:"log_file"`
+        MaxGuests           int    `json:"max_guests"`
 }
 
 type Amenity struct {
@@ -33,6 +34,7 @@ type Amenity struct {
 type KioskConfig struct {
 	LogoURL   string    `json:"logo_url"`
 	Amenities []Amenity `json:"amenities"`
+        MaxGuests int       `json:"max_guests"`
 }
 
 type SocketMessage struct {
@@ -99,7 +101,8 @@ func fetchKioskConfig() {
 	if err != nil {
 		log.Fatalf("FATAL: Could not parse kiosk config JSON: %v", err)
 	}
-	log.Printf("Successfully fetched config. Logo: '%s', Amenities: %d", kioskConfig.LogoURL, len(kioskConfig.Amenities))
+        kioskConfig.MaxGuests = config.MaxGuests
+	log.Printf("Successfully fetched config. Logo: '%s', Amenities: %d, MaxGuest: %d", kioskConfig.LogoURL, len(kioskConfig.Amenities), kioskConfig.MaxGuests)
 }
 
 // logSignInToWordPress sends the final amenity selection event to WordPress.

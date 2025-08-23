@@ -1,32 +1,25 @@
 #!/bin/bash
 
 # =================================================================
-# WordPress Backup Script
+# WordPress Backup Script (Final Version)
 #
 # This script creates a compressed backup of the WordPress database
-# and the media library (wp-content/uploads directory).
+# and the media library. It is designed to be run automatically
+# via cron and relies on a ~/.my.cnf file for secure credentials.
 # =================================================================
 
 # --- BEGIN CONFIGURATION ---
 
 # Your WordPress database name
-DB_NAME="your_db_name"
-
-# Your WordPress database username
-DB_USER="your_db_user"
-
-# Your WordPress database password
-# IMPORTANT: For security, consider using a .my.cnf file to store credentials.
-# See: https://dev.mysql.com/doc/refman/8.0/en/option-files.html
-DB_PASS="your_db_password"
+DB_NAME="fsbhoa_db"
 
 # The full path to your WordPress installation's root directory
-# Example: /var/www/html or /home/user/public_html
-WP_PATH="/path/to/your/wordpress"
+# Example: /var/www/html
+WP_PATH="/var/www/html"
 
-# The directory where you want to store your backups
-# Ensure this directory exists and has the correct permissions.
-BACKUP_DIR="/path/to/your/backup_storage"
+# The directory where you want to store your backups.
+# Using $HOME is the correct way to reference your home directory.
+BACKUP_DIR="$HOME/backup_storage"
 
 # --- END CONFIGURATION ---
 
@@ -51,11 +44,16 @@ echo "-----------------------------------"
 
 # 1. Back up the Database
 echo "Backing up database: $DB_NAME..."
-mysqldump -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" | gzip > "$DB_BACKUP_FILE"
+# This command securely gets credentials from ~/.my.cnf,
+# skips tablespaces, and pipes the output to gzip for compression.
+mysqldump --no-tablespaces "$DB_NAME" | gzip > "$DB_BACKUP_FILE"
 
-# Check if mysqldump was successful
+# This correctly checks the exit status of mysqldump (the first command
+# in the pipe) to ensure the backup was actually successful.
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
-  echo "ERROR: Database backup failed."
+  echo "ERROR: Database backup failed. mysqldump exited with an error."
+  # Remove the failed (and likely empty) backup file
+  rm "$DB_BACKUP_FILE" 2>/dev/null
   exit 1
 else
   echo "Database backup complete: $DB_BACKUP_FILE"
@@ -85,5 +83,4 @@ find "$BACKUP_DIR" -type f -name "*.gz" -mtime +30 -exec rm {} \;
 echo "Cleanup complete."
 
 exit 0
-
 

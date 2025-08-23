@@ -13,6 +13,8 @@ const guestButtonsDiv = document.getElementById('guest-buttons');
 const AMENITY_SELECTION_TIMEOUT = 30000; // After swipe Timeout in milliseconds (30 seconds)
 
 let idleTimeout; // This will hold our after swipe timer
+let idleTimerFired = false;
+let resetKioskTimer = null; // This will hold our reset timer
 let selectedGuestCount = null;
 let rfidTimeout;
 let kioskConfig = {};
@@ -20,6 +22,21 @@ let lastSwipedCard = null;
 let socket = null;
 let audioCtx;
 let hasConnectedBefore = false; // Flag to track initial connection
+
+// logging function
+function logToScreen(message) {
+    console.log(message);   // in case running on a PC
+    // else, for when using the touchscreen
+    const logContainer = document.getElementById('debug-log');
+    if (logContainer) {
+        const timestamp = new Date().toLocaleTimeString();
+        const newMessage = document.createElement('div');
+        newMessage.textContent = `${timestamp}: ${message}`;
+        logContainer.appendChild(newMessage);
+        // Auto-scroll to the bottom
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+}
 
 // Function to play beeps
 function beep(count, volume, duration) {
@@ -45,16 +62,15 @@ function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socketURL = `${protocol}//${window.location.host}/ws`;
 
-    console.log(`Connecting to WebSocket at: ${socketURL}`);
+    logToScreen(`Connecting to WebSocket at: ${socketURL}`);
     socket = new WebSocket(socketURL);
 
     socket.addEventListener('open', () => {
-        // If we have connected before, a successful 'open' means we have reconnected.
-        // A hard refresh is now safe and will load the latest code.
         if (hasConnectedBefore) {
-            location.reload(true);
+            // The reload was causing a reconnect loop. A stable connection is sufficient.
+            // location.reload(true); 
+            resetKiosk(); // Reset to the idle screen on reconnect
         } else {
-            // This is the very first connection on initial page load.
             hasConnectedBefore = true;
             resetKiosk();
         }
@@ -63,7 +79,7 @@ function connect() {
     socket.addEventListener('message', (event) => {
         try {
             const message = JSON.parse(event.data);
-            console.log("Received message object:", message);
+            logToScreen("Received message object:", message);
 
             if (message.event === 'kioskConfig') {
                 kioskConfig = message.payload;
@@ -103,7 +119,9 @@ function connect() {
                         zeroButton.classList.add('selected');
                     }
                     // Add these two lines to start the after-swipe idle timer
+                    idleTimerFired = false;
                     clearTimeout(idleTimeout);
+logToScreen(`TIMER: Setting 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
                     idleTimeout = setTimeout(handleIdleTimeout, AMENITY_SELECTION_TIMEOUT);
                 } else {
                     statusMessage.textContent = swipeData.message;
@@ -118,7 +136,7 @@ function connect() {
     });
 
     socket.addEventListener('close', () => {
-        console.log('WebSocket connection closed. Retrying in 3 seconds.');
+        logToScreen('WebSocket connection closed. Retrying in 3 seconds.');
         statusMessage.textContent = 'Status: Disconnected. Attempting to reconnect...';
         statusMessage.style.color = 'orange';
         setTimeout(connect, 5000);
@@ -126,8 +144,12 @@ function connect() {
 }
 
 function createGuestButtons() {
-    guestButtonsDiv.innerHTML = '';
-    for (let i = 0; i <= 6; i++) {
+    while (guestButtonsDiv.firstChild) {
+        guestButtonsDiv.removeChild(guestButtonsDiv.firstChild);
+    }
+    const maxGuests = kioskConfig.max_guests !== undefined ? kioskConfig.max_guests : 6;
+
+    for (let i = 0; i <= maxGuests; i++) {
         const button = document.createElement('button');
         button.className = 'guest-button';
         button.textContent = i;
@@ -143,7 +165,9 @@ function createGuestButtons() {
 }
 
 function createAmenityButtons(amenities) {
-    amenityButtonsDiv.innerHTML = '';
+    while (amenityButtonsDiv.firstChild) {
+        amenityButtonsDiv.removeChild(amenityButtonsDiv.firstChild);
+    }
     if (!amenities) return;
 
     amenities.forEach(amenity => {
@@ -162,7 +186,10 @@ function createAmenityButtons(amenities) {
         button.appendChild(span);
 
         button.addEventListener('click', function() {
+logToScreen(`TIMER: Clearing 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
+            if (idleTimerFired) { return; }
             clearTimeout(idleTimeout);
+            clearTimeout(resetKioskTimer); // Clear any pending reset timers
             socket.send(JSON.stringify({
                 event: 'amenitySelected',
                 payload: {
@@ -171,14 +198,18 @@ function createAmenityButtons(amenities) {
                     guests: selectedGuestCount
                 }
             }));
+
             statusMessage.textContent = `Thank you for signing in to ${this.dataset.name}!`;
-            setTimeout(resetKiosk, 2000);
+logToScreen(`TIMER: Setting 2-second reset timer at ${new Date().toLocaleTimeString()}`);
+            resetKioskTimer = setTimeout(resetKiosk, 2000);
         });
         amenityButtonsDiv.appendChild(button);
     });
 }
 
 function handleIdleTimeout() {
+logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeString()}`);
+        idleTimerFired = true;
         if (!lastSwipedCard) {
             resetKiosk(); // Failsafe in case there's no card
             return;
@@ -203,7 +234,7 @@ function handleIdleTimeout() {
 
 function resetKiosk() {
         clearTimeout(idleTimeout);
-        clearTimeout(resetKiosk);
+        clearTimeout(resetKioskTimer);
         document.getElementById('main-layout-table').style.display = 'none';
         idleScreen.style.display = 'block';
         guestButtonsContainer.style.display = 'none';
@@ -228,14 +259,14 @@ function handleCardInput(event) {
     if (rfid.length === 1) {
         clearTimeout(rfidTimeout);
         rfidTimeout = setTimeout(() => {
-            console.log("RFID input timed out.");
+            logToScreen("RFID input timed out.");
             cardReaderInput.value = '';
         }, 2000);
     }
 
     if (rfid.length === 8) {
         clearTimeout(rfidTimeout);
-        console.log(`8 digits entered: ${rfid}. Sending to backend.`);
+        logToScreen(`8 digits entered: ${rfid}. Sending to backend.`);
         socket.send(JSON.stringify({
             event: 'manualSwipe',
             payload: { rfid: rfid }

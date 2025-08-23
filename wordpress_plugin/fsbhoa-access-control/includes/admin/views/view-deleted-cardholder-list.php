@@ -94,9 +94,9 @@ function fsbhoa_render_deleted_cardholder_list_view() {
                     <td><?php echo esc_html( $cardholder['email'] ); ?></td>
                     <td><?php echo esc_html( date( 'Y-m-d H:i:s', strtotime( $cardholder['deleted_at'] ) ) ); ?></td>
                 </tr>
-            <?php endforeach; else : ?>
-                <tr><td colspan="5"><?php esc_html_e( 'No deleted cardholders found.', 'fsbhoa-ac' ); ?></td></tr>
-            <?php endif; ?>
+            <?php endforeach; 
+              endif;
+           ?> 
         </tbody>
     </table>
 <?php
