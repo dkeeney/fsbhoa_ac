@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# --- Set Graphical Session Environment ---
+# This allows the script to launch a GUI application even when
+# started from a non-graphical context like SSH or a system service.
+export DISPLAY=:0
+export XAUTHORITY=/home/fsbhoa/.Xauthority
+
 # --- Read Configuration from JSON File ---
 CONFIG_FILE="/var/lib/fsbhoa/kiosk.json"
 
@@ -18,7 +24,7 @@ KIOSK_URL="${BASE_URL}${PORT}"
 
 
 # The command to launch the browser, now using the dynamic URL
-BROWSER_CMD="firefox --kiosk $KIOSK_URL"
+BROWSER_CMD="firefox --kiosk --private-window $KIOSK_URL"
 
 # A unique string to find the Firefox process
 BROWSER_PROCESS_STRING="firefox --kiosk"
@@ -28,6 +34,13 @@ sleep 5
 
 # Infinite loop to monitor the service
 while true; do
+  RESTART_FLAG="/tmp/restart_kiosk_browser"
+  if [ -f "$RESTART_FLAG" ]; then
+      echo "Restart signal received. Restarting browser..."
+      pkill -f "$BROWSER_PROCESS_STRING"
+      rm -f "$RESTART_FLAG"
+      sleep 2 # Give the browser a moment to close completely
+  fi
 
   # Check if the Go service is running by connecting to the URL from the config
   curl -s -k --head "$KIOSK_URL" > /dev/null

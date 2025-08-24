@@ -288,7 +288,7 @@ func main() {
 
 	cardSwipeChannel := make(chan string)
 
-	go listenForLocalReader(cardSwipeChannel)
+	// go listenForLocalReader(cardSwipeChannel)  // direct read of USB card reader
 
 	fs := http.FileServer(http.Dir("./web"))
 	http.Handle("/", fs)

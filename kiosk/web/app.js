@@ -13,6 +13,7 @@ const guestButtonsDiv = document.getElementById('guest-buttons');
 const AMENITY_SELECTION_TIMEOUT = 30000; // After swipe Timeout in milliseconds (30 seconds)
 
 let idleTimeout; // This will hold our after swipe timer
+let sessionActive = false;
 let idleTimerFired = false;
 let resetKioskTimer = null; // This will hold our reset timer
 let selectedGuestCount = null;
@@ -91,6 +92,7 @@ function connect() {
                 const swipeData = message.payload;
 
                 if (swipeData.isValid) {
+                    sessionActive = true;
                     lastSwipedCard = swipeData.rfid;
                     stopFocusCapture();
                     idleScreen.style.display = 'none';
@@ -121,8 +123,9 @@ function connect() {
                     // Add these two lines to start the after-swipe idle timer
                     idleTimerFired = false;
                     clearTimeout(idleTimeout);
-logToScreen(`TIMER: Setting 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
+logToScreen(`TIMER: swiped - Setting 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
                     idleTimeout = setTimeout(handleIdleTimeout, AMENITY_SELECTION_TIMEOUT);
+logToScreen(`TIMER: >>>> New idleTimeout ID is: ${idleTimeout}`);
                 } else {
                     statusMessage.textContent = swipeData.message;
                     statusMessage.style.color = 'red';
@@ -185,11 +188,17 @@ function createAmenityButtons(amenities) {
         span.textContent = amenity.name;
         button.appendChild(span);
 
-        button.addEventListener('click', function() {
-logToScreen(`TIMER: Clearing 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
+        const handleAmenitySelection = function(event) {
+            // Prevent the browser from firing both touchstart and a simulated click
+            event.preventDefault(); 
+            if (!sessionActive) { return; }
+            sessionActive = false;
+
+            logToScreen(`TIMER: Clearing 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
             if (idleTimerFired) { return; }
             clearTimeout(idleTimeout);
-            clearTimeout(resetKioskTimer); // Clear any pending reset timers
+            clearTimeout(resetKioskTimer); 
+
             socket.send(JSON.stringify({
                 event: 'amenitySelected',
                 payload: {
@@ -198,17 +207,30 @@ logToScreen(`TIMER: Clearing 30-second idle timeout at ${new Date().toLocaleTime
                     guests: selectedGuestCount
                 }
             }));
-
+            
+            // The visual feedback logic you added
             statusMessage.textContent = `Thank you for signing in to ${this.dataset.name}!`;
-logToScreen(`TIMER: Setting 2-second reset timer at ${new Date().toLocaleTimeString()}`);
+            guestButtonsContainer.style.display = 'none';
+            amenityButtonsContainer.style.display = 'none';
+            cardDisplay.className = 'card-display-hidden';
+            idleScreen.style.display = 'block';
+
+            logToScreen(`TIMER: Setting 2-second reset timer at ${new Date().toLocaleTimeString()}`);
             resetKioskTimer = setTimeout(resetKiosk, 2000);
-        });
+        };
+
+        // Attach the same handler to both events
+        button.addEventListener('click', handleAmenitySelection);
+        button.addEventListener('touchstart', handleAmenitySelection);
+
         amenityButtonsDiv.appendChild(button);
     });
 }
 
 function handleIdleTimeout() {
 logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeString()}`);
+        if (!sessionActive) { return; }
+        sessionActive = false;
         idleTimerFired = true;
         if (!lastSwipedCard) {
             resetKiosk(); // Failsafe in case there's no card
@@ -229,7 +251,7 @@ logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeStr
         statusMessage.textContent = 'Sign-in for Lobby recorded due to inactivity.';
         
         // Reset the kiosk after a short delay
-        setTimeout(resetKiosk, 4000);
+        setTimeout(resetKiosk, 3000);
 }
 
 function resetKiosk() {
@@ -246,34 +268,45 @@ function resetKiosk() {
         statusMessage.textContent = 'Please Swipe Your Card';
         statusMessage.style.color = '';
         cardReaderInput.value = '';
-        startFocusCapture();
+        startFocusCapture();  // we are reading the USB port directly.
 }
 
 // Initial connection attempt
 connect();
 
 function handleCardInput(event) {
-    event.target.value = event.target.value.replace(/\D/g, '');
-    const rfid = event.target.value;
+    // Always clear any previous timer when new input arrives.
+    clearTimeout(rfidTimeout);
 
-    if (rfid.length === 1) {
-        clearTimeout(rfidTimeout);
-        rfidTimeout = setTimeout(() => {
-            logToScreen("RFID input timed out.");
-            cardReaderInput.value = '';
-        }, 2000);
-    }
+    // Set a very short timer (e.g., 50 milliseconds).
+    // If more digits arrive within this window, the timer will be reset.
+    // When the digits STOP arriving, this timer will finally execute.
+    rfidTimeout = setTimeout(() => {
+        const rfid = cardReaderInput.value.replace(/\D/g, '');
 
-    if (rfid.length === 8) {
-        clearTimeout(rfidTimeout);
-        logToScreen(`8 digits entered: ${rfid}. Sending to backend.`);
-        socket.send(JSON.stringify({
-            event: 'manualSwipe',
-            payload: { rfid: rfid }
-        }));
-        event.target.value = '';
-    }
+        logToScreen(`Swipe finished. Captured: ${rfid}`);
+        
+        // Only process if we have a plausible number of digits.
+        if (rfid.length >= 7 && rfid.length <= 10) { // Allow for some variance
+            // The card reader sometimes sends a 10-digit number.
+            // We only want the last 8 digits.
+            const finalRfid = rfid.slice(-8);
+            logToScreen(`Processing final 8 digits: ${finalRfid}. Sending to backend.`);
+            
+            socket.send(JSON.stringify({
+                event: 'manualSwipe',
+                payload: { rfid: finalRfid }
+            }));
+        } else {
+            logToScreen(`Discarding invalid swipe length: ${rfid.length}`);
+        }
+
+        // Clear the input field for the next swipe.
+        cardReaderInput.value = '';
+
+    }, 50); // A 50ms delay is usually enough to capture a full swipe burst.
 }
+
 
 function forceFocus() {
     cardReaderInput.focus();
