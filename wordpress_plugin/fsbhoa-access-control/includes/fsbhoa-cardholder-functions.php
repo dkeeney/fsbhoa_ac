@@ -67,4 +67,17 @@ function fsbhoa_archive_and_delete_cardholder( $cardholder_id ) {
     return true;
 }
 
-
+/**
+ * Generates a consistent event description from an event code.
+ */
+function fsbhoa_get_event_description($event_type, $door, $granted) {
+    switch ($event_type) {
+        case 0: return 'None';
+        case 1: return 'Card swipe';
+        case 2: return 'Door open';
+        case 3: return 'Door close';
+        case 4: return 'Button press';
+        // Add other event types as needed
+        default: return 'Unknown Event';
+    }
+}

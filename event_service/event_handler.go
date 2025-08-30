@@ -36,6 +36,8 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
                     // so we can choose to ignore this initial event or label it generically.
                     eventMessage = "Access Denied" 
                 }
+            case 5:
+                eventMessage = "Outside Allowed Hours"
             case 6:
                 eventMessage = "Card Not Found"
             case 11:

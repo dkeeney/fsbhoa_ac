@@ -34,6 +34,7 @@ replay_pid*
 .Trashes
 ehthumbs.db
 Thumbs.db
+config.ini
 
 # WordPress specific (for the future plugin directory)
 # If you keep your wordpress_plugin directory clean, you might not need much here,

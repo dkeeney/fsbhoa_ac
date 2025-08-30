@@ -164,6 +164,11 @@ func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
         const testDoorNumber uint8 = 1
         granted := rand.Intn(10) > 2
 
+        var reasonCode uint8 = 1 // Default to 'Swipe'
+        if !granted {
+            reasonCode = 5 // If denied, use 'Denied: Outside Allowed Hours'
+        }
+
         status := types.Status{
             SerialNumber: types.SerialNumber(testSerialNumber),
             Event: types.StatusEvent{
@@ -171,7 +176,7 @@ func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
                 CardNumber: testCardNumber,
                 Door:       testDoorNumber,
                 Granted:    granted,
-                Reason:     1,
+                Reason:     reasonCode,
             },
         }
 

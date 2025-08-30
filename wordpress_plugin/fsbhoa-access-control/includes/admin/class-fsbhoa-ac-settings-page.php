@@ -29,6 +29,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_action( 'wp_ajax_fsbhoa_save_event_settings', array( $this, 'ajax_save_event_settings' ) );
 	add_action( 'wp_ajax_fsbhoa_save_print_settings', array( $this, 'ajax_save_print_settings' ) );
         add_action( 'wp_ajax_fsbhoa_save_kiosk_settings', array( $this, 'ajax_save_kiosk_settings' ) );
+        add_action( 'wp_ajax_fsbhoa_generate_api_key', array( $this, 'ajax_generate_api_key' ) );
         add_action('update_option', array($this, 'trigger_config_update_on_save'), 10, 3);
     }
 
@@ -105,6 +106,7 @@ class Fsbhoa_Ac_Settings_Page {
         // --- Build and write kiosk.json ---
 	$kiosk_config = [
 		'wordpress_api_base_url' => get_site_url(),
+                'api_key'                => get_option('fsbhoa_ac_kiosk_api_key', ''),
 		'ssl_cert_path'          => sanitize_text_field($tls_cert_path),
 		'ssl_key_path'           => sanitize_text_field($tls_key_path),
 		'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
@@ -154,7 +156,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_settings_section('fsbhoa_ac_display_options_section', 'Display Options', null, $general_page_slug);
         add_settings_field('fsbhoa_ac_address_suffix_field', 'Address Suffix to Remove', array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_display_options_section', ['id' => 'fsbhoa_ac_address_suffix', 'type' => 'text', 'default' => 'Bakersfield, CA 93306', 'desc' => 'This text will be removed from property addresses in display lists.']);
 
-        // NEW Section: Service Communication (Moved from Event Service)
+        // Service Communication 
         add_settings_section('fsbhoa_ac_service_comm_section', 'Service Communication Settings', null, $general_page_slug);
         $comm_fields = [
             'fsbhoa_ac_wp_host'         => ['label' => 'WordPress API Host', 'default' => 'nas.fsbhoa.com'],
@@ -165,6 +167,15 @@ class Fsbhoa_Ac_Settings_Page {
         foreach ($comm_fields as $id => $field) {
             add_settings_field($id . '_field', $field['label'], array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_service_comm_section', ['id' => $id] + $field);
         }
+        add_settings_section('fsbhoa_ac_api_keys_section', 'API Key Settings', null, $general_page_slug);
+        add_settings_field(
+            'fsbhoa_ac_api_key_field',
+            'CSV Import API Key',
+            array($this, 'render_api_key_field'),
+            $general_page_slug,
+            'fsbhoa_ac_api_keys_section',
+            ['id' => 'fsbhoa_ac_api_key', 'desc' => 'Secret key used to authorize automated CSV imports via the REST API.']
+        );
         
         // Register all General settings
         register_setting($general_option_group, 'fsbhoa_ac_photo_width', 'absint');
@@ -174,6 +185,7 @@ class Fsbhoa_Ac_Settings_Page {
         register_setting($general_option_group, 'fsbhoa_ac_wp_port', 'absint');
         register_setting($general_option_group, 'fsbhoa_ac_tls_cert_path', 'sanitize_text_field');
         register_setting($general_option_group, 'fsbhoa_ac_tls_key_path', 'sanitize_text_field');
+        register_setting($general_option_group, 'fsbhoa_ac_api_key', 'sanitize_text_field');
 
         // ====================================================================
         // --- EVENT SERVICE SETTINGS ---
@@ -290,6 +302,20 @@ class Fsbhoa_Ac_Settings_Page {
 		]
 	);
 	register_setting($kiosk_option_group, 'fsbhoa_kiosk_port', 'absint');
+
+        // Add API Key
+        add_settings_field(
+            'fsbhoa_ac_kiosk_api_key_field',
+            'Kiosk API Key',
+            array($this, 'render_api_key_field'),
+            $kiosk_page_slug,
+            'fsbhoa_ac_kiosk_logo_section',
+            [
+                'id' => 'fsbhoa_ac_kiosk_api_key',
+                'desc' => 'Secret key used by the Kiosk service to authorize with WordPress.'
+            ]
+        );
+        register_setting($kiosk_option_group, 'fsbhoa_ac_kiosk_api_key', 'sanitize_text_field');
 
 	// Add Log File setting
 	add_settings_field(
@@ -487,6 +513,7 @@ class Fsbhoa_Ac_Settings_Page {
                     'event_nonce'   => wp_create_nonce('fsbhoa_event_settings_nonce'),
                     'print_nonce'   => wp_create_nonce('fsbhoa_print_settings_nonce'),
                     'kiosk_nonce'   => wp_create_nonce('fsbhoa_kiosk_settings_nonce'),
+                    'generate_api_key_nonce' => wp_create_nonce('fsbhoa_generate_api_key_nonce'),
                 )
             );
         }
@@ -655,7 +682,9 @@ class Fsbhoa_Ac_Settings_Page {
                     'fsbhoa_kiosk_name', 
                     'fsbhoa_kiosk_port', 
                     'fsbhoa_kiosk_log_file',
-                    'fsbhoa_kiosk_max_guests'])) {
+                    'fsbhoa_kiosk_max_guests',
+                    'fsbhoa_ac_kiosk_api_key',
+                   ])) {
                     update_option(sanitize_key($option['name']), sanitize_text_field($option['value']));
                 }
             }
@@ -664,6 +693,7 @@ class Fsbhoa_Ac_Settings_Page {
         $this->update_all_service_configs();
         wp_send_json_success('Kiosk settings saved.');
     }
+
 
     // For kiosk
     public function trigger_config_update_on_save($option_name, $old_value, $new_value) {
@@ -678,6 +708,35 @@ class Fsbhoa_Ac_Settings_Page {
         if (in_array($option_name, $kiosk_options)) {
             $this->update_all_service_configs();
         }
+    }
+
+    /**
+     * Renders the special read-only field for the API key with a generate button.
+     */
+    public function render_api_key_field($args) {
+        $id    = $args['id'];
+        $desc  = $args['desc'] ?? '';
+        $value = get_option($id, '');
+        ?>
+        <input type="text" name="<?php echo esc_attr($id); ?>" id="<?php echo esc_attr($id); ?>" value="<?php echo esc_attr($value); ?>" class="regular-text" readonly="readonly" placeholder="Click generate to create a new key" />
+        <button type="button" class="button" id="fsbhoa-generate-<?php echo esc_attr( str_replace('fsbhoa_', '', $id) ); ?>-button">Generate New Key</button>
+        <p class="description"><?php echo esc_html($desc); ?></p>
+        <?php
+    }
+
+    /**
+     * AJAX handler to generate a new, cryptographically secure API key.
+     */
+    public function ajax_generate_api_key() {
+        check_ajax_referer('fsbhoa_generate_api_key_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied.', 403);
+        }
+
+        // Generate a new 32-byte (256-bit) random key and encode it
+        $new_key = base64_encode(random_bytes(32));
+
+        wp_send_json_success(['api_key' => $new_key]);
     }
 
     public function render_media_uploader_field($args) {

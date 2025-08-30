@@ -2,16 +2,14 @@ package main
 
 import (
     "bytes"
-    "bufio"
     "encoding/json"
     "fmt"
     "io"
     "log"
     "net/http"
     "os"
-    "sync"
     "time"
-    "strings"
+    "sync"
 
 "github.com/gorilla/websocket"
 )
@@ -19,6 +17,7 @@ import (
 // --- Data Structs ---
 type Config struct {
 	WordPressAPIBaseURL string `json:"wordpress_api_base_url"`
+        APIKey              string `json:"api_key"`
 	SSLCertPath         string `json:"ssl_cert_path"`
 	SSLKeyPath          string `json:"ssl_key_path"`
 	Port                string `json:"port"`
@@ -70,6 +69,7 @@ func loadConfiguration() {
 	if err != nil {
 		log.Fatalf("FATAL: Could not parse config file: %v", err)
 	}
+        log.Printf("Kiosk service starting. Config loaded. API Key Found: '%s'", config.APIKey)
 }
 
 // setupLogging configures the log output to a file if specified.
@@ -88,9 +88,19 @@ func setupLogging() {
 // fetchKioskConfig gets the kiosk UI config from the WordPress server.
 func fetchKioskConfig() {
 	url := fmt.Sprintf("%s/wp-json/fsbhoa/v1/kiosk/config", config.WordPressAPIBaseURL)
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		log.Fatalf("FATAL: Could not create request for kiosk config: %v", err)
+	}
+	req.Header.Set("X-API-KEY", config.APIKey)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil { // Check for non-nil error from the Do call
 		log.Fatalf("FATAL: Could not fetch kiosk config: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Fatalf("FATAL: WordPress returned non-200 status for kiosk config: %s - %s", resp.Status, string(bodyBytes))
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -120,6 +130,7 @@ func logSignInToWordPress(rfid, amenity string, guests int) {
 		log.Printf("Error creating request: %v", err)
 		return
 	}
+        req.Header.Set("X-API-KEY", config.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -150,14 +161,31 @@ func broadcast(message SocketMessage) {
 }
 
 // processCardSwipe is the central function that validates a card and broadcasts the result.
-func processCardSwipe(rfid string) {
+func processCardSwipe(rfid string, client *websocket.Conn) {
 	log.Printf("PROCESSING SWIPE for card: %s\n", rfid)
 	validationURL := fmt.Sprintf("%s/wp-json/fsbhoa/v1/kiosk/validate-card/%s", config.WordPressAPIBaseURL, rfid)
-	resp, err := http.Get(validationURL)
+        req, err := http.NewRequest("GET", validationURL, nil)
+	if err != nil {
+		log.Printf("Error creating validation request: %v", err)
+		return
+	}
+	req.Header.Set("X-API-KEY", config.APIKey)
+	log.Printf("Sending API request. X-API-KEY header set to: '%s'", req.Header.Get("X-API-KEY"))
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("Error validating card: %v", err)
 		return
 	}
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Printf("Error: WordPress returned non-200 status for card validation: %s - %s", resp.Status, string(bodyBytes))
+		errorMsg := SocketMessage{Event: "cardSwiped", Payload: map[string]interface{}{"isValid": false, "message": "System Error: Could not validate card."}}
+		client.WriteJSON(errorMsg)
+		return
+	}
+
 	defer resp.Body.Close()
 	var validationResponse struct {
 		IsValid    bool   `json:"isValid"`
@@ -180,49 +208,17 @@ func processCardSwipe(rfid string) {
 			"cardholder": validationResponse.Cardholder,
 		},
 	}
-	broadcast(message)
+        
+        // Since all swipes are from browsers, we send a targeted response to the originating client.
+        log.Printf("Sending targeted response to a single browser client.")
+        clientsMutex.Lock()
+        err = client.WriteJSON(message)
+        clientsMutex.Unlock()
+        if err != nil {
+            log.Printf("Error sending targeted message: %v", err)
+        }
 }
 
-
-// listenForLocalReader is a goroutine that periodically checks for the card
-// reader device and reads from it when it's available.
-func listenForLocalReader(cardChan chan<- string) {
-	devicePath := "/dev/kiosk_reader"
-	for {
-		// Try to open the device file.
-		file, err := os.Open(devicePath)
-		if err != nil {
-			log.Printf("INFO: Local reader at %s not found. Will check again in 10 seconds.", devicePath)
-			time.Sleep(10 * time.Second)
-			continue // Go to the next iteration of the loop to try again.
-		}
-
-		log.Printf("INFO: Local reader connected at %s. Now listening for card swipes.", devicePath)
-		
-		// We have a valid device, now read from it until it's disconnected.
-		reader := bufio.NewReader(file)
-		var cardData strings.Builder
-		
-		for {
-			char, _, err := reader.ReadRune()
-			if err != nil {
-				// This error (like EOF) means the device was unplugged.
-				log.Printf("INFO: Local reader disconnected: %v", err)
-				file.Close()
-				break // Break the inner loop to go back to trying to open the device.
-			}
-
-			if char >= '0' && char <= '9' {
-				cardData.WriteRune(char)
-				if cardData.Len() == 8 {
-					log.Printf("LOCAL SWIPE: Received 8 digits: %s", cardData.String())
-					cardChan <- cardData.String()
-					cardData.Reset()
-				}
-			}
-		}
-	}
-}
 
 
 
@@ -270,14 +266,111 @@ func handleConnections(w http.ResponseWriter, r *http.Request, cardChan chan<- s
 				}
 			}
 		case "manualSwipe":
-			if payload, ok := msg.Payload.(map[string]interface{}); ok {
-				if rfid, okR := payload["rfid"].(string); okR {
-					cardChan <- rfid
-				}
-			}
+                    if payload, ok := msg.Payload.(map[string]interface{}); ok {
+                        if rfid, okR := payload["rfid"].(string); okR {
+                            // Launch a goroutine to handle the scan, so we don't block the main read loop.
+                            go handleWalletScan(rfid, ws)
+                        }
+                    }
 		}
 	}
 }
+
+
+// handleWalletScan collects all card swipes in a short time window and processes them.
+func handleWalletScan(initialRFID string, client *websocket.Conn) {
+    // A channel to collect all RFIDs scanned in a short burst.
+    rfidChan := make(chan string, 10) // Buffer of 10 is plenty.
+    rfidChan <- initialRFID
+
+    // This timer defines our "listening window". 500ms is a good starting point.
+    timer := time.NewTimer(500 * time.Millisecond)
+    
+    // Concurrently listen for more card swipes from this specific client.
+    go func() {
+        for {
+            var msg SocketMessage
+            // This is a temporary, quick read from the connection.
+            if err := client.ReadJSON(&msg); err != nil {
+                // If the client disconnects or there's an error, just stop listening.
+                return
+            }
+            if msg.Event == "manualSwipe" {
+                if payload, ok := msg.Payload.(map[string]interface{}); ok {
+                    if rfid, okR := payload["rfid"].(string); okR {
+                        rfidChan <- rfid
+                    }
+                }
+            }
+        }
+    }()
+
+    <-timer.C      // Wait for the 500ms timer to fire.
+    close(rfidChan) // Close the channel to signal we're done collecting.
+
+    var scannedRFIDs []string
+    uniqueRFIDs := make(map[string]bool)
+    for rfid := range rfidChan {
+        if !uniqueRFIDs[rfid] {
+            scannedRFIDs = append(scannedRFIDs, rfid)
+            uniqueRFIDs[rfid] = true
+        }
+    }
+    log.Printf("Wallet scan complete. Found %d unique RFIDs to check.", len(scannedRFIDs))
+
+    var validCardResponse interface{}
+    var lastInvalidRFID string
+
+    // Now, iterate through the unique RFIDs we collected.
+    for _, rfid := range scannedRFIDs {
+        // We can reuse the existing processCardSwipe logic, but we need to extract its core.
+        // Let's call WordPress to validate each card.
+        validationURL := fmt.Sprintf("%s/wp-json/fsbhoa/v1/kiosk/validate-card/%s", config.WordPressAPIBaseURL, rfid)
+        req, _ := http.NewRequest("GET", validationURL, nil)
+        req.Header.Set("X-API-KEY", config.APIKey)
+        httpClient := &http.Client{Timeout: 5 * time.Second}
+        resp, err := httpClient.Do(req)
+        if err != nil || resp.StatusCode != http.StatusOK {
+            continue // Skip if there's a network error or non-200 response
+        }
+        
+        var vResponse struct {
+            IsValid    bool        `json:"isValid"`
+            Message    string      `json:"message"`
+            Cardholder interface{} `json:"cardholder"`
+        }
+        
+        json.NewDecoder(resp.Body).Decode(&vResponse)
+        resp.Body.Close()
+
+        if vResponse.IsValid {
+            log.Printf("Found valid card in wallet: %s", rfid)
+            validCardResponse = vResponse
+            break // We found a valid card, so we can stop checking.
+        }
+        lastInvalidRFID = rfid // Keep track of the last invalid card we saw.
+    }
+
+    // After checking all cards, send a single response to the UI.
+    var finalMessage SocketMessage
+    if validCardResponse != nil {
+        // If we found a valid card, send its success payload.
+        finalMessage = SocketMessage{Event: "cardSwiped", Payload: validCardResponse}
+    } else {
+        // If no valid cards were found, send an error for the last invalid one.
+        log.Printf("No valid cards found in wallet scan. Reporting error for last card: %s", lastInvalidRFID)
+        finalMessage = SocketMessage{Event: "cardSwiped", Payload: map[string]interface{}{
+            "isValid": false, 
+            "message": "Card not found.",
+        }}
+    }
+    
+    // Use a mutex to safely write the final response to the client.
+    clientsMutex.Lock()
+    client.WriteJSON(finalMessage)
+    clientsMutex.Unlock()
+}
+
 
 // main is the application entry point.
 
@@ -296,11 +389,6 @@ func main() {
 		handleConnections(w, r, cardSwipeChannel)
 	})
 
-	go func() {
-		for cardNumber := range cardSwipeChannel {
-			processCardSwipe(cardNumber)
-		}
-	}()
 
 	log.Printf("Starting kiosk server on https://localhost%s\n", config.Port)
 	if err := http.ListenAndServeTLS(config.Port, config.SSLCertPath, config.SSLKeyPath, nil); err != nil {

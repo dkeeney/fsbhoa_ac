@@ -69,8 +69,8 @@ function fsbhoa_render_cardholder_list_view() {
                     <th class="no-sort fsbhoa-actions-column"><?php esc_html_e( 'Actions', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Name', 'fsbhoa-ac' ); ?></th>
                     <th><?php esc_html_e( 'Property', 'fsbhoa-ac' ); ?></th>
-                    <th class="fsbhoa-status-column"><?php esc_html_e( 'Card Status', 'fsbhoa-ac' ); ?></th>
-                    <th class="no-sort fsbhoa-type-column" title="<?php esc_attr_e( 'Cardholder Type', 'fsbhoa-ac' ); ?>">
+                    <th class="sorting fsbhoa-status-column"><?php esc_html_e( 'Card Status', 'fsbhoa-ac' ); ?></th>
+                    <th class="sorting fsbhoa-type-column" title="<?php esc_attr_e( 'Cardholder Type', 'fsbhoa-ac' ); ?>">
                         <?php esc_html_e( 'Type', 'fsbhoa-ac' ); ?></th>
                 </tr>
             </thead>

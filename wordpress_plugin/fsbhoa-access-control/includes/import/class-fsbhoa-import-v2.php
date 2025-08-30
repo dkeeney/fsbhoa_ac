@@ -149,7 +149,7 @@ class Fsbhoa_Import_V2
         }
         
         $file_path = sanitize_text_field($_FILES['csv_file']['tmp_name']);
-        $this->feedback = $this->process_csv_file($file_path);
+        $this->feedback = $this->process_csv_file($file_path, false);
     }
     
     
@@ -158,7 +158,7 @@ class Fsbhoa_Import_V2
      * @param string $file_path The temporary server path to the uploaded CSV file.
      * @return array An array containing feedback messages and status.
      */
-    private function process_csv_file($file_path)
+    private function process_csv_file($file_path,  $is_dry_run = false)
     {
         $stats = [
             'rows_processed' => 0,
@@ -198,22 +198,25 @@ class Fsbhoa_Import_V2
                 $new_cardholders_from_row = $this->parse_cardholders_from_row($row);
 
                 $property_address_raw = $this->get_value_from_row($row, ['property address', 'property_address']);
-                $property_id = $this->get_or_create_property($property_address_raw, $stats);
+                $property_id = $this->get_or_create_property($property_address_raw, $stats, $is_dry_run);
                 if (!$property_id) {
                     throw new Exception("Skipping row due to missing or invalid property address.");
                 }
 
                 $existing_db_cardholders = $this->get_cardholders_by_property($property_id);
-                $this->sync_property_occupants($new_cardholders_from_row, $existing_db_cardholders, $property_id, $stats);
-                $this->apply_changes_to_db($new_cardholders_from_row, $property_id, $stats);
+                $this->sync_property_occupants($new_cardholders_from_row, $existing_db_cardholders, $property_id, $stats, $is_dry_run);
+                $this->apply_changes_to_db($new_cardholders_from_row, $property_id, $stats, $is_dry_run);
 
             } catch (Exception $e) {
                 $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": " . $e->getMessage();
             }
         }
         fclose($handle);
-        fsbhoa_log_pending_change(); // assume some records changed.
-
+        
+        // Only log a pending change if this is NOT a dry run
+        if (!$is_dry_run) {
+            fsbhoa_log_pending_change(); 
+        }
         $feedback_messages = [
             sprintf(__("Import complete. Processed %d rows.", 'fsbhoa-ac'), $stats['rows_processed']),
             sprintf(__("Properties Created: %d", 'fsbhoa-ac'), $stats['properties_created']),
@@ -222,6 +225,12 @@ class Fsbhoa_Import_V2
             sprintf(__("Cardholders Removed: %d", 'fsbhoa-ac'), $stats['cardholders_deleted']),
             sprintf(__("Owner sets updated to 'Landlord': %d", 'fsbhoa-ac'), $stats['landlords_identified']),
         ];
+
+        // Add a message to the results if this was a dry run
+        if ($is_dry_run) {
+            array_unshift($feedback_messages, "--- DRY RUN MODE: No changes were made to the database. ---");
+        }
+
 
         if (!empty($stats['errors'])) {
             $feedback_messages[] = __("--- The following errors occurred: ---", 'fsbhoa-ac');
@@ -232,7 +241,7 @@ class Fsbhoa_Import_V2
     }
     
 
-    private function sync_property_occupants(&$new_cardholders_from_row, $existing_db_cardholders, $property_id, &$stats)
+    private function sync_property_occupants(&$new_cardholders_from_row, $existing_db_cardholders, $property_id, &$stats, $is_dry_run)
     {
         // Compare based on the formal import name, not the preferred display name
         $new_full_names = array_map(function ($ch) { 
@@ -246,11 +255,17 @@ class Fsbhoa_Import_V2
             // If an existing person from an import is NOT in the new import file, delete them.
             if (!in_array($existing_full_name, $new_full_names)) {
                 if ($db_cardholder->origin === 'import') {
-                    $result = fsbhoa_archive_and_delete_cardholder($db_cardholder->id);
+                    // Only archive if it's not a dry run
+                    if (!$is_dry_run) {
+                        $result = fsbhoa_archive_and_delete_cardholder($db_cardholder->id);
 
-                    if (is_wp_error($result)) {
-                        $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": Could not archive '{$db_cardholder->first_name} {$db_cardholder->last_name}'. Reason: " . $result->get_error_message();
+                        if (is_wp_error($result)) {
+                            $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": Could not archive '{$db_cardholder->first_name} {$db_cardholder->last_name}'. Reason: " . $result->get_error_message();
+                        } else {
+                            $stats['cardholders_deleted']++;
+                        }
                     } else {
+                        // In dry run mode, just increment the stat
                         $stats['cardholders_deleted']++;
                     }
                 }
@@ -382,7 +397,7 @@ private function parse_cardholders_from_row($row)
         return $parsed_cardholders;
     }
 
-    private function get_or_create_property($raw_address, &$stats)
+    private function get_or_create_property($raw_address, &$stats, $is_dry_run)
     {
         if (empty(trim($raw_address))) {
             return null;
@@ -422,20 +437,22 @@ private function parse_cardholders_from_row($row)
         if ($property_id) {
             return (int) $property_id;
         } else {
-            // 4. Create new property, populating all three address columns
-            $result = $this->wpdb->insert(
-                $this->table_properties,
-                [
-                    'house_number'   => $house_number,
-                    'street_name'    => $street_name,
-                    'street_address' => $clean_address, // Populate legacy field
-                    'origin'         => 'import'
-                ],
-                ['%s', '%s', '%s', '%s']
-            );
+            if (!$is_dry_run) {
+                // 4. Create new property, populating all three address columns
+                $result = $this->wpdb->insert(
+                    $this->table_properties,
+                    [
+                        'house_number'   => $house_number,
+                        'street_name'    => $street_name,
+                        'street_address' => $clean_address, // Populate legacy field
+                        'origin'         => 'import'
+                    ],
+                    ['%s', '%s', '%s', '%s']
+                );
 
-            if ($result === false) {
-                throw new Exception("Database error: Could not create property for address '{$clean_address}'. DB Error: " . $this->wpdb->last_error);
+                if ($result === false) {
+                    throw new Exception("Database error: Could not create property for address '{$clean_address}'. DB Error: " . $this->wpdb->last_error);
+                }
             }
             $stats['properties_created']++;
             return $this->wpdb->insert_id;
@@ -447,7 +464,7 @@ private function parse_cardholders_from_row($row)
     }
     
     
-    private function apply_changes_to_db($new_list, $property_id, &$stats)
+    private function apply_changes_to_db($new_list, $property_id, &$stats, $is_dry_run)
     {
         foreach ($new_list as $cardholder_data) {
             $cardholder_data['property_id'] = $property_id;
@@ -498,18 +515,24 @@ private function parse_cardholders_from_row($row)
                 }
 
                 if (!empty($data_to_update)) {
-                    $result = $this->wpdb->update($this->table_cardholders, $data_to_update, ['id' => $existing_record->id]);
-                    if ($result === false) {
-                        throw new Exception("DB error updating cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}'. DB Error: " . $this->wpdb->last_error);
+                    // Only update if it's not a dry run
+                    if (!$is_dry_run) {
+                        $result = $this->wpdb->update($this->table_cardholders, $data_to_update, ['id' => $existing_record->id]);
+                        if ($result === false) {
+                            throw new Exception("DB error updating cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}'. DB Error: " . $this->wpdb->last_error);
+                        }
                     }
                     $stats['cardholders_updated']++;
                 }
             } else {
                 // INSERT new record
                 // The $cardholder_data array from parse_cardholders_from_row now contains all needed fields
-                $result = $this->wpdb->insert($this->table_cardholders, $cardholder_data);
-                if ($result === false) {
-                    throw new Exception("DB error inserting cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}'. DB Error: " . $this->wpdb->last_error);
+                // Only insert if it's not a dry run
+                if (!$is_dry_run) {
+                    $result = $this->wpdb->insert($this->table_cardholders, $cardholder_data);
+                    if ($result === false) {
+                        throw new Exception("DB error inserting cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}'. DB Error: " . $this->wpdb->last_error);
+                    }
                 }
                 $stats['cardholders_created']++;
             }

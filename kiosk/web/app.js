@@ -268,7 +268,7 @@ function resetKiosk() {
         statusMessage.textContent = 'Please Swipe Your Card';
         statusMessage.style.color = '';
         cardReaderInput.value = '';
-        startFocusCapture();  // we are reading the USB port directly.
+        startFocusCapture();  // we are reading via the Browser's card reader
 }
 
 // Initial connection attempt

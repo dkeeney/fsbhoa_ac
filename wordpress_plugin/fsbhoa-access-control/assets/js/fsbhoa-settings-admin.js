@@ -131,5 +131,53 @@ console.log('Data to send:', dataToSend);
         frame.open();
     });
 
+    // Generic handler for ANY "Generate New API Key" button
+    $(document).on('click', 'button[id^="fsbhoa-generate-"]', function(e) {
+        e.preventDefault();
+        
+        var $button = $(this);
+        var inputId = 'fsbhoa_' + $(this).attr('id').replace('fsbhoa-generate-', '').replace('-button', '');
+        var $input = $('#' + inputId);
+
+        if (!confirm('Are you sure you want to generate a new API key? The old key will stop working immediately.')) {
+            return;
+        }
+
+        $button.prop('disabled', true).text('Generating...');
+
+        var data_to_send = {
+            action: 'fsbhoa_generate_api_key',
+            nonce: fsbhoa_settings_vars.generate_api_key_nonce
+        };
+
+        // --- TEMPORARY DEBUGGING ---
+        console.log('--- Preparing to send AJAX request ---');
+        console.log('Nonce value being sent:', fsbhoa_settings_vars.generate_api_key_nonce);
+        console.log('Full data payload being sent:', data_to_send);
+        console.log('All available page variables:', fsbhoa_settings_vars);
+        // --- END DEBUGGING ---
+
+        $.ajax({
+            url: fsbhoa_settings_vars.ajax_url,
+            type: 'POST',
+            data: data_to_send,
+            success: function(response) {
+                if (response.success) {
+                    $input.val(response.data.api_key);
+                    // Automatically trigger the correct save button for the page
+                    $button.closest('.wrap').find('button.button-primary').trigger('click');
+                } else {
+                    alert('Error: ' + response.data);
+                }
+            },
+            error: function() {
+                alert('An unexpected error occurred while generating the key.');
+            },
+            complete: function() {
+                $button.prop('disabled', false).text('Generate New Key');
+            }
+        });
+    });
+
 });
 

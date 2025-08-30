@@ -67,6 +67,9 @@ add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
 /**
  * Load core plugin classes 
  */
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
+
 // For our Sync Banner
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
 
@@ -88,9 +91,8 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-groups-actions.
 
 // List Table classes
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/class-fsbhoa-import-rest-api.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-print-actions.php';
 //
 // For Deleted Cardholder screen
@@ -263,6 +265,11 @@ function fsbhoa_ac_api_init() {
     if (class_exists('Fsbhoa_Print_REST_API')) {
         $print_api = new Fsbhoa_Print_REST_API();
         $print_api->register_routes();
+    }
+    // Instantiate the Import REST API handler
+    if (class_exists('Fsbhoa_Import_REST_API')) {
+        $import_api = new Fsbhoa_Import_REST_API();
+        $import_api->register_routes();
     }
     
     // Any other true REST API handlers would be initialized here in the future.

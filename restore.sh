@@ -12,10 +12,10 @@
 # --- BEGIN CONFIGURATION ---
 
 # Your WordPress database name
-DB_NAME="your_db_name"
+DB_NAME="fsbhoa_db"
 
 # The full path to your WordPress installation's root directory
-WP_PATH="/path/to/your/wordpress"
+WP_PATH="/var/www/html"
 
 # --- END CONFIGURATION ---
 

@@ -90,15 +90,15 @@ class Fsbhoa_Monitor_REST_API {
             return new WP_Error( 'bad_request', 'Missing required event parameters.', array( 'status' => 400 ) );
         }
 
-        $log_data = [
-            'event_timestamp'       => current_time('mysql'),
-            'controller_identifier' => strval($params['SerialNumber']),
-            'door_number'           => absint($params['Door']),
-            'rfid_id'               => isset($params['CardNumber']) ? sprintf('%08d', absint($params['CardNumber'])) : null,
-            'event_type_code'       => absint($params['Reason']),
-            'event_description'     => sanitize_text_field($params['EventMessage']),
-            'access_granted'        => isset($params['Granted']) ? ($params['Granted'] ? 1 : 0) : null,
-        ];
+	$log_data = [
+		'event_timestamp'       => $params['Timestamp'] ?? current_time('mysql'),
+		'controller_identifier' => strval($params['SerialNumber']),
+		'door_number'           => absint($params['Door']),
+		'rfid_id'               => isset($params['CardNumber']) ? sprintf('%08d', absint($params['CardNumber'])) : null,
+		'event_type_code'       => absint($params['Type']),
+		'event_description'     => fsbhoa_get_event_description(absint($params['Type']), absint($params['Door']), $params['Granted']), // Use a helper for consistent messages
+		'access_granted'        => isset($params['Granted']) ? ($params['Granted'] ? 1 : 0) : null,
+	];
 
         if ( !empty($log_data['rfid_id']) && $log_data['rfid_id'] !== '00000000' ) {
             $cardholder_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM ac_cardholders WHERE rfid_id = %s", $log_data['rfid_id']));
