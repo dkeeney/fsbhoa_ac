@@ -9,7 +9,7 @@ SOURCE_CSV_NAME="ResidentImport.csv"
 SOURCE_FILE_PATH="$NAS_PATH/$SOURCE_CSV_NAME"
 ARCHIVE_PATH="$NAS_PATH/processed_imports"
 API_ENDPOINT_BASE="https://access.fsbhoa.com/wp-json/fsbhoa/v1/import"
-API_KEY="ArZ5Zvhdq6d6Xtp4eHjHh2iua+/0M8UstTu3FrO9rNY="
+API_KEY=""
 
 # --- Script Logic ---
 IS_DRY_RUN=false
