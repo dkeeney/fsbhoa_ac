@@ -7,7 +7,7 @@ SET NAS_PATH=\\nas.fsbhoa.com\shared\AccessControl
 SET CSV_FILENAME=ResidentImport.csv
 SET API_ENDPOINT=https://access.fsbhoa.com/wp-json/fsbhoa/v1/import/run
 SET SERVER_FILE_PATH=/mnt/shared/AccessControl/ResidentImport.csv
-SET API_KEY=ArZ5Zvhdq6d6Xtp4eHjHh2iua+/0M8UstTu3FrO9rNY=
+SET API_KEY=
 :: -------------------
 
 :START
