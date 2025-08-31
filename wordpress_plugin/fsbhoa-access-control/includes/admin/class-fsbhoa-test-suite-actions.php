@@ -70,11 +70,37 @@ class Fsbhoa_Test_Suite_Actions {
         if (is_wp_error($response)) {
             wp_send_json_error('Failed to contact event_service: ' . $response->get_error_message());
         }
+        sleep(1);
         wp_send_json_success("Test hardware event triggered for controller SN {$serial_number}.");
     }
 
+    private function verify_database_event($rfid, $success_message) {
+        global $wpdb;
+        $table = 'ac_access_log';
+        
+        // Add a delay to ensure the event has time to be processed
+        sleep(2);
 
-private function run_kiosk_test() {
+        $query = $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE rfid_id = %s AND event_timestamp > NOW() - INTERVAL 15 SECOND",
+            $rfid
+        );
+        
+        // --- DEBUGGING LOGS START ---
+        error_log("--- Verifying Database Event ---");
+        error_log("Running Query: " . $query);
+        $event_count = $wpdb->get_var($query);
+        error_log("Query Result (COUNT): " . $event_count);
+        // --- DEBUGGING LOGS END ---
+
+        if ($event_count > 0) {
+            wp_send_json_success($success_message);
+        } else {
+            wp_send_json_error("Verification failed: Event for RFID {$rfid} not found in database.");
+        }
+    }
+
+    private function run_kiosk_test() {
         // 1. Get the configured API key from WordPress options.
         $api_key = get_option('fsbhoa_ac_kiosk_api_key', '');
         if (empty($api_key)) {
@@ -109,6 +135,7 @@ private function run_kiosk_test() {
 
 
     private function run_import_test() {
+      try {
         $api_key = get_option('fsbhoa_ac_api_key', '');
         if (empty($api_key)) {
             wp_send_json_error('Test failed: Import API Key is not configured.');
@@ -160,6 +187,11 @@ private function run_kiosk_test() {
         } else {
             wp_send_json_success('Test import (Dry Run) submitted successfully.');
         }
+      } catch (Throwable $e) {
+            // This will catch any fatal errors and log them
+            error_log('FATAL ERROR in run_import_test: ' . $e->getMessage());
+            wp_send_json_error('A fatal error occurred: ' . $e->getMessage());
+      }
     }
 
     private function verify_import_test() {

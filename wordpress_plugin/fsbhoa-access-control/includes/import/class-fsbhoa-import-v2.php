@@ -158,7 +158,7 @@ class Fsbhoa_Import_V2
      * @param string $file_path The temporary server path to the uploaded CSV file.
      * @return array An array containing feedback messages and status.
      */
-    private function process_csv_file($file_path,  $is_dry_run = false)
+    function process_csv_file($file_path,  $is_dry_run = false)
     {
         $stats = [
             'rows_processed' => 0,

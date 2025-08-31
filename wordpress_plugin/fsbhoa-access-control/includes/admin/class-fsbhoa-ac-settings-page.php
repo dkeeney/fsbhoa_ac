@@ -15,6 +15,8 @@ class Fsbhoa_Ac_Settings_Page {
     private $kiosk_config_path           = '/var/lib/fsbhoa/kiosk.json';
 
     public function __construct() {
+        $this->ensure_system_users_exist();
+
         // Automatically set the default API token if it doesn't exist
         if (!get_option('fsbhoa_ac_print_api_token')) {
             update_option('fsbhoa_ac_print_api_token', self::DEFAULT_PRINT_API_TOKEN);
@@ -748,5 +750,65 @@ class Fsbhoa_Ac_Settings_Page {
         <button type="button" class="button" id="<?php echo esc_attr($id); ?>-button">Upload/Select Image</button>
         <p class="description"><?php echo esc_html($desc); ?></p>
         <?php
+    }
+
+    /**
+     * Checks if system-critical properties and users exist and creates them if not.
+     * This runs when the settings page is loaded.
+     */
+    private function ensure_system_users_exist() {
+        global $wpdb;
+        $cardholders_table = 'ac_cardholders';
+        $properties_table = 'ac_property';
+
+        // --- Step 1: Find or Create the "System" Property ---
+        $system_property_id = $wpdb->get_var($wpdb->prepare("SELECT property_id FROM {$properties_table} WHERE street_address = %s", 'System'));
+
+        if (!$system_property_id) {
+            $wpdb->insert(
+                $properties_table,
+                [
+                    'house_number'   => '0',
+                    'street_name'    => 'System',
+                    'street_address' => 'System',
+                    'origin'         => 'system'
+                ]
+            );
+            $system_property_id = $wpdb->insert_id;
+        }
+
+        // --- Step 2: Define System Users ---
+        $system_users = [
+            [
+                'rfid_id'    => '11111111',
+                'first_name' => 'System',
+                'last_name'  => 'Test User'
+            ],
+            [
+                'rfid_id'    => '22222222',
+                'first_name' => 'Kiosk',
+                'last_name'  => 'Test User'
+            ]
+        ];
+
+        // --- Step 3: Loop Through and Create Missing Users ---
+        foreach ($system_users as $user_data) {
+            $user_exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$cardholders_table} WHERE rfid_id = %s", $user_data['rfid_id']));
+
+            if ($user_exists == 0 && $system_property_id > 0) {
+                $wpdb->insert(
+                    $cardholders_table,
+                    [
+                        'rfid_id'           => $user_data['rfid_id'],
+                        'first_name'        => $user_data['first_name'],
+                        'last_name'         => $user_data['last_name'],
+                        'property_id'       => $system_property_id,
+                        'card_status'       => 'active',
+                        'resident_type'     => 'System',
+                        'origin'            => 'system'
+                    ]
+                );
+            }
+        }
     }
 }

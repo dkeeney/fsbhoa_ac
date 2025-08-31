@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Handles REST API endpoints for the Live Monitor component.
  */
@@ -95,8 +96,8 @@ class Fsbhoa_Monitor_REST_API {
 		'controller_identifier' => strval($params['SerialNumber']),
 		'door_number'           => absint($params['Door']),
 		'rfid_id'               => isset($params['CardNumber']) ? sprintf('%08d', absint($params['CardNumber'])) : null,
-		'event_type_code'       => absint($params['Type']),
-		'event_description'     => fsbhoa_get_event_description(absint($params['Type']), absint($params['Door']), $params['Granted']), // Use a helper for consistent messages
+		'event_type_code'       => absint($params['Reason']),
+		'event_description'     => fsbhoa_get_event_description(absint($params['Reason']), absint($params['Door']), $params['Granted']), // Use a helper for consistent messages
 		'access_granted'        => isset($params['Granted']) ? ($params['Granted'] ? 1 : 0) : null,
 	];
 

@@ -69,6 +69,7 @@ add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
  */
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-test-suite-rest-api.php';
 
 // For our Sync Banner
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
@@ -246,6 +247,13 @@ add_action('init', 'run_fsbhoa_action_handlers');
  * are only instantiated during a REST API request.
  */
 function fsbhoa_ac_api_init() {
+
+    // Instantiate the Test Suite REST API handler
+    if (class_exists('Fsbhoa_Test_Suite_REST_API')) {
+        $test_api = new Fsbhoa_Test_Suite_REST_API();
+        $test_api->register_routes();
+    }
+
     // Instantiate the Monitor REST API handler and manually call its registration method.
     if (class_exists('Fsbhoa_Monitor_REST_API')) {
         $monitor_api = new Fsbhoa_Monitor_REST_API();
