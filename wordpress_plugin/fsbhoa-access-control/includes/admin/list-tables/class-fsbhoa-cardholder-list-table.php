@@ -37,32 +37,31 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
         $cardholders_table = 'ac_cardholders';
         $properties_table = 'ac_property';
 
-        // Ensure card_status is selected
         $sql = "SELECT c.*, p.house_number, p.street_name
-            FROM {$cardholders_table} c
-            LEFT JOIN {$properties_table} p ON c.property_id = p.property_id";
+                FROM {$cardholders_table} c
+                LEFT JOIN {$properties_table} p ON c.property_id = p.property_id
+                WHERE c.card_status NOT IN ('archived', 'purged')";
 
-        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'full_name'; // Default to full_name
+        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'full_name';
         $order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( $_REQUEST['order'] ) ) : 'ASC';
-        
-        $allowed_orderby = array('last_name', 'first_name', 'street_address', 'resident_type', 'email', 'full_name', 'card_status'); 
-        
-        $orderby_sql = ''; 
+
+        $allowed_orderby = array('last_name', 'first_name', 'street_address', 'resident_type', 'email', 'full_name', 'card_status');
+
+        $orderby_sql = '';
         if ( $orderby === 'full_name') {
             $orderby_sql = 'c.last_name ' . $order . ', c.first_name ' . $order;
         } elseif ( $orderby === 'street_address') {
             $orderby_sql = 'p.street_name ' . $order . ', CAST(p.house_number AS UNSIGNED) ' . $order;
-        } elseif (in_array(strtolower($orderby), $allowed_orderby) && $orderby !== 'full_name' ) { 
-            $orderby_sql = 'c.' . $orderby . ' ' . $order; 
-        } else { 
-            $orderby_sql = 'c.last_name ASC, c.first_name ASC'; 
+        } elseif (in_array(strtolower($orderby), $allowed_orderby) && $orderby !== 'full_name' ) {
+            $orderby_sql = 'c.' . $orderby . ' ' . $order;
+        } else {
+            $orderby_sql = 'c.last_name ASC, c.first_name ASC';
         }
         $sql .= ' ORDER BY ' . $orderby_sql;
 
         $sql .= " LIMIT $per_page";
         $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
 
-        // error_log("FSBHOA Cardholder List SQL: " . $sql); 
         $result = $wpdb->get_results( $sql, 'ARRAY_A' );
         return $result;
     }
@@ -70,7 +69,8 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
     public static function record_count() {
         global $wpdb;
         $table_name = 'ac_cardholders';
-        return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" );
+        // UPDATED: Added a WHERE clause to ensure the count matches the displayed records.
+        return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name} WHERE card_status NOT IN ('archived', 'purged')" );
     }
 
     public function no_items() {

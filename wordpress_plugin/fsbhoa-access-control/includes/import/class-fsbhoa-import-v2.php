@@ -37,7 +37,6 @@ class Fsbhoa_Import_V2
     private $wpdb;
     private $table_cardholders;
     private $table_properties;
-    private $table_deleted_cardholders;
     private $feedback = [];
 
     public function __construct()
@@ -46,7 +45,6 @@ class Fsbhoa_Import_V2
         $this->wpdb = $wpdb;
         $this->table_cardholders = 'ac_cardholders';
         $this->table_properties = 'ac_property';
-        $this->table_deleted_cardholders = 'ac_deleted';
     }
 
     /**
@@ -165,7 +163,7 @@ class Fsbhoa_Import_V2
             'properties_created' => 0,
             'cardholders_created' => 0,
             'cardholders_updated' => 0,
-            'cardholders_deleted' => 0,
+            'cardholders_archived' => 0,
             'landlords_identified' => 0,
             'errors' => [],
         ];
@@ -222,7 +220,7 @@ class Fsbhoa_Import_V2
             sprintf(__("Properties Created: %d", 'fsbhoa-ac'), $stats['properties_created']),
             sprintf(__("Cardholders Created: %d", 'fsbhoa-ac'), $stats['cardholders_created']),
             sprintf(__("Cardholders Updated: %d", 'fsbhoa-ac'), $stats['cardholders_updated']),
-            sprintf(__("Cardholders Removed: %d", 'fsbhoa-ac'), $stats['cardholders_deleted']),
+            sprintf(__("Cardholders Removed: %d", 'fsbhoa-ac'), $stats['cardholders_archivearchivedd']),
             sprintf(__("Owner sets updated to 'Landlord': %d", 'fsbhoa-ac'), $stats['landlords_identified']),
         ];
 
@@ -262,11 +260,11 @@ class Fsbhoa_Import_V2
                         if (is_wp_error($result)) {
                             $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": Could not archive '{$db_cardholder->first_name} {$db_cardholder->last_name}'. Reason: " . $result->get_error_message();
                         } else {
-                            $stats['cardholders_deleted']++;
+                            $stats['cardholders_archived']++;
                         }
                     } else {
                         // In dry run mode, just increment the stat
-                        $stats['cardholders_deleted']++;
+                        $stats['cardholders_archived']++;
                     }
                 }
             }
@@ -460,7 +458,11 @@ private function parse_cardholders_from_row($row)
     }
 
     private function get_cardholders_by_property($property_id) { 
-        return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->table_cardholders} WHERE property_id = %d", $property_id)); 
+        $query = $this->wpdb->prepare(
+            "SELECT * FROM {$this->table_cardholders} WHERE property_id = %d AND card_status NOT IN ('archived', 'purged')",
+            $property_id
+        );
+        return $this->wpdb->get_results($query);
     }
     
     
@@ -471,7 +473,12 @@ private function parse_cardholders_from_row($row)
             
             // Find existing records using the IMPORT names as the key
             $query = $this->wpdb->prepare(
-                "SELECT id, phone, email, resident_type, import_first_name, import_last_name FROM {$this->table_cardholders} WHERE import_first_name = %s AND import_last_name = %s AND property_id = %d",
+                "SELECT id, phone, email, resident_type, import_first_name, import_last_name 
+                    FROM {$this->table_cardholders} 
+                    WHERE import_first_name = %s 
+                      AND import_last_name = %s 
+                      AND property_id = %d
+                      AND card_status NOT IN ('archived', 'purged')",
                 $cardholder_data['import_first_name'],
                 $cardholder_data['import_last_name'],
                 $property_id

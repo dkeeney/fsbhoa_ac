@@ -1,17 +1,18 @@
 <?php
 /**
- * Handles the display, preview, and restore actions for the Deleted Cardholders page.
+ * Handles the display, preview, and restore actions for the Archived Cardholders page.
+ * REFACTORED FOR SOFT-DELETE ARCHITECTURE.
  *
- * @package     Fsbhoa_Ac
- * @subpackage  Fsbhoa_Ac/admin
- * @author      FSBHOA IT Committee
+ * @package    Fsbhoa_Ac
+ * @subpackage Fsbhoa_Ac/admin
+ * @author     FSBHOA IT Committee
  */
 
 if ( ! defined( 'WPINC' ) ) {
     die;
 }
 
-class Fsbhoa_Deleted_Cardholder_Admin_Page {
+class Fsbhoa_Archived_Cardholder_Admin_Page {
 
     /**
      * Main render method. Acts as a controller to show the correct view.
@@ -25,30 +26,31 @@ class Fsbhoa_Deleted_Cardholder_Admin_Page {
             <h1><?php esc_html_e( 'Archived Cardholders', 'fsbhoa-ac' ); ?></h1>
 
             <?php // The "Back" button now only shows on sub-pages
-            if ( $action === 'preview_deleted' || $action === 'merge_cardholder' ) : ?>
+            if ( $action === 'preview_archived' || $action === 'merge_cardholder' ) : ?>
                 <a href="<?php echo esc_url( remove_query_arg(['action', 'cardholder_id', 'source_id']) ); ?>" class="button">&larr; Back to Archive List</a>
             <?php endif; ?>
 
             <hr style="margin-top: 1em; margin-bottom: 1em;">
-            
+
             <?php
             // Display feedback messages from redirects
             if ( $message_code === 'cardholder_restored' ) {
                 echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Cardholder restored successfully.', 'fsbhoa-ac' ) . '</p></div>';
             } elseif ( $message_code === 'merge_success' ) {
-                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Cardholder merged successfully.', 'fsbhoa-ac' ) . '</p></div>';
-            } elseif ( $message_code === 'perm_delete_success' ) {
-                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Cardholder permanently deleted.', 'fsbhoa-ac' ) . '</p></div>';
+                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Cardholder merged successfully. The source record has been purged.', 'fsbhoa-ac' ) . '</p></div>';
+            } elseif ( $message_code === 'cardholder_purged' ) {
+                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Cardholder purged. The record is now hidden but retained for historical reporting.', 'fsbhoa-ac' ) . '</p></div>';
             }
             ?>
 
             <?php
             switch ( $action ) {
-                case 'preview_deleted':
+                case 'preview_archived':
                     $this->render_preview_page();
                     break;
                 case 'merge_cardholder':
-                    require_once plugin_dir_path( __FILE__ ) . 'views/view-merge-deleted-cardholder.php';
+                    // We will need to rename this view file as well.
+                    require_once plugin_dir_path( __FILE__ ) . 'views/view-merge-archived-cardholder.php';
                     fsbhoa_render_merge_cardholder_view();
                     break;
                 default:
@@ -64,38 +66,41 @@ class Fsbhoa_Deleted_Cardholder_Admin_Page {
      * Renders the main list view by loading the view file.
      */
     private function render_list_page() {
-        require_once plugin_dir_path( __FILE__ ) . 'views/view-deleted-cardholder-list.php';
-        fsbhoa_render_deleted_cardholder_list_view();
+        // We will rename this view file in a subsequent step.
+        require_once plugin_dir_path( __FILE__ ) . 'views/view-archived-cardholder-list.php';
+        fsbhoa_render_archived_cardholder_list_view();
     }
 
     /**
-     * Renders the read-only preview of a single deleted cardholder.
+     * Renders the read-only preview of a single archived cardholder.
      */
     private function render_preview_page() {
         global $wpdb;
         $cardholder_id = isset( $_GET['cardholder_id'] ) ? absint( $_GET['cardholder_id'] ) : 0;
-        if ( ! $cardholder_id ) { return; } // Simplified exit
+        if ( ! $cardholder_id ) { return; }
 
-        $cardholder = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM ac_deleted_cardholders WHERE id = %d", $cardholder_id ), ARRAY_A );
-        if ( ! $cardholder ) { return; } // Simplified exit
+        // UPDATED QUERY: Select from the main table where status is 'archived'.
+        $cardholder = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM ac_cardholders WHERE id = %d AND card_status = 'archived'", $cardholder_id ), ARRAY_A );
+        
+        if ( ! $cardholder ) {
+             echo '<div class="notice notice-warning"><p>' . esc_html__( 'The requested archived cardholder could not be found. It may have already been restored or purged.', 'fsbhoa-ac' ) . '</p></div>';
+             return;
+        }
 
         $property_address = 'N/A';
         if (!empty($cardholder['property_id'])) {
             $property_address = $wpdb->get_var($wpdb->prepare("SELECT street_address FROM ac_property WHERE property_id = %d", $cardholder['property_id']));
         }
-        
+
         echo '<h2>Preview: ' . esc_html( trim( ($cardholder['first_name'] ?? '') . ' ' . ($cardholder['last_name'] ?? '') ) ) . '</h2>';
-        
+
         $this->render_card_preview_layout( $cardholder, $property_address );
     }
 
 
-    
+
     /**
-     * Renders the standard two-column card preview and details layout.
-     *
-     * @param array $cardholder The cardholder data array.
-     * @param string $property_address The formatted property address.
+     * Renders the standard two-column card preview and details layout. (No changes needed here)
      */
     private function render_card_preview_layout( $cardholder, $property_address ) {
         // --- Prepare display variables ---
@@ -115,7 +120,7 @@ class Fsbhoa_Deleted_Cardholder_Admin_Page {
         ?>
         <div class="fsbhoa-print-page-wrapper">
             <div class="fsbhoa-print-columns">
-    
+
                 <div class="fsbhoa-card-preview-container">
                     <h3>Card Preview</h3>
                     <div class="id-card-container">
@@ -154,10 +159,10 @@ class Fsbhoa_Deleted_Cardholder_Admin_Page {
                         <p><strong>Resident Type:</strong> <?php echo esc_html($cardholder['resident_type'] ?? 'N/A'); ?></p>
                     </div>
                 </div>
-    
+
             </div>
         </div>
         <?php
     }
-
 }
+

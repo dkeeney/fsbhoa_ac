@@ -1,23 +1,24 @@
 jQuery(function($) {
 
     /**
-     * Initializes the DataTables functionality for the deleted cardholders list.
+     * Initializes the DataTables functionality for the archived cardholders list.
      */
-    function initDeletedCardholderTable() {
-        var deletedTableElement = $('#fsbhoa-deleted-cardholder-table');
-        
-        if (deletedTableElement.length) {
-            var deletedTable = deletedTableElement.DataTable({
+    function initArchivedCardholderTable() {
+        var archivedTableElement = $('#fsbhoa-archived-cardholder-table');
+
+        if (archivedTableElement.length) {
+            var archivedTable = archivedTableElement.DataTable({
                 "dom": 'tip',
                 "paging": true,
                 "info": true,
-                "order": [[4, "desc"]],
+                "order": [[4, "desc"]], // Default sort by the 'Date Archived' column
                 "columnDefs": [
-                    { "orderable": false, "targets": 0 }
+                    { "orderable": false, "targets": 0 } // Disable sorting on the actions column
                 ]
             });
-            $('#fsbhoa-deleted-cardholder-search-input').on('keyup', function() { deletedTable.search($(this).val()).draw(); });
-            $('#fsbhoa-deleted-custom-length-menu').on('change', function() { deletedTable.page.len($(this).val()).draw(); });
+            // Link custom controls to the new table instance
+            $('#fsbhoa-archived-cardholder-search-input').on('keyup', function() { archivedTable.search($(this).val()).draw(); });
+            $('#fsbhoa-archived-custom-length-menu').on('change', function() { archivedTable.page.len($(this).val()).draw(); });
         }
     }
 
@@ -51,7 +52,7 @@ jQuery(function($) {
                 select: (event, ui) => {
                     event.preventDefault();
                     if (ui.item && ui.item.id) {
-                        const detailsHtml = `<p><strong>Name:</strong> ${ui.item.first_name} ${ui.item.last_name}</p><p>This is the record that will be updated.</p>`;
+                        const detailsHtml = `<p><strong>Name:</strong> ${ui.item.first_name} ${ui.item.last_name}</p><p><strong>Address:</strong> ${ui.item.street_address || 'N/A'}</p><p>This is the record that will be updated.</p>`;
                         detailsDiv.html(detailsHtml).show();
                         hiddenIdInput.val(ui.item.id);
                         confirmButton.prop('disabled', false);
@@ -64,7 +65,7 @@ jQuery(function($) {
     }
 
     // Run the initializers
-    initDeletedCardholderTable();
+    initArchivedCardholderTable();
     initMergeTool();
 
 });

@@ -1,4 +1,4 @@
-/*   Styles for deleted-cardholder's screen */
+/* Styles for archived-cardholder's screen */
 
 .fsbhoa-frontend-wrap .fsbhoa-table-controls {
     display: flex;
@@ -8,7 +8,7 @@
 }
 
 /* 1. Widen the Actions column to prevent wrapping */
-#fsbhoa-deleted-cardholder-table .fsbhoa-actions-column {
+#fsbhoa-archived-cardholder-table .fsbhoa-actions-column {
     width: 140px;
 }
 
@@ -17,26 +17,26 @@
     display: flex;
     justify-content: flex-end;
 }
-#fsbhoa-deleted-cardholder-table_wrapper .fsbhoa-control-group {
+#fsbhoa-archived-cardholder-table_wrapper .fsbhoa-control-group {
     display: flex;
     align-items: center;
     gap: 0.5em;
 }
-#fsbhoa-deleted-cardholder-table_wrapper .fsbhoa-control-group input {
+#fsbhoa-archived-cardholder-table_wrapper .fsbhoa-control-group input {
     width: auto; /* Allow input to be its natural width */
 }
 
 /* --- DataTables Sorting Arrow Styles --- */
 /* Add space on the right of header cells for the arrow */
-#fsbhoa-deleted-cardholder-table thead th {
+#fsbhoa-archived-cardholder-table thead th {
     position: relative;
-    padding-right: 25px; 
+    padding-right: 25px;
 }
 
 /* Style the arrow icon using the Dashicons font */
-#fsbhoa-deleted-cardholder-table thead .sorting::after,
-#fsbhoa-deleted-cardholder-table thead .sorting_asc::after,
-#fsbhoa-deleted-cardholder-table thead .sorting_desc::after {
+#fsbhoa-archived-cardholder-table thead .sorting::after,
+#fsbhoa-archived-cardholder-table thead .sorting_asc::after,
+#fsbhoa-archived-cardholder-table thead .sorting_desc::after {
     font-family: 'dashicons';
     position: absolute;
     right: 8px;
@@ -47,30 +47,30 @@
 }
 
 /* Which icon to show for each state */
-#fsbhoa-deleted-cardholder-table thead .sorting::after {
+#fsbhoa-archived-cardholder-table thead .sorting::after {
     content: '\\f142'; /* Up/Down arrow icon */
 }
-#fsbhoa-deleted-cardholder-table thead .sorting_asc::after {
+#fsbhoa-archived-cardholder-table thead .sorting_asc::after {
     content: '\\f143'; /* Down arrow icon */
     opacity: 1;
 }
-#fsbhoa-deleted-cardholder-table thead .sorting_desc::after {
+#fsbhoa-archived-cardholder-table thead .sorting_desc::after {
     content: '\\f140'; /* Up arrow icon */
     opacity: 1;
 }
 
-/* Set a minimum width for the "Show Entries" dropdown on the deleted cardholders page */
-#fsbhoa-deleted-custom-length-menu {
+/* Set a minimum width for the "Show Entries" dropdown on the archived cardholders page */
+#fsbhoa-archived-custom-length-menu {
     min-width: 65px;
     width: auto;
 }
 
-#fsbhoa-deleted-cardholder-search-input {
+#fsbhoa-archived-cardholder-search-input {
     width: auto;
 }
 
 /* ==========================================================================
-   Deleted Cardholder Preview Layout Styles
+   Archived Cardholder Preview Layout Styles
    ========================================================================== */
 
 #primary .fsbhoa-print-columns {
@@ -155,3 +155,5 @@
 .id-card-info p.card-subtitle {
     font-size: 1.2em;
 }
+
+

@@ -12,7 +12,8 @@ function fsbhoa_render_merge_cardholder_view() {
     }
 
     global $wpdb;
-    $source_cardholder = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_deleted_cardholders WHERE id = %d", $source_id));
+    // UPDATED QUERY: Select from the main table where status is 'archived'.
+    $source_cardholder = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_cardholders WHERE id = %d AND card_status = 'archived'", $source_id));
     if (!$source_cardholder) {
         echo '<div class="notice notice-error"><p>Archived cardholder not found.</p></div>';
         return;
@@ -20,7 +21,7 @@ function fsbhoa_render_merge_cardholder_view() {
     ?>
     <div class="fsbhoa-merge-tool">
         <h2>Merge Archived Cardholder</h2>
-        <p>This tool will copy key data (photo, preferred name, title, notes, etc.) from the archived "Source" record onto the live "Destination" record.</p>
+        <p>This tool will copy key data (photo, preferred name, title, notes, RFID, etc.) from the archived "Source" record onto the live "Destination" record. It will then re-link all historical access logs and purge the source record.</p>
 
         <div class="merge-panels">
             <div class="merge-panel">
@@ -29,6 +30,7 @@ function fsbhoa_render_merge_cardholder_view() {
                     <p><strong>Name:</strong> <?php echo esc_html($source_cardholder->first_name . ' ' . $source_cardholder->last_name); ?></p>
                     <p><strong>Formal Name:</strong> <?php echo esc_html($source_cardholder->import_first_name . ' ' . $source_cardholder->import_last_name); ?></p>
                     <p><strong>Photo:</strong> <?php echo !empty($source_cardholder->photo) ? 'Yes' : 'No'; ?></p>
+                    <p><strong>RFID:</strong> <?php echo esc_html($source_cardholder->rfid_id ?: 'None'); ?></p>
                     <p><strong>Notes:</strong> <?php echo esc_html($source_cardholder->notes); ?></p>
                 </div>
             </div>
@@ -40,14 +42,15 @@ function fsbhoa_render_merge_cardholder_view() {
                     <input type="hidden" name="source_cardholder_id" value="<?php echo esc_attr($source_id); ?>">
                     <input type="hidden" name="destination_cardholder_id" id="fsbhoa_destination_id_hidden" value="0">
                     <?php wp_nonce_field('fsbhoa_confirm_merge_nonce'); ?>
-                    
+
                     <div class="form-field">
                         <label for="fsbhoa_destination_search">Search for a live cardholder by name or address:</label>
                         <input type="text" id="fsbhoa_destination_search" placeholder="Start typing to search...">
                     </div>
 
                     <div id="fsbhoa_destination_details" class="details-box" style="display:none; margin-top: 1em;">
-                        </div>
+                        <!-- Details will be populated by JavaScript -->
+                    </div>
 
                     <p class="submit">
                         <button type="submit" id="fsbhoa-confirm-merge-button" class="button button-primary" disabled>Confirm Merge</button>
@@ -59,4 +62,5 @@ function fsbhoa_render_merge_cardholder_view() {
     </div>
     <?php
 }
+
 

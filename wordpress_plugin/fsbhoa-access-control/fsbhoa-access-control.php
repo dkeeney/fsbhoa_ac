@@ -96,9 +96,9 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/class-fsbhoa-import-rest-api.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-print-actions.php';
 //
-// For Deleted Cardholder screen
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-deleted-cardholder-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-deleted-cardholder-actions.php';
+// For Archive Cardholder screen
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-archived-cardholder-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-archived-cardholder-actions.php';
 
 // For Controller Management
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-admin-page.php';
@@ -190,10 +190,11 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_Reports_Actions();
     }
 
-    // Instantiate Deleted Cardholder ACTIONS handler
-    if (class_exists('Fsbhoa_Deleted_Cardholder_Actions')) {
-        new Fsbhoa_Deleted_Cardholder_Actions();
+    // Instantiate Archive Cardholder ACTIONS handler
+    if (class_exists('Fsbhoa_Archived_Cardholder_Actions')) {
+        new Fsbhoa_Archived_Cardholder_Actions();
     }
+
 
     // Instantiate Controller Actions handler
     if (class_exists('Fsbhoa_Controller_Actions')) {

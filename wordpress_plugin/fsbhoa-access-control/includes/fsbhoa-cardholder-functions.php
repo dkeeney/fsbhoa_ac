@@ -12,60 +12,52 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Moves a cardholder record to the ac_deleted_cardholders table and then
- * deletes it from the main ac_cardholders table atomically using a transaction
- * and row-level locking to prevent race conditions.
+ * Archives a cardholder by setting their status to 'archived', saving their
+ * current group memberships to a CSV field, and then removing their active
+ * memberships to instantly revoke permissions.
  *
- * @param int $cardholder_id The ID of the cardholder to delete.
+ * @param int $cardholder_id The ID of the cardholder to archive.
  * @return true|WP_Error True on success, WP_Error object on failure.
  */
 function fsbhoa_archive_and_delete_cardholder( $cardholder_id ) {
     global $wpdb;
     $table_cardholders = 'ac_cardholders';
-    $table_deleted_cardholders = 'ac_deleted_cardholders';
+    $table_memberships = 'ac_cardholder_groups';
 
-    // 1. Begin the transaction immediately.
-    $wpdb->query( 'START TRANSACTION' );
+    // 1. Fetch the cardholder's current group memberships to preserve them.
+    $group_ids = $wpdb->get_col( $wpdb->prepare( "SELECT group_id FROM {$table_memberships} WHERE cardholder_id = %d", $cardholder_id ) );
+    if ( $wpdb->last_error ) {
+        return new WP_Error( 'db_error_fetch_groups', 'Database error while fetching groups for archival. DB Error: ' . esc_html( $wpdb->last_error ) );
+    }
+    $groups_csv = implode( ',', $group_ids );
 
-    // 2. Fetch the full cardholder record and lock the row for this transaction.
-    $cardholder_record = $wpdb->get_row(
-        $wpdb->prepare( "SELECT * FROM {$table_cardholders} WHERE id = %d FOR UPDATE", $cardholder_id ),
-        ARRAY_A
+    // 2. Atomically update the cardholder record to mark it as archived.
+    $updated = $wpdb->update(
+        $table_cardholders,
+        [
+            'card_status' => 'archived',
+            'deleted_at'  => current_time( 'mysql', 1 ), // Use WordPress's timezone-aware timestamp
+            'groups_csv'  => $groups_csv
+        ],
+        [ 'id' => $cardholder_id ],
+        [ '%s', '%s', '%s' ], // Data formats
+        [ '%d' ]  // Where format
     );
 
-    // DB Error Check for the SELECT
-    if ( $wpdb->last_error ) {
-        $wpdb->query( 'ROLLBACK' );
-        return new WP_Error( 'db_error_select', 'Database error while fetching cardholder to delete. DB Error: ' . esc_html( $wpdb->last_error ) );
+    if ( false === $updated ) {
+        return new WP_Error( 'db_error_update', 'Database error while archiving the cardholder. DB Error: ' . esc_html( $wpdb->last_error ) );
     }
 
-    // Check if the record exists *after* attempting to lock it.
-    if ( ! $cardholder_record ) {
-        $wpdb->query( 'ROLLBACK' );
-        return new WP_Error( 'not_found', 'Cardholder record not found to delete. It may have already been deleted.' );
-    }
-
-    // 3. Insert the (now locked and guaranteed current) record into the archive table.
-    $inserted = $wpdb->insert( $table_deleted_cardholders, $cardholder_record );
-
-    if ( false === $inserted ) {
-        $wpdb->query( 'ROLLBACK' );
-        return new WP_Error( 'archive_failed', 'Failed to copy record to archive. DB Error: ' . esc_html( $wpdb->last_error ) );
-    }
-
-    // 4. Now, delete the record from the main table.
-    $deleted = $wpdb->delete( $table_cardholders, array( 'id' => $cardholder_id ), array( '%d' ) );
-
+    // 3. For security, remove all active group memberships to revoke permissions immediately.
+    $deleted = $wpdb->delete( $table_memberships, [ 'cardholder_id' => $cardholder_id ], [ '%d' ] );
     if ( false === $deleted ) {
-        $wpdb->query( 'ROLLBACK' );
-        return new WP_Error( 'delete_failed', 'Failed to delete original record. DB Error: ' . esc_html( $wpdb->last_error ) );
+        // This is a critical failure, but the user is already archived. Log it.
+        error_log( 'FSBHOA SECURITY WARNING: Failed to delete group memberships for archived cardholder ID ' . $cardholder_id . '. DB Error: ' . $wpdb->last_error );
     }
 
-    // 5. All good, commit the changes to the database.
-    $wpdb->query( 'COMMIT' );
-    
     return true;
 }
+
 
 /**
  * Generates a consistent event description from an event code.

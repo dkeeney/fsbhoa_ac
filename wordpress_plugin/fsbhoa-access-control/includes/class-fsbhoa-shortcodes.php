@@ -19,7 +19,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_groups_page', [$this, 'render_groups_page']);
         add_shortcode( 'fsbhoa_cardholder_report', array( $this, 'render_cardholder_report_shortcode' ) );
         add_shortcode( 'fsbhoa_task_list', array( $this, 'render_task_list_shortcode' ) );
-        add_shortcode( 'fsbhoa_deleted_cardholders', array( $this, 'render_deleted_cardholders_shortcode' ) );
+        add_shortcode( 'fsbhoa_archived_cardholders', array( $this, 'render_archived_cardholders_shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
         add_action( 'wp_body_open', array( $this, 'display_sync_banner' ) );
     }
@@ -78,7 +78,7 @@ class Fsbhoa_Shortcodes {
             && ! has_shortcode( $post->post_content, 'fsbhoa_groups_page' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' )
             && ! has_shortcode( $post->post_content, 'fsbhoa_task_list' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_deleted_cardholders' )
+            && ! has_shortcode( $post->post_content, 'fsbhoa_archived_cardholders' )
             ) ) {
             return;
         }
@@ -132,16 +132,16 @@ class Fsbhoa_Shortcodes {
 
         }
 
-        // ASSETS FOR: [fsbhoa_deleted_cardholders] (includes list, preview, and merge)
-        if ( has_shortcode( $post->post_content, 'fsbhoa_deleted_cardholders' ) ) {
+        // ASSETS FOR: [fsbhoa_archived_cardholders] (includes list, preview, and merge)
+        if ( has_shortcode( $post->post_content, 'fsbhoa_archived_cardholders' ) ) {
             // Enqueue assets needed for this page
             wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
             wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
             wp_enqueue_script('jquery-ui-autocomplete');
-            wp_enqueue_style('fsbhoa-deleted-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-deleted-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_style('fsbhoa-archived-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-archived-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
 
-            $handle = 'fsbhoa-deleted-cardholder-script';
-            wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-deleted-cardholder.js', ['jquery', 'jquery-ui-autocomplete', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
+            $handle = 'fsbhoa-archived-cardholder-script';
+            wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-archived-cardholder.js', ['jquery', 'jquery-ui-autocomplete', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
 
             // Localize settings to OUR new handle
             $ajax_settings = array(
@@ -491,17 +491,17 @@ class Fsbhoa_Shortcodes {
     /**
      * Renders the Deleted Cardholders management page.
      */
-    public function render_deleted_cardholders_shortcode( $atts ) {
+    public function render_archived_cardholders_shortcode( $atts ) {
         if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
             return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
         }
 
         ob_start();
-        if ( class_exists('Fsbhoa_Deleted_Cardholder_Admin_Page') ) {
-            $deleted_cardholder_page = new Fsbhoa_Deleted_Cardholder_Admin_Page();
-            $deleted_cardholder_page->render_page();
+        if ( class_exists('Fsbhoa_Archived_Cardholder_Admin_Page') ) {
+            $archived_cardholder_page = new Fsbhoa_Archived_Cardholder_Admin_Page();
+            $archived_cardholder_page->render_page();
         } else {
-            echo '<p>' . esc_html__( 'Error: Deleted Cardholder management class not found.', 'fsbhoa-ac' ) . '</p>';
+            echo '<p>' . esc_html__( 'Error: Archived Cardholder management class not found.', 'fsbhoa-ac' ) . '</p>';
         }
         return ob_get_clean();
     }
