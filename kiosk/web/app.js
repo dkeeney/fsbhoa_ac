@@ -10,6 +10,8 @@ const cardReaderInput = document.getElementById('card-reader-input');
 const amenityButtonsContainer = document.getElementById('amenity-buttons-container');
 const guestButtonsContainer = document.getElementById('guest-buttons-container');
 const guestButtonsDiv = document.getElementById('guest-buttons');
+const splashScreen = document.getElementById('splash-screen'); 
+const splashImage = document.getElementById('splash-image'); 
 const AMENITY_SELECTION_TIMEOUT = 30000; // After swipe Timeout in milliseconds (30 seconds)
 
 let idleTimeout; // This will hold our after swipe timer
@@ -23,6 +25,7 @@ let lastSwipedCard = null;
 let socket = null;
 let audioCtx;
 let hasConnectedBefore = false; // Flag to track initial connection
+let longPressTimer;
 
 // logging function
 function logToScreen(message) {
@@ -87,6 +90,9 @@ function connect() {
                 if (kioskConfig.logo_url) {
                     logoImage.src = kioskConfig.logo_url;
                     logoImage.style.display = 'block';
+                }
+                if (kioskConfig.splash_url) {
+                    splashImage.src = kioskConfig.splash_url;
                 }
             } else if (message.event === 'cardSwiped') {
                 const swipeData = message.payload;
@@ -199,21 +205,42 @@ function createAmenityButtons(amenities) {
             clearTimeout(idleTimeout);
             clearTimeout(resetKioskTimer); 
 
+            const selectedAmenityName = this.dataset.name;
             socket.send(JSON.stringify({
                 event: 'amenitySelected',
                 payload: {
                     rfid: lastSwipedCard,
-                    amenity: this.dataset.name,
+                    amenity: selectedAmenityName,
                     guests: selectedGuestCount
                 }
             }));
+
+            if (kioskConfig.splash_url) {
+                // If it is, use it.
+                splashImage.src = kioskConfig.splash_url;
+            } else {
+                // Otherwise, find the icon of the amenity that was just clicked.
+                const selectedAmenity = kioskConfig.amenities.find(a => a.name === selectedAmenityName);
+                if (selectedAmenity && selectedAmenity.image_url) {
+                    // If we found the amenity and it has an image, use that image.
+                    splashImage.src = selectedAmenity.image_url;
+                } else {
+                    // As a final fallback, if the amenity has no image, show logo image.
+                    splashImage.src = kioskConfig.logo_url;
+                }
+            }
             
             // The visual feedback logic you added
             statusMessage.textContent = `Thank you for signing in to ${this.dataset.name}!`;
-            guestButtonsContainer.style.display = 'none';
-            amenityButtonsContainer.style.display = 'none';
-            cardDisplay.className = 'card-display-hidden';
+
+            // Make sure the idle screen with the main logo and title is visible
             idleScreen.style.display = 'block';
+
+            // Hide the main table that contains the card photo and all the buttons
+            document.getElementById('main-layout-table').style.display = 'none';
+
+            // Show our new splash screen container
+            splashScreen.style.display = 'flex';
 
             logToScreen(`TIMER: Setting 2-second reset timer at ${new Date().toLocaleTimeString()}`);
             resetKioskTimer = setTimeout(resetKiosk, 2000);
@@ -257,6 +284,7 @@ logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeStr
 function resetKiosk() {
         clearTimeout(idleTimeout);
         clearTimeout(resetKioskTimer);
+        splashScreen.style.display = 'none';
         document.getElementById('main-layout-table').style.display = 'none';
         idleScreen.style.display = 'block';
         guestButtonsContainer.style.display = 'none';
@@ -324,3 +352,39 @@ function stopFocusCapture() {
     clearTimeout(rfidTimeout);
 }
 
+function toggleLogVisibility() {
+    const logContainer = document.getElementById('debug-log');
+    if (window.getComputedStyle(logContainer).display === 'none') {
+    logContainer.style.display = 'block';
+    localStorage.setItem('kioskLogVisible', 'true');
+    logToScreen('Debug log enabled.');
+    } else {
+        logContainer.style.display = 'none';
+        localStorage.setItem('kioskLogVisible', 'false');
+    }
+}
+
+function setInitialLogState() {
+    if (localStorage.getItem('kioskLogVisible') === 'true') {
+        const logContainer = document.getElementById('debug-log');
+        logContainer.style.display = 'block';
+        logToScreen('Debug log was previously enabled.');
+    }
+}
+
+// ---  NEW LONG-PRESS EVENT LISTENERS ---
+logoImage.addEventListener('mousedown', startPressTimer);
+logoImage.addEventListener('touchstart', startPressTimer);
+
+logoImage.addEventListener('mouseup', cancelPressTimer);
+logoImage.addEventListener('touchend', cancelPressTimer);
+
+function startPressTimer(e) {
+    // Start a 2-second timer when the user presses down.
+    longPressTimer = setTimeout(toggleLogVisibility, 2000);
+}
+
+function cancelPressTimer(e) {
+    // If they lift their finger before 2 seconds, cancel the timer.
+    clearTimeout(longPressTimer);
+}

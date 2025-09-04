@@ -63,6 +63,8 @@ class Fsbhoa_Ac_Settings_Page {
         $listen_port      = get_option('fsbhoa_ac_listen_port', 60002);
         $callback_host    = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
         $wp_host          = get_option('fsbhoa_ac_wp_host', 'nas.fsbhoa.com');
+        // Determine the correct protocol based on whether TLS is configured.
+        $protocol         = (!empty($tls_cert_path) && !empty($tls_key_path)) ? 'https' : 'http';
         $wp_port          = get_option('fsbhoa_ac_wp_port', 443);
         $event_log_path   = get_option('fsbhoa_ac_event_log_path', '');
         $debug_mode       = get_option('fsbhoa_ac_debug_mode', 'on');
@@ -86,13 +88,13 @@ class Fsbhoa_Ac_Settings_Page {
             'listenPort'        => absint($listen_port),
             'callbackHost'      => sanitize_text_field($callback_host),
             'webSocketPort'     => absint($websocket_port),
-            'wpURL'             => sprintf('https://%s:%d',  $wp_host, absint($wp_port)),
+            'wpURL'             => sprintf('%s://%s:%d',  $protocol, $wp_host, absint($wp_port)),
             'tlsCert'           => sanitize_text_field($tls_cert_path),
             'tlsKey'            => sanitize_text_field($tls_key_path),
             'logFile'           => sanitize_text_field($event_log_path),
             'debug'             => ($debug_mode === 'on'),
             'enableTestStub'    => ($test_stub === 'on'),
-            'monitorServiceURL' => sprintf('https://127.0.0.1:%d', absint($monitor_port)),
+            'monitorServiceURL' => sprintf('%s://127.0.0.1:%d', $protocol, absint($monitor_port)),
         ];
         $this->write_config_file($this->event_service_config_path, $event_config);
 
@@ -258,16 +260,32 @@ class Fsbhoa_Ac_Settings_Page {
             [
                 'id' => 'fsbhoa_kiosk_logo_url',
                 'type' => 'url',
-                'desc' => 'URL for the logo displayed on the kiosk idle screen.'
+                'desc' => 'URL for the logo displayed in heading of the kiosk idle screen.'
             ]
         );
-
         register_setting(
             $kiosk_option_group,
             'fsbhoa_kiosk_logo_url',
             'esc_url_raw'
         );
 
+        add_settings_field(
+            'fsbhoa_kiosk_splash_url_field',
+            'Kiosk Splash Image',
+            array($this, 'render_media_uploader_field'),
+            $kiosk_page_slug,
+            'fsbhoa_ac_kiosk_logo_section',
+            [
+                'id' => 'fsbhoa_kiosk_splash_url',
+                'type' => 'url',
+                'desc' => 'Image displayed for 2 seconds after a resident makes a selection.'
+            ]
+        );
+        register_setting(
+            $kiosk_option_group,
+            'fsbhoa_kiosk_splash_url',
+            'esc_url_raw'
+        );
 
         add_settings_field(
             'fsbhoa_kiosk_name_field',                  // Field ID
@@ -681,6 +699,7 @@ class Fsbhoa_Ac_Settings_Page {
                 // Manually save each registered setting for the kiosk page
                 if (in_array($option['name'], 
                    ['fsbhoa_kiosk_logo_url', 
+                    'fsbhoa_kiosk_splash_url',
                     'fsbhoa_kiosk_name', 
                     'fsbhoa_kiosk_port', 
                     'fsbhoa_kiosk_log_file',

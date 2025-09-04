@@ -63,6 +63,7 @@ class Fsbhoa_Kiosk_REST_API {
 
         $response_data = [
             'logo_url' => get_option('fsbhoa_kiosk_logo_url', ''),
+            'splash_url' => get_option('fsbhoa_kiosk_splash_url', ''),
             'amenities' => $amenities,
         ];
 

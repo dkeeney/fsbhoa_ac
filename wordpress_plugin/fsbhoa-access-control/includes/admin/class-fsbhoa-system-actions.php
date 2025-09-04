@@ -17,12 +17,7 @@ public function ajax_manage_service() {
         $command = sanitize_text_field($_POST['command']);
 
         // This is the corrected list of allowed service names.
-        $allowed_services = [
-            'fsbhoa-events.service',
-            'fsbhoa-monitor.service',
-            'fsbhoa-zebra-printer.service',
-            'fsbhoa-kiosk.service',
-        ];
+        $allowed_services = array_keys(Fsbhoa_System_Status_Page::$services);
         $allowed_commands = ['start', 'stop', 'restart', 'status'];
 
         if ( !in_array($service, $allowed_services) || !in_array($command, $allowed_commands) ) {

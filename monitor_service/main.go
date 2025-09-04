@@ -4,7 +4,6 @@ import (
     "flag"
 	"log"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -27,7 +26,7 @@ func main() {
 
 	// HTTP endpoints
 	http.HandleFunc("/notify", NotifyHandler(config, hub))
-    http.HandleFunc("/update-gate-status", UpdateGateStatusHandler(hub))
+        http.HandleFunc("/update-gate-status", UpdateGateStatusHandler(hub))
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("INFO: Received request on /ws from %s", r.RemoteAddr)
 		ServeWS(hub, w, r)
@@ -39,10 +38,14 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-    // In the main() function...
-	log.Printf("INFO: Monitor service starting. Listening securely on %s", config.ListenAddr)
-	if err := server.ListenAndServeTLS(config.TlsCertPath, config.TlsKeyPath); err != nil {
-		log.Fatalf("FATAL: Server error: %v", err)
-		os.Exit(1)
-	}
+        // In the main() function...
+        if config.TlsCertPath != "" && config.TlsKeyPath != "" {
+            log.Printf("INFO: Monitor service starting. Listening securely on %s", config.ListenAddr)
+            err := server.ListenAndServeTLS(config.TlsCertPath, config.TlsKeyPath)
+            if err != nil { log.Fatalf("FATAL: Secure server error: %v", err) }
+        } else {
+            log.Printf("INFO: Monitor service starting. Listening insecurely on %s", config.ListenAddr)
+            err := server.ListenAndServe()
+            if err != nil { log.Fatalf("FATAL: Insecure server error: %v", err) }
+        }
 }

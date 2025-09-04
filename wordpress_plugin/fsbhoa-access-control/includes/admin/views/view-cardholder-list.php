@@ -107,6 +107,11 @@ function fsbhoa_render_cardholder_list_view() {
                         ?>
                         <td data-order="<?php echo esc_attr($sort_name); ?>">
                             <strong><?php echo esc_html($display_name); ?></strong>
+                            <?php if (!empty($cardholder['rfid_id'])) : ?>
+                               <span class="fsbhoa-visually-hidden">
+                                   RFID: <?php echo esc_html($cardholder['rfid_id']); ?>
+                               </span>
+                           <?php endif; ?>
                         </td>
                         <?php
                             $address_display = trim( ($cardholder['house_number'] ?? '') . ' ' . ($cardholder['street_name'] ?? '') );

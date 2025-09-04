@@ -120,6 +120,10 @@ class Fsbhoa_Cardholder_Actions {
         $errors = array_merge($profile_results['errors'], $address_results['errors'], $photo_results['errors'], $rfid_results['errors']);
         $data_to_save = array_merge($existing_data, $profile_results['data'], $address_results['data'], $photo_results['data'], $rfid_results['data']);
 
+        // Unset the 'active_rfid' key before saving. We cannot explicitly set the
+        // value of a generated column, the database calculates it automatically.
+        unset($data_to_save['active_rfid']);
+
         if ( empty($errors) ) {
             if ( $is_update ) {
                 $result = $wpdb->update( $table_name, $data_to_save, array('id' => $item_id) );

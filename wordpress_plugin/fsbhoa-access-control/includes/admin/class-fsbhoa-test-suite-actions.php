@@ -52,7 +52,16 @@ class Fsbhoa_Test_Suite_Actions {
 
         // This simulates a hardware event by calling the event_service
         $websocket_port = get_option('fsbhoa_ac_websocket_port', 8083);
-        $url = sprintf('https://127.0.0.1:%d/test_event', $websocket_port);
+        // Check if TLS certificates are configured in the settings
+        $tls_cert_path = get_option('fsbhoa_ac_tls_cert_path', '');
+        $tls_key_path  = get_option('fsbhoa_ac_tls_key_path', '');
+
+        // Choose the correct protocol
+        $protocol = (!empty($tls_cert_path) && !empty($tls_key_path)) ? 'https' : 'http';
+
+        // Build the URL using the dynamic protocol
+        $url = sprintf('%s://127.0.0.1:%d/test_event', $protocol, $websocket_port);
+
         $body = [
             'card_number'   => 11111111,
             'serial_number' => (int) $serial_number // Pass the dynamic serial number

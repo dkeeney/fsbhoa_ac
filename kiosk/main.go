@@ -32,6 +32,7 @@ type Amenity struct {
 
 type KioskConfig struct {
 	LogoURL   string    `json:"logo_url"`
+        SplashURL string    `json:"splash_url"`
 	Amenities []Amenity `json:"amenities"`
         MaxGuests int       `json:"max_guests"`
 }
@@ -381,7 +382,6 @@ func main() {
 
 	cardSwipeChannel := make(chan string)
 
-	// go listenForLocalReader(cardSwipeChannel)  // direct read of USB card reader
 
 	fs := http.FileServer(http.Dir("./web"))
 	http.Handle("/", fs)
@@ -389,9 +389,13 @@ func main() {
 		handleConnections(w, r, cardSwipeChannel)
 	})
 
-
-	log.Printf("Starting kiosk server on https://localhost%s\n", config.Port)
-	if err := http.ListenAndServeTLS(config.Port, config.SSLCertPath, config.SSLKeyPath, nil); err != nil {
-		log.Fatalf("FATAL: ListenAndServeTLS failed: %v", err)
-	}
+        if config.SSLCertPath != "" && config.SSLKeyPath != "" {
+            log.Printf("INFO: Starting kiosk HTTPS server on port %s", config.Port)
+            err := http.ListenAndServeTLS(config.Port, config.SSLCertPath, config.SSLKeyPath, nil)
+            if err != nil { log.Fatalf("FATAL: Secure server error: %v", err) }
+        } else {
+            log.Printf("INFO: Starting kiosk HTTP server on port %s", config.Port)
+            err := http.ListenAndServe(config.Port, nil)
+            if err != nil { log.Fatalf("FATAL: Insecure server error: %v", err) }
+        }
 }

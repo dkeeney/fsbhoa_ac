@@ -135,3 +135,25 @@ body {
     display: none; /* Hide steps by default */
 }
 
+
+/* --- Splash Screen Styles  --- */
+#splash-screen {
+    display: none; /* Hidden by default */
+    width: 100%;
+    /* Use flexbox to easily center the image inside */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Define a flexible height to fill space */
+    flex-grow: 1;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#splash-image {
+    width: 400px;
+    height: 400px;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}

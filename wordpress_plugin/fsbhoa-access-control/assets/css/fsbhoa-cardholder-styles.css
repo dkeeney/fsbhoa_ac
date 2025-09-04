@@ -131,3 +131,19 @@ div[aria-describedby="fsbhoa-cropper-dialog"] .ui-dialog-title {
     font-size: 18px;
     font-weight: 600;
 }
+
+/*
+ * Utility class to visually hide an element while keeping it
+ * accessible to screen readers and the DataTables search function.
+ */
+.fsbhoa-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap; /* TFLB */
+    border-width: 0;
+}

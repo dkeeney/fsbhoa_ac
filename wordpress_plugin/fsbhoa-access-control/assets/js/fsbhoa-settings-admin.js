@@ -131,6 +131,27 @@ console.log('Data to send:', dataToSend);
         frame.open();
     });
 
+    // --- Media Uploader for Kiosk Splash Image ---
+    $('#fsbhoa_kiosk_splash_url-button').on('click', function(e) {
+        e.preventDefault();
+        const button = $(this);
+        const inputField = $('#fsbhoa_kiosk_splash_url');
+
+        const frame = wp.media({
+            title: 'Select or Upload Kiosk Splash Image',
+            button: { text: 'Use this image' },
+            library: { type: 'image' },
+            multiple: false
+        });
+
+        frame.on('select', function() {
+            const attachment = frame.state().get('selection').first().toJSON();
+            inputField.val(attachment.url);
+        });
+
+        frame.open();
+    });
+
     // Generic handler for ANY "Generate New API Key" button
     $(document).on('click', 'button[id^="fsbhoa-generate-"]', function(e) {
         e.preventDefault();

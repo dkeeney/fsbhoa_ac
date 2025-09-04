@@ -5,11 +5,11 @@ class Fsbhoa_System_Status_Page {
 
     private $parent_slug = 'fsbhoa_ac_main_menu';
     private $page_slug = 'fsbhoa_system_status';
-    private $services = [
-        'fsbhoa-events.service' => 'Event Service',
-        'fsbhoa-monitor.service' => 'Monitor Service',
-        'fsbhoa-zebra-printer.service' => 'Print Service',
-        'fsbhoa-kiosk.service' => 'Kiosk Service',
+    public static $services = [
+        'event_service.service'       => 'Event Service',
+        'monitor_service.service'     => 'Monitor Service',
+        'zebra_print_service.service' => 'Print Service',
+        'kiosk.service'               => 'Kiosk Service',
     ];
 
     public function __construct() {
@@ -42,7 +42,7 @@ class Fsbhoa_System_Status_Page {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ( $this->services as $service_id => $service_name ) : ?>
+                    <?php foreach ( self::$services as $service_id => $service_name ) : ?>
                         <tr>
                             <td><strong><?php echo esc_html( $service_name ); ?></strong><br><small><?php echo esc_html( $service_id ); ?></small></td>
                             <td>
