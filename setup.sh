@@ -7,18 +7,18 @@
 # functional LAMP (Linux, Apache, MySQL, PHP) stack.
 #
 # It handles the application-specific setup:
-#   1. Installs Go, jq, and SSL tool dependencies.
-#   2. Creates the necessary configuration & temporary directories.
-#   3. Sets correct, cross-service user permissions.
-#   4. Compiles all Go service binaries.
-#   5. Creates, enables, and starts the systemd services.
-#   6. Grants the web user permissions to manage the services.
+#   1. Cleans up old systemd services.
+#   2. Installs Go, jq, and SSL tool dependencies.
+#   3. Creates the necessary configuration & temporary directories.
+#   4. Sets correct, cross-service user permissions.
+#   5. Compiles all Go service binaries.
+#   6. Creates, enables, and starts the new systemd services.
+#   7. Grants the web user permissions to manage the services.
 #
 # To run:
-#   1. Clone the fsbhoa_ac repository.
-#   2. Navigate into the repository directory.
-#   3. Make the script executable: chmod +x setup.sh
-#   4. Run with sudo: sudo ./setup.sh
+#   1. Navigate into the repository directory.
+#   2. Make the script executable: chmod +x setup.sh
+#   3. Run with sudo: sudo ./setup.sh
 # ==============================================================================
 
 # --- Color Codes for Output ---
@@ -50,33 +50,44 @@ if [ ! -d "$PROJECT_DIR" ]; then
     exit 1
 fi
 
-# --- 1. System Dependencies ---
-echo -e "\n${YELLOW}[1/7] Installing Go, jq, and SSL tools (certbot, acl)...${NC}"
+# --- 1. NEW: Cleanup Old systemd Services ---
+echo -e "\n${YELLOW}[1/8] Cleaning up old systemd services...${NC}"
+# CORRECTED: The name for the zebra printer service uses a hyphen, not an underscore.
+OLD_SERVICES=("fsbhoa-events.service" "fsbhoa-monitor.service" "fsbhoa-zebra-printer.service" "fsbhoa-kiosk.service")
+for service in "${OLD_SERVICES[@]}"; do
+    if systemctl list-unit-files | grep -q "$service"; then
+        echo "Stopping and disabling old service: $service"
+        systemctl stop "$service" || true
+        systemctl disable "$service" || true
+        rm -f "/etc/systemd/system/$service"
+    fi
+done
+
+# --- 2. System Dependencies ---
+echo -e "\n${YELLOW}[2/8] Installing Go, jq, and SSL tools (certbot, acl)...${NC}"
 apt-get update > /dev/null
 apt-get install -y golang-go jq certbot acl || { echo -e "${RED}Failed to install dependencies.${NC}"; exit 1; }
 
-# --- 2. Create Application Configuration Directory ---
-echo -e "\n${YELLOW}[2/7] Creating configuration directory /var/lib/fsbhoa...${NC}"
+# --- 3. Create Application Configuration Directory ---
+echo -e "\n${YELLOW}[3/8] Creating configuration directory /var/lib/fsbhoa...${NC}"
 mkdir -p /var/lib/fsbhoa
 chown -R www-data:www-data /var/lib/fsbhoa
 chmod -R 775 /var/lib/fsbhoa
 
-# --- 3. NEW: Create Service-Writable Directories & Set Permissions ---
-echo -e "\n${YELLOW}[3/7] Setting up shared directories and permissions...${NC}"
+# --- 4. Create Service-Writable Directories & Set Permissions ---
+echo -e "\n${YELLOW}[4/8] Setting up shared directories and permissions...${NC}"
 PRINT_TEMP_DIR="/var/www/html/wp-content/uploads/fsbhoa_print_temp"
 echo "Creating print temp directory: $PRINT_TEMP_DIR"
 mkdir -p "$PRINT_TEMP_DIR"
 chown www-data:www-data "$PRINT_TEMP_DIR"
-
 echo "Adding user '$username' to the 'www-data' group for shared access..."
 usermod -a -G www-data "$username"
-
 echo "Setting group-write permissions on print temp directory..."
 chmod g+w "$PRINT_TEMP_DIR"
-chmod g+s "$PRINT_TEMP_DIR" # Ensures new files inherit the group
+chmod g+s "$PRINT_TEMP_DIR"
 
-# --- 4. Compile Go Service Binaries ---
-echo -e "\n${YELLOW}[4/7] Compiling Go services...${NC}"
+# --- 5. Compile Go Service Binaries ---
+echo -e "\n${YELLOW}[5/8] Compiling Go services...${NC}"
 SERVICES=("event_service" "monitor_service" "kiosk" "zebra_print_service")
 for service in "${SERVICES[@]}"; do
     if [ -d "$PROJECT_DIR/$service" ]; then
@@ -88,9 +99,8 @@ for service in "${SERVICES[@]}"; do
     fi
 done
 
-# --- 5. Create systemd Service Files for Go Apps ---
-echo -e "\n${YELLOW}[5/7] Creating systemd service files...${NC}"
-# (Service file creation logic is unchanged)
+# --- 6. Create NEW systemd Service Files for Go Apps ---
+echo -e "\n${YELLOW}[6/8] Creating new systemd service files...${NC}"
 cat << EOF > /etc/systemd/system/event_service.service
 [Unit]
 Description=FSBHOA Hardware Event Service
@@ -106,7 +116,6 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-# ... (repeat for monitor, zebra_print, and kiosk services)
 cat << EOF > /etc/systemd/system/monitor_service.service
 [Unit]
 Description=FSBHOA Monitor Service
@@ -153,17 +162,17 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# --- 6. Enable and Start Services ---
-echo -e "\n${YELLOW}[6/7] Enabling and starting services...${NC}"
+# --- 7. Enable and Start Services ---
+echo -e "\n${YELLOW}[7/8] Reloading systemd, enabling and starting new services...${NC}"
 systemctl daemon-reload
 for service in "${SERVICES[@]}"; do
-    echo "Enabling and starting ${service}..."
+    echo "Enabling and starting ${service}.service..."
     systemctl enable "${service}.service"
     systemctl start "${service}.service"
 done
 
-# --- 7. Grant Web User Sudo Permissions ---
-echo -e "\n${YELLOW}[7/7] Granting web user permissions to manage services...${NC}"
+# --- 8. Grant Web User Sudo Permissions ---
+echo -e "\n${YELLOW}[8/8] Granting web user permissions to manage services...${NC}"
 SUDOERS_FILE="/etc/sudoers.d/30-fsbhoa-services"
 cat << EOF > $SUDOERS_FILE
 # This file grants the www-data user (which runs PHP) the specific
@@ -196,5 +205,6 @@ done
 
 echo -e "\n${GREEN}--- Application Setup Complete ---${NC}"
 echo "All Go services have been compiled, registered, started, and are now manageable from WordPress."
+
 
 

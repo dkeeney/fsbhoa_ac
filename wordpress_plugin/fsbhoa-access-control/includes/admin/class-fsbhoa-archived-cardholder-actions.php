@@ -37,17 +37,32 @@ class Fsbhoa_Archived_Cardholder_Actions {
         $wpdb->query( 'START TRANSACTION' );
 
         $table_cardholders = 'ac_cardholders';
-        $groups_csv = $wpdb->get_var( $wpdb->prepare( "SELECT groups_csv FROM {$table_cardholders} WHERE id = %d", $cardholder_id ) );
+
+        $source_record = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table_cardholders} WHERE id = %d FOR UPDATE", $cardholder_id ) );
 
         // DB ERROR CHECK
         if ( $wpdb->last_error ) {
             $wpdb->query( 'ROLLBACK' );
-            wp_die( 'Database error while fetching archived groups. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true] );
+            wp_die( 'Database error while fetching archived data. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true] );
         }
+
+        $groups_csv = $source_record->groups_csv;
+
+        $rfid_is_present = !empty($source_record->rfid_id);
+        $new_status = $rfid_is_present ? 'active' : 'inactive';
+
+        // --- CANARY #2: Log the decision-making process ---
+        //error_log('RESTORE DEBUG: Value of rfid_id: ' . var_export($source_record->rfid_id, true));
+        //error_log('RESTORE DEBUG: Result of !empty() check: ' . ($rfid_is_present ? 'TRUE' : 'FALSE'));
+        //error_log('RESTORE DEBUG: Final chosen status: ' . $new_status);
 
         $result = $wpdb->update(
             $table_cardholders,
-            [ 'card_status' => 'inactive', 'deleted_at' => null, 'groups_csv' => null ],
+            [
+                'card_status' => $new_status,
+                'deleted_at'  => null,
+                'groups_csv'  => null
+            ],
             [ 'id' => $cardholder_id ],
             [ '%s', null, null ],
             [ '%d' ]

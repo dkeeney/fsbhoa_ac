@@ -128,6 +128,14 @@ class Fsbhoa_Import_V2
                         <input type="file" id="csv_import_file" name="csv_file" accept=".csv, text/csv" required>
                     </p>
                     <p>
+                        <label>
+                            <input type="checkbox" name="dry_run_import" value="true" checked>
+                            <strong>Run as a Dry Run (Test Mode)</strong>
+                        </label>
+                        <br>
+                        <small><em>In Dry Run mode, no changes will be made to the database. The system will only report what it would have done. Uncheck this box to perform a live import.</em></small>
+                    </p>
+                    <p>
                         <input type="submit" name="submit_import" class="button-primary" value="Import CSV">
                     </p>
                 </form>
@@ -147,7 +155,12 @@ class Fsbhoa_Import_V2
         }
         
         $file_path = sanitize_text_field($_FILES['csv_file']['tmp_name']);
-        $this->feedback = $this->process_csv_file($file_path, false);
+
+        // Check the state of the new "Dry Run" checkbox from the form.
+        // The 'isset' check works because an unchecked checkbox is not submitted with the form data.
+        $is_dry_run = isset($_POST['dry_run_import']);
+
+        $this->feedback = $this->process_csv_file($file_path, $is_dry_run);
     }
     
     
@@ -190,6 +203,20 @@ class Fsbhoa_Import_V2
             $stats['rows_processed']++;
             // Pad the row data with empty strings if it has fewer columns than the header
             $row_data = array_pad($row_data, count($header), '');
+
+            // ---  CSV ROW NORMALIZATION ---
+            $header_count = count($header);
+            $row_count = count($row_data);
+
+            if ($row_count < $header_count) {
+                // If the row is too short, pad it with empty strings.
+                $row_data = array_pad($row_data, $header_count, '');
+            } elseif ($row_count > $header_count) {
+                // If the row is too long, truncate it to the header length.
+                $row_data = array_slice($row_data, 0, $header_count);
+                $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": Warning - row has more columns than the header and was truncated.";
+            }
+            // Now we can be 100% certain the arrays have the same number of elements.
             $row = array_combine($header, $row_data);
 
             try {
@@ -217,10 +244,10 @@ class Fsbhoa_Import_V2
         }
         $feedback_messages = [
             sprintf(__("Import complete. Processed %d rows.", 'fsbhoa-ac'), $stats['rows_processed']),
-            sprintf(__("Properties Created: %d", 'fsbhoa-ac'), $stats['properties_created']),
-            sprintf(__("Cardholders Created: %d", 'fsbhoa-ac'), $stats['cardholders_created']),
-            sprintf(__("Cardholders Updated: %d", 'fsbhoa-ac'), $stats['cardholders_updated']),
-            sprintf(__("Cardholders Removed: %d", 'fsbhoa-ac'), $stats['cardholders_archivearchivedd']),
+            sprintf(__("Properties Created:   %d", 'fsbhoa-ac'), $stats['properties_created']),
+            sprintf(__("Cardholders Created:  %d", 'fsbhoa-ac'), $stats['cardholders_created']),
+            sprintf(__("Cardholders Updated:  %d", 'fsbhoa-ac'), $stats['cardholders_updated']),
+            sprintf(__("Cardholders Archived: %d", 'fsbhoa-ac'), $stats['cardholders_archive']),
             sprintf(__("Owner sets updated to 'Landlord': %d", 'fsbhoa-ac'), $stats['landlords_identified']),
         ];
 
