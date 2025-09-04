@@ -195,8 +195,11 @@ function createAmenityButtons(amenities) {
         button.appendChild(span);
 
         const handleAmenitySelection = function(event) {
+            logToScreen('Amenity button clicked/tapped.');
+
             // Prevent the browser from firing both touchstart and a simulated click
             event.preventDefault(); 
+            logToScreen(`Checking session status. sessionActive is: ${sessionActive}`);
             if (!sessionActive) { return; }
             sessionActive = false;
 
@@ -206,14 +209,26 @@ function createAmenityButtons(amenities) {
             clearTimeout(resetKioskTimer); 
 
             const selectedAmenityName = this.dataset.name;
-            socket.send(JSON.stringify({
-                event: 'amenitySelected',
-                payload: {
-                    rfid: lastSwipedCard,
-                    amenity: selectedAmenityName,
-                    guests: selectedGuestCount
-                }
-            }));
+            logToScreen(`Selected Amenity: ${selectedAmenityName}`);
+
+            try {
+                const messageToSend = {
+                    event: 'amenitySelected',
+                    payload: {
+                        rfid: lastSwipedCard,
+                        amenity: selectedAmenityName,
+                        guests: selectedGuestCount
+                    }
+                };
+
+                logToScreen(`About to send amenity selection: ${selectedAmenityName}`);
+                socket.send(JSON.stringify(messageToSend));
+                logToScreen('Successfully sent message to Go service.');
+
+            } catch (e) {
+                // If the send fails, this will catch the error and log it.
+                logToScreen(`CRITICAL ERROR: Failed to send message via WebSocket. Error: ${e.message}`);
+            }
 
             if (kioskConfig.splash_url) {
                 // If it is, use it.

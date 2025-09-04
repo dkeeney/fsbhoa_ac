@@ -278,7 +278,7 @@ class Fsbhoa_Ac_Settings_Page {
             [
                 'id' => 'fsbhoa_kiosk_splash_url',
                 'type' => 'url',
-                'desc' => 'Image displayed for 2 seconds after a resident makes a selection.'
+                'desc' => 'Image displayed for 2 seconds after a resident makes a selection. If blank, display selected icon instead.'
             ]
         );
         register_setting(

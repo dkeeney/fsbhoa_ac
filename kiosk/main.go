@@ -118,6 +118,7 @@ func fetchKioskConfig() {
 
 // logSignInToWordPress sends the final amenity selection event to WordPress.
 func logSignInToWordPress(rfid, amenity string, guests int) {
+        log.Println("GO DEBUG 3: logSignInToWordPress function has started.")
 	log.Printf("LOGGING TO WORDPRESS: Card %s, Amenity %s, guest %d\n", rfid, amenity, guests)
 	payload := SignInPayload{RFID: rfid, Amenity: amenity, Guests: guests}
 	jsonData, err := json.Marshal(payload)
@@ -252,20 +253,35 @@ func handleConnections(w http.ResponseWriter, r *http.Request, cardChan chan<- s
 			clientsMutex.Unlock()
 			break
 		}
+                log.Printf("GO DEBUG 1: Received WebSocket message with event type: %s", msg.Event)
 
 		switch msg.Event {
                 case "amenitySelected":
+                        log.Println("GO DEBUG 2: Entered 'amenitySelected' case.")
 			if payload, ok := msg.Payload.(map[string]interface{}); ok {
-				if rfid, okR := payload["rfid"].(string); okR {
-					if amenity, okA := payload["amenity"].(string); okA {
-						guests := 0 // Default to 0 if not provided
-						if g, okG := payload["guests"].(float64); okG {
-							guests = int(g)
-						}
-						go logSignInToWordPress(rfid, amenity, guests)
-					}
+                                log.Println("GO DEBUG 2a: Payload is a valid map.")
+				rfid, okR := payload["rfid"].(string)
+                                amenity, okA := payload["amenity"].(string)
+                                guestsFloat, okG := payload["guests"].(float64)
+				if !okR {
+					log.Println("GO DEBUG FAIL: 'rfid' field is missing or not a string.")
 				}
+				if !okA {
+					log.Println("GO DEBUG FAIL: 'amenity' field is missing or not a string.")
+				}
+				if !okG {
+					log.Println("GO DEBUG FAIL: 'guests' field is missing or not a number (float64).")
+				}
+
+                                if okR && okA && okG {
+					log.Println("GO DEBUG 2b: All payload fields are valid.")
+					guests := int(guestsFloat)
+					go logSignInToWordPress(rfid, amenity, guests)
+				}
+			} else {
+				log.Println("GO DEBUG FAIL: Payload is not a map.")
 			}
+	
 		case "manualSwipe":
                     if payload, ok := msg.Payload.(map[string]interface{}); ok {
                         if rfid, okR := payload["rfid"].(string); okR {
@@ -292,6 +308,8 @@ func handleWalletScan(initialRFID string, client *websocket.Conn) {
         for {
             var msg SocketMessage
             // This is a temporary, quick read from the connection.
+            // Set a deadline to prevent this from blocking forever if the client is slow.
+            client.SetReadDeadline(time.Now().Add(600 * time.Millisecond))
             if err := client.ReadJSON(&msg); err != nil {
                 // If the client disconnects or there's an error, just stop listening.
                 return
@@ -309,6 +327,9 @@ func handleWalletScan(initialRFID string, client *websocket.Conn) {
     <-timer.C      // Wait for the 500ms timer to fire.
     close(rfidChan) // Close the channel to signal we're done collecting.
 
+    // Reset the read deadline for the main loop so it doesn't time out.
+    client.SetReadDeadline(time.Time{})
+
     var scannedRFIDs []string
     uniqueRFIDs := make(map[string]bool)
     for rfid := range rfidChan {
@@ -321,6 +342,7 @@ func handleWalletScan(initialRFID string, client *websocket.Conn) {
 
     var validCardResponse interface{}
     var lastInvalidRFID string
+    var lastValidRFID string
 
     // Now, iterate through the unique RFIDs we collected.
     for _, rfid := range scannedRFIDs {
@@ -347,6 +369,7 @@ func handleWalletScan(initialRFID string, client *websocket.Conn) {
         if vResponse.IsValid {
             log.Printf("Found valid card in wallet: %s", rfid)
             validCardResponse = vResponse
+            lastValidRFID = rfid
             break // We found a valid card, so we can stop checking.
         }
         lastInvalidRFID = rfid // Keep track of the last invalid card we saw.
@@ -355,8 +378,23 @@ func handleWalletScan(initialRFID string, client *websocket.Conn) {
     // After checking all cards, send a single response to the UI.
     var finalMessage SocketMessage
     if validCardResponse != nil {
-        // If we found a valid card, send its success payload.
-        finalMessage = SocketMessage{Event: "cardSwiped", Payload: validCardResponse}
+        // If we found a valid card, we need to manually reconstruct the payload
+        // to ensure the original RFID is included in the response to the browser.
+        vResponse := validCardResponse.(struct { // <-- This is the start of the corrected block
+            IsValid    bool       `json:"isValid"`
+            Message    string     `json:"message"`
+            Cardholder interface{} `json:"cardholder"`
+        })
+
+        // This is the core fix: We build a valid map from the struct's fields
+        // instead of trying to force a dangerous type conversion.
+        finalPayload := map[string]interface{}{
+            "isValid":    vResponse.IsValid,
+            "message":    vResponse.Message,
+            "cardholder": vResponse.Cardholder,
+            "rfid":       lastValidRFID, // We now correctly include the RFID that was validated.
+        }
+        finalMessage = SocketMessage{Event: "cardSwiped", Payload: finalPayload}
     } else {
         // If no valid cards were found, send an error for the last invalid one.
         log.Printf("No valid cards found in wallet scan. Reporting error for last card: %s", lastInvalidRFID)

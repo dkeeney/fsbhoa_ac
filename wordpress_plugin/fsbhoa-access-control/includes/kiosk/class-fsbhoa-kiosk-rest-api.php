@@ -111,6 +111,7 @@ class Fsbhoa_Kiosk_REST_API {
         $record_id = $wpdb->insert_id;
 
         if ($record_id === 0) { // Check if insert failed
+            error_log('KIOSK DB INSERT FAILED: ' . $wpdb->last_error);
             return new WP_Error( 'db_error', 'Failed to insert kiosk sign-in into access log.', ['status' => 500, 'db_error' => $wpdb->last_error] );
         }
 
@@ -173,9 +174,19 @@ class Fsbhoa_Kiosk_REST_API {
      * Private helper to send notifications to monitor
      */
     private function send_notification_to_monitor($log_id){
-        // Port for the new monitor_service
-        $port = 8082; 
-        $monitor_url = sprintf('https://127.0.0.1:%d/notify', $port);
+        // Get the configured port for the monitor service
+        $port = get_option('fsbhoa_ac_monitor_port', 8082);
+
+        // Check if TLS certificates are configured in the general settings
+        $tls_cert_path = get_option('fsbhoa_ac_tls_cert_path', '');
+        $tls_key_path  = get_option('fsbhoa_ac_tls_key_path', '');
+
+        // Choose the correct protocol for the internal API call
+        $protocol = (!empty($tls_cert_path) && !empty($tls_key_path)) ? 'https' : 'http';
+    
+        // Build the URL using the dynamic protocol
+        $monitor_url = sprintf('%s://127.0.0.1:%d/notify', $protocol, $port);
+
         $post_body = [
             'event_id' => $log_id,
         ];
