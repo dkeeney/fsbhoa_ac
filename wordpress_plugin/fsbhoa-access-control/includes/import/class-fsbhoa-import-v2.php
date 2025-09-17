@@ -520,6 +520,11 @@ private function parse_cardholders_from_row($row)
                 // UPDATE existing record
                 $data_to_update = [];
 
+                /*******************************************************
+                 **********   COMMENT OUT THIS BLOCK, DO NOT REMOVE ****
+                 *******************************************************
+                 *
+                 *
                 // Update contact info if changed
                 if ($existing_record->phone !== $cardholder_data['phone']) {
                     $data_to_update['phone'] = $cardholder_data['phone'];
@@ -528,9 +533,6 @@ private function parse_cardholders_from_row($row)
                     $data_to_update['email'] = $cardholder_data['email'];
                 }
                 
-                /*******************************************************
-                 **********   COMMENT OUT THIS BLOCK, DO NOT REMOVE ****
-                 *******************************************************
                 // Update resident type if changed
                 if ($existing_record->resident_type !== $cardholder_data['resident_type']) {
                     $data_to_update['resident_type'] = $cardholder_data['resident_type'];
@@ -538,6 +540,8 @@ private function parse_cardholders_from_row($row)
                         $stats['landlords_identified']++;
                     }
                 }
+                *
+                *
                 *************** End of commented out block ************/
 
                 // Also update the import_name fields in case of a formal name change

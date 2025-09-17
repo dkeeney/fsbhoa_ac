@@ -48,6 +48,12 @@ type SignInPayload struct {
         Guests  int    `json:"guests"`
 }
 
+type ValidationResponse struct {
+	IsValid    bool        `json:"isValid"`
+	Message    string      `json:"message"`
+	Cardholder interface{} `json:"cardholder"`
+}
+
 // --- Global variables ---
 var config Config
 var kioskConfig KioskConfig
@@ -162,79 +168,53 @@ func broadcast(message SocketMessage) {
 	}
 }
 
-// processCardSwipe is the central function that validates a card and broadcasts the result.
-func processCardSwipe(rfid string, client *websocket.Conn) {
-	log.Printf("PROCESSING SWIPE for card: %s\n", rfid)
-	validationURL := fmt.Sprintf("%s/wp-json/fsbhoa/v1/kiosk/validate-card/%s", config.WordPressAPIBaseURL, rfid)
-        req, err := http.NewRequest("GET", validationURL, nil)
-	if err != nil {
-		log.Printf("Error creating validation request: %v", err)
-		return
-	}
-	req.Header.Set("X-API-KEY", config.APIKey)
-	log.Printf("Sending API request. X-API-KEY header set to: '%s'", req.Header.Get("X-API-KEY"))
 
-	httpClient := &http.Client{}
+
+
+// This helper function cleanly validates a single RFID against WordPress.
+// It's called by the wallet scan logic. It returns the response, the validated RFID, and any error.
+func validateRFID(rfid string) (ValidationResponse, string, error) {
+	var vResponse ValidationResponse
+	validationURL := fmt.Sprintf("%s/wp-json/fsbhoa/v1/kiosk/validate-card/%s", config.WordPressAPIBaseURL, rfid)
+	req, err := http.NewRequest("GET", validationURL, nil)
+	if err != nil {
+		log.Printf("Error creating validation request for %s: %v", rfid, err)
+		return vResponse, rfid, err
+	}
+
+	req.Header.Set("X-API-KEY", config.APIKey)
+	httpClient := &http.Client{Timeout: 5 * time.Second}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		log.Printf("Error validating card: %v", err)
-		return
+		log.Printf("Network error validating %s: %v", rfid, err)
+		return vResponse, rfid, err
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Printf("Error: WordPress returned non-200 status for card validation: %s - %s", resp.Status, string(bodyBytes))
-		errorMsg := SocketMessage{Event: "cardSwiped", Payload: map[string]interface{}{"isValid": false, "message": "System Error: Could not validate card."}}
-		client.WriteJSON(errorMsg)
-		return
+		log.Printf("Non-200 status for %s: %s - %s", rfid, resp.Status, string(bodyBytes))
+		return vResponse, rfid, fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	defer resp.Body.Close()
-	var validationResponse struct {
-		IsValid    bool   `json:"isValid"`
-		Message    string `json:"message"`
-		Cardholder struct {
-			Name  string `json:"name"`
-			Photo string `json:"photo"`
-		} `json:"cardholder"`
+	if err := json.NewDecoder(resp.Body).Decode(&vResponse); err != nil {
+		log.Printf("Error decoding validation response for %s: %v", rfid, err)
+		return vResponse, rfid, err
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&validationResponse); err != nil {
-		log.Printf("Error decoding validation response: %v", err)
-		return
-	}
-	message := SocketMessage{
-		Event: "cardSwiped",
-		Payload: map[string]interface{}{
-			"rfid":       rfid,
-			"isValid":    validationResponse.IsValid,
-			"message":    validationResponse.Message,
-			"cardholder": validationResponse.Cardholder,
-		},
-	}
-        
-        // Since all swipes are from browsers, we send a targeted response to the originating client.
-        log.Printf("Sending targeted response to a single browser client.")
-        clientsMutex.Lock()
-        err = client.WriteJSON(message)
-        clientsMutex.Unlock()
-        if err != nil {
-            log.Printf("Error sending targeted message: %v", err)
-        }
+
+	return vResponse, rfid, nil
 }
 
 
-
-
-
 // handleConnections is the WebSocket handler for browser UI communication.
-func handleConnections(w http.ResponseWriter, r *http.Request, cardChan chan<- string) {
-        log.Println("==> Received a request to upgrade to WebSocket")
-
+func handleConnections(w http.ResponseWriter, r *http.Request) {
+	log.Println("==> Received a request to upgrade to WebSocket")
 	ws, err := upgrader.Upgrade(w, r, nil)
-        if err != nil {
-            log.Printf("ERROR: Failed to upgrade WebSocket connection: %v", err)
-            return // Exit this handler, but do not crash the server.
-        }
-        log.Println("==> WebSocket upgrade successful. A client is now connected.")
+	if err != nil {
+		log.Printf("ERROR: Failed to upgrade WebSocket connection: %v", err)
+		return
+	}
+	log.Println("==> WebSocket upgrade successful. A client is now connected.")
 	defer ws.Close()
 
 	clientsMutex.Lock()
@@ -242,8 +222,75 @@ func handleConnections(w http.ResponseWriter, r *http.Request, cardChan chan<- s
 	clientsMutex.Unlock()
 	log.Println("Client Connected")
 
+	// Send initial kiosk config to the newly connected client.
 	ws.WriteJSON(SocketMessage{Event: "kioskConfig", Payload: kioskConfig})
 
+	// NEW: Variables to manage the wallet scan debouncing for this specific connection.
+	var walletScanTimer *time.Timer
+	var scannedRFIDs []string
+	var rfidMutex sync.Mutex // Protects access to the scannedRFIDs slice
+
+	// NEW: This is the function that will be called when the wallet scan timer fires.
+	processWalletScan := func() {
+		rfidMutex.Lock()
+		// De-duplicate the collected RFIDs
+		uniqueRFIDs := make(map[string]bool)
+		var finalRFIDs []string
+		for _, rfid := range scannedRFIDs {
+			if !uniqueRFIDs[rfid] {
+				uniqueRFIDs[rfid] = true
+				finalRFIDs = append(finalRFIDs, rfid)
+			}
+		}
+		scannedRFIDs = []string{} // Clear the slice for the next scan
+		rfidMutex.Unlock()
+
+		log.Printf("Wallet scan complete. Found %d unique RFIDs to check.", len(finalRFIDs))
+
+		var validCardResponse ValidationResponse
+		var validRFID string
+		foundValid := false
+
+		// Check each unique RFID until we find a valid one.
+		for _, rfid := range finalRFIDs {
+			vResponse, checkedRFID, err := validateRFID(rfid)
+			if err == nil && vResponse.IsValid {
+				log.Printf("Found valid card in wallet: %s", checkedRFID)
+				validCardResponse = vResponse
+				validRFID = checkedRFID
+				foundValid = true
+				break // Stop checking once a valid card is found
+			}
+		}
+
+		var finalMessage SocketMessage
+		if foundValid {
+			// Construct the success payload
+			finalPayload := map[string]interface{}{
+				"isValid":    validCardResponse.IsValid,
+				"message":    validCardResponse.Message,
+				"cardholder": validCardResponse.Cardholder,
+				"rfid":       validRFID, // Include the specific RFID that was validated
+			}
+			finalMessage = SocketMessage{Event: "cardSwiped", Payload: finalPayload}
+		} else {
+			// Construct the failure payload
+			log.Printf("No valid cards found in wallet scan.")
+			finalMessage = SocketMessage{Event: "cardSwiped", Payload: map[string]interface{}{
+				"isValid": false,
+				"message": "Card not found or invalid.",
+			}}
+		}
+
+		// Safely write the single, final response back to the client.
+		clientsMutex.Lock()
+		if err := ws.WriteJSON(finalMessage); err != nil {
+			log.Printf("Error sending wallet scan result: %v", err)
+		}
+		clientsMutex.Unlock()
+	}
+
+	// This is now the ONLY read loop for this connection.
 	for {
 		var msg SocketMessage
 		if err := ws.ReadJSON(&msg); err != nil {
@@ -251,164 +298,48 @@ func handleConnections(w http.ResponseWriter, r *http.Request, cardChan chan<- s
 			clientsMutex.Lock()
 			delete(clients, ws)
 			clientsMutex.Unlock()
-			break
+			// Stop any pending timer when client disconnects
+			if walletScanTimer != nil {
+				walletScanTimer.Stop()
+			}
+			break // Exit the read loop
 		}
-                log.Printf("GO DEBUG 1: Received WebSocket message with event type: %s", msg.Event)
+
+		log.Printf("GO DEBUG 1: Received WebSocket message with event type: %s", msg.Event)
 
 		switch msg.Event {
-                case "amenitySelected":
-                        log.Println("GO DEBUG 2: Entered 'amenitySelected' case.")
+		case "amenitySelected":
+			log.Println("GO DEBUG 2: Entered 'amenitySelected' case.")
 			if payload, ok := msg.Payload.(map[string]interface{}); ok {
-                                log.Println("GO DEBUG 2a: Payload is a valid map.")
 				rfid, okR := payload["rfid"].(string)
-                                amenity, okA := payload["amenity"].(string)
-                                guestsFloat, okG := payload["guests"].(float64)
-				if !okR {
-					log.Println("GO DEBUG FAIL: 'rfid' field is missing or not a string.")
-				}
-				if !okA {
-					log.Println("GO DEBUG FAIL: 'amenity' field is missing or not a string.")
-				}
-				if !okG {
-					log.Println("GO DEBUG FAIL: 'guests' field is missing or not a number (float64).")
-				}
-
-                                if okR && okA && okG {
-					log.Println("GO DEBUG 2b: All payload fields are valid.")
+				amenity, okA := payload["amenity"].(string)
+				guestsFloat, okG := payload["guests"].(float64) // JSON numbers are float64
+				if okR && okA && okG {
 					guests := int(guestsFloat)
 					go logSignInToWordPress(rfid, amenity, guests)
 				}
-			} else {
-				log.Println("GO DEBUG FAIL: Payload is not a map.")
 			}
-	
+
 		case "manualSwipe":
-                    if payload, ok := msg.Payload.(map[string]interface{}); ok {
-                        if rfid, okR := payload["rfid"].(string); okR {
-                            // Launch a goroutine to handle the scan, so we don't block the main read loop.
-                            go handleWalletScan(rfid, ws)
-                        }
-                    }
+			if payload, ok := msg.Payload.(map[string]interface{}); ok {
+				if rfid, okR := payload["rfid"].(string); okR {
+					rfidMutex.Lock()
+					scannedRFIDs = append(scannedRFIDs, rfid)
+					// If a timer is already running, stop it. We'll start a new one.
+					if walletScanTimer != nil {
+						walletScanTimer.Stop()
+					}
+					// Start a new 250ms timer. If another swipe comes in, this will be
+					// stopped and reset. If not, processWalletScan will run.
+					walletScanTimer = time.AfterFunc(250*time.Millisecond, processWalletScan)
+					rfidMutex.Unlock()
+				}
+			}
 		}
 	}
 }
 
 
-// handleWalletScan collects all card swipes in a short time window and processes them.
-func handleWalletScan(initialRFID string, client *websocket.Conn) {
-    // A channel to collect all RFIDs scanned in a short burst.
-    rfidChan := make(chan string, 10) // Buffer of 10 is plenty.
-    rfidChan <- initialRFID
-
-    // This timer defines our "listening window". 500ms is a good starting point.
-    timer := time.NewTimer(500 * time.Millisecond)
-    
-    // Concurrently listen for more card swipes from this specific client.
-    go func() {
-        for {
-            var msg SocketMessage
-            // This is a temporary, quick read from the connection.
-            // Set a deadline to prevent this from blocking forever if the client is slow.
-            client.SetReadDeadline(time.Now().Add(600 * time.Millisecond))
-            if err := client.ReadJSON(&msg); err != nil {
-                // If the client disconnects or there's an error, just stop listening.
-                return
-            }
-            if msg.Event == "manualSwipe" {
-                if payload, ok := msg.Payload.(map[string]interface{}); ok {
-                    if rfid, okR := payload["rfid"].(string); okR {
-                        rfidChan <- rfid
-                    }
-                }
-            }
-        }
-    }()
-
-    <-timer.C      // Wait for the 500ms timer to fire.
-    close(rfidChan) // Close the channel to signal we're done collecting.
-
-    // Reset the read deadline for the main loop so it doesn't time out.
-    client.SetReadDeadline(time.Time{})
-
-    var scannedRFIDs []string
-    uniqueRFIDs := make(map[string]bool)
-    for rfid := range rfidChan {
-        if !uniqueRFIDs[rfid] {
-            scannedRFIDs = append(scannedRFIDs, rfid)
-            uniqueRFIDs[rfid] = true
-        }
-    }
-    log.Printf("Wallet scan complete. Found %d unique RFIDs to check.", len(scannedRFIDs))
-
-    var validCardResponse interface{}
-    var lastInvalidRFID string
-    var lastValidRFID string
-
-    // Now, iterate through the unique RFIDs we collected.
-    for _, rfid := range scannedRFIDs {
-        // We can reuse the existing processCardSwipe logic, but we need to extract its core.
-        // Let's call WordPress to validate each card.
-        validationURL := fmt.Sprintf("%s/wp-json/fsbhoa/v1/kiosk/validate-card/%s", config.WordPressAPIBaseURL, rfid)
-        req, _ := http.NewRequest("GET", validationURL, nil)
-        req.Header.Set("X-API-KEY", config.APIKey)
-        httpClient := &http.Client{Timeout: 5 * time.Second}
-        resp, err := httpClient.Do(req)
-        if err != nil || resp.StatusCode != http.StatusOK {
-            continue // Skip if there's a network error or non-200 response
-        }
-        
-        var vResponse struct {
-            IsValid    bool        `json:"isValid"`
-            Message    string      `json:"message"`
-            Cardholder interface{} `json:"cardholder"`
-        }
-        
-        json.NewDecoder(resp.Body).Decode(&vResponse)
-        resp.Body.Close()
-
-        if vResponse.IsValid {
-            log.Printf("Found valid card in wallet: %s", rfid)
-            validCardResponse = vResponse
-            lastValidRFID = rfid
-            break // We found a valid card, so we can stop checking.
-        }
-        lastInvalidRFID = rfid // Keep track of the last invalid card we saw.
-    }
-
-    // After checking all cards, send a single response to the UI.
-    var finalMessage SocketMessage
-    if validCardResponse != nil {
-        // If we found a valid card, we need to manually reconstruct the payload
-        // to ensure the original RFID is included in the response to the browser.
-        vResponse := validCardResponse.(struct { // <-- This is the start of the corrected block
-            IsValid    bool       `json:"isValid"`
-            Message    string     `json:"message"`
-            Cardholder interface{} `json:"cardholder"`
-        })
-
-        // This is the core fix: We build a valid map from the struct's fields
-        // instead of trying to force a dangerous type conversion.
-        finalPayload := map[string]interface{}{
-            "isValid":    vResponse.IsValid,
-            "message":    vResponse.Message,
-            "cardholder": vResponse.Cardholder,
-            "rfid":       lastValidRFID, // We now correctly include the RFID that was validated.
-        }
-        finalMessage = SocketMessage{Event: "cardSwiped", Payload: finalPayload}
-    } else {
-        // If no valid cards were found, send an error for the last invalid one.
-        log.Printf("No valid cards found in wallet scan. Reporting error for last card: %s", lastInvalidRFID)
-        finalMessage = SocketMessage{Event: "cardSwiped", Payload: map[string]interface{}{
-            "isValid": false, 
-            "message": "Card not found.",
-        }}
-    }
-    
-    // Use a mutex to safely write the final response to the client.
-    clientsMutex.Lock()
-    client.WriteJSON(finalMessage)
-    clientsMutex.Unlock()
-}
 
 
 // main is the application entry point.
@@ -418,14 +349,10 @@ func main() {
 	setupLogging()
 	fetchKioskConfig()
 
-	cardSwipeChannel := make(chan string)
-
 
 	fs := http.FileServer(http.Dir("./web"))
 	http.Handle("/", fs)
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		handleConnections(w, r, cardSwipeChannel)
-	})
+        http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { handleConnections(w, r) })
 
         if config.SSLCertPath != "" && config.SSLKeyPath != "" {
             log.Printf("INFO: Starting kiosk HTTPS server on port %s", config.Port)
