@@ -331,7 +331,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 					}
 					// Start a new 250ms timer. If another swipe comes in, this will be
 					// stopped and reset. If not, processWalletScan will run.
-					walletScanTimer = time.AfterFunc(250*time.Millisecond, processWalletScan)
+					walletScanTimer = time.AfterFunc(400*time.Millisecond, processWalletScan)
 					rfidMutex.Unlock()
 				}
 			}
