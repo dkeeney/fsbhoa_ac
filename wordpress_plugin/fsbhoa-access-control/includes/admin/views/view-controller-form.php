@@ -110,6 +110,17 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] 
             <p class="submit">
                 <button type="submit" class="button button-primary"><?php echo esc_html( $submit_button_text ); ?></button>
                 <a href="<?php echo esc_url($cancel_url); ?>" class="button button-secondary">Cancel</a>
+
+                <?php // Only show the reset button in edit mode ?>
+                <?php if ($is_edit_mode) : ?>
+                    <button type="button" 
+                            id="fsbhoa-factory-reset-button" 
+                            class="button button-link-delete" 
+                            data-controller-id="<?php echo esc_attr($form_data['controller_record_id']); ?>" 
+                            style="margin-left: 10px; float: right;">
+                        Factory Reset
+                    </button>
+                <?php endif; ?>
             </p>
         </form>
     </div>

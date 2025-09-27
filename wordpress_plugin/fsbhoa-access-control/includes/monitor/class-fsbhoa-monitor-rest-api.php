@@ -87,6 +87,8 @@ class Fsbhoa_Monitor_REST_API {
         global $wpdb;
         $params = $request->get_json_params();
 
+        error_log('[RAW EVENT DATA] ' . print_r($params, true));
+
         if ( !isset($params['SerialNumber']) || !isset($params['Door']) ) {
             return new WP_Error( 'bad_request', 'Missing required event parameters.', array( 'status' => 400 ) );
         }
@@ -102,13 +104,40 @@ class Fsbhoa_Monitor_REST_API {
 	];
 
         if ( !empty($log_data['rfid_id']) && $log_data['rfid_id'] !== '00000000' ) {
-            $cardholder_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM ac_cardholders WHERE rfid_id = %s", $log_data['rfid_id']));
-            if ($cardholder_id) {
-                $log_data['cardholder_id'] = $cardholder_id;
+            // Fetch the whole cardholder record to get the ID and resident_type
+            $cardholder = $wpdb->get_row($wpdb->prepare("SELECT id, resident_type FROM ac_cardholders WHERE rfid_id = %s", $log_data['rfid_id']));
+            
+            if ($cardholder) {
+                $log_data['cardholder_id'] = $cardholder->id;
+
+                // Only run the rate-limit check if the user is NOT a 'System' user.
+                if ($cardholder->resident_type !== 'System') {
+                    
+                    $minutes = get_option('fsbhoa_ac_rate_limit_minutes', 10);
+
+                    if ($minutes > 0) {
+                        // Use WordPress's time functions to ensure the correct timezone.
+                        $time_ago_unix = current_time('timestamp') - ($minutes * MINUTE_IN_SECONDS);
+                        $time_ago = date('Y-m-d H:i:s', $time_ago_unix);
+
+                        $recent_swipe = $wpdb->get_var($wpdb->prepare(
+                            "SELECT 1 FROM ac_access_log WHERE cardholder_id = %d AND event_timestamp >= %s AND controller_identifier = %s AND door_number = %d LIMIT 1",
+                            $cardholder->id,
+                            $time_ago,
+                            $log_data['controller_identifier'],
+                            $log_data['door_number']
+                        ));
+
+                        if ($recent_swipe) {
+                            error_log("[RATE LIMIT DEBUG] FOUND recent swipe. Ignoring this one.");
+                            return new WP_REST_Response( ['status' => 'success', 'message' => 'Duplicate event ignored.'], 200 );
+                        }
+                    }
+                }
             }
         }
 
-        // CORRECTED: Use insert_id to get the new record ID.
+        // Use insert_id to get the new record ID.
         $wpdb->insert('ac_access_log', $log_data);
         $log_id = $wpdb->insert_id;
 

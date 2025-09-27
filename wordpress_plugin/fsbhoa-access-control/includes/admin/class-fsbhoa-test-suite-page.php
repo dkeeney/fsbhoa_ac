@@ -44,7 +44,8 @@ class Fsbhoa_Test_Suite_Page {
         <div class="wrap">
             <h1>System Communications Test Suite</h1>
 
-            <p>Trigger a simulated swipe event with specific parameters.</p>
+            <p>Trigger a simulated swipe event with specific parameters.<br>
+            Be aware that repeated use of the same card will be blocked by rate limit.</p>
             <div>
                 <table class="form-table">
                     <tbody>

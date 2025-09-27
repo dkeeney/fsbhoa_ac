@@ -147,3 +147,28 @@ div[aria-describedby="fsbhoa-cropper-dialog"] .ui-dialog-title {
     white-space: nowrap; /* TFLB */
     border-width: 0;
 }
+
+/*
+ * == Cardholder Row Highlighting ==
+ */
+
+tr.fsbhoa-manual-record td {
+    background-color: #FFFFE0 !important; /* Light Yellow */
+}
+
+/* A slightly different hover color for the highlighted rows */
+tr.fsbhoa-manual-record:hover td {
+    background-color: #FDFDCC !important; /* Slightly darker yellow on hover */
+
+
+/*
+ * Final override for cardholder form email and phone fields.
+ * This ultra-specific selector is designed to beat all other rules.
+ */
+#fsbhoa-cardholder-form .form-field input#email,
+#fsbhoa-cardholder-form .form-field input#phone {
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    color: #2c3338 !important;
+}
+

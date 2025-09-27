@@ -76,7 +76,16 @@ function fsbhoa_render_cardholder_list_view() {
             </thead>
             <tbody>
                 <?php if ( ! empty($cardholders) ) : foreach ( $cardholders as $cardholder ) : ?>
-                    <tr data-cardholder-id="<?php echo esc_attr($cardholder['id']); ?>">
+                    <?php
+                        // Define a variable for our custom row classes
+                        $row_classes = '';
+                        // Check if the cardholder's origin is 'manual'
+                        if (isset($cardholder['origin']) && $cardholder['origin'] === 'manual') {
+                            $row_classes = 'fsbhoa-manual-record';
+                        }
+                    ?>
+                    <tr class="<?php echo esc_attr($row_classes); ?>" data-cardholder-id="<?php echo esc_attr($cardholder['id']); ?>">
+
                         <td class="fsbhoa-checkbox-column">
                         </td>
                         <td class="fsbhoa-actions-column">

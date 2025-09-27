@@ -90,6 +90,7 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
     }
 
 
+
     public function column_full_name( $item ) {
         $name_parts = array();
         if ( ! empty( $item['first_name'] ) ) $name_parts[] = $item['first_name'];

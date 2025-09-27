@@ -84,12 +84,46 @@ class Fsbhoa_Kiosk_REST_API {
             return new WP_Error( 'bad_request', 'Missing rfid or amenity name.', ['status' => 400] );
         }
 
-        $cardholder_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM ac_cardholders WHERE rfid_id = %s", $rfid));
+        $cardholder = $wpdb->get_row($wpdb->prepare("SELECT id, resident_type FROM ac_cardholders WHERE rfid_id = %s", $rfid));
         if ($wpdb->last_error) {
             return new WP_Error( 'db_error', 'Database error finding cardholder.', ['status' => 500, 'db_error' => $wpdb->last_error] );
         }
 
-        // --- 2. CREATE THE NEW, MORE DESCRIPTIVE LOG MESSAGE ---
+        // The cardholder_id is needed later for the INSERT statement
+        $cardholder_id = $cardholder ? (int)$cardholder->id : null;
+
+        // Do the Rate-limit check
+        // Only run the rate-limit check if it's a valid cardholder AND NOT a 'System' user.
+        if ($cardholder && $cardholder->resident_type !== 'System') {
+            $minutes = get_option('fsbhoa_ac_rate_limit_minutes', 10);
+
+            if ($minutes > 0) {
+                $time_ago_unix = current_time('timestamp') - ($minutes * MINUTE_IN_SECONDS);
+                $time_ago = date('Y-m-d H:i:s', $time_ago_unix);
+                $amenity_search = 'Amenity: ' . $amenity_name;
+
+                // Use the standard $wpdb object with the CONCAT workaround
+                $query = $wpdb->prepare(
+                    "SELECT 1 FROM ac_access_log WHERE cardholder_id = %d AND event_timestamp >= %s AND controller_identifier = 'kiosk' AND event_description LIKE CONCAT(%s, '%%') LIMIT 1",
+                    $cardholder_id,
+                    $time_ago,
+                    $amenity_search
+                );
+
+                $recent_swipe = $wpdb->get_var($query);
+                // We can remove the debug logs now if you like, or keep them for testing.
+                // error_log("[RATE LIMIT DEBUG] query:" . $query);
+
+                if ($recent_swipe) {
+                    error_log("[RATE LIMIT DEBUG] FOUND recent swipe. Ignoring this one.");
+                    return new WP_REST_Response( ['status' => 'success', 'message' => 'Duplicate sign-in ignored.'], 200 );
+                } else {
+                    // error_log("[RATE LIMIT DEBUG] No recent swipe found. Proceeding to log.");
+                }
+            }
+        }
+
+        // --- 2. CREATE LOG MESSAGE ---
         $description = 'Amenity: ' . $amenity_name;
         if ($guests > 0) {
             $description .= ' (+' . $guests . ' ' . ($guests === 1 ? 'guest' : 'guests') . ')';

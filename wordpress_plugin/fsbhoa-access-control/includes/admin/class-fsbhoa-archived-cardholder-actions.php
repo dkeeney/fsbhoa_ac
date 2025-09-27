@@ -153,21 +153,30 @@ class Fsbhoa_Archived_Cardholder_Actions {
 
         $source_id = isset($_POST['source_cardholder_id']) ? absint($_POST['source_cardholder_id']) : 0;
         $destination_id = isset($_POST['destination_cardholder_id']) ? absint($_POST['destination_cardholder_id']) : 0;
+        error_log("[MERGE ACTION START] Initiating merge from Source ID: {$source_id} to Destination ID: {$destination_id}");
 
         if ( ! $source_id || ! $destination_id || $source_id === $destination_id) {
+            error_log("[MERGE ACTION ERROR] Invalid source or destination ID. Aborting.");
             wp_die( 'Invalid source or destination cardholder ID specified.', 'Error', ['back_link' => true] );
         }
 
         $wpdb->query( 'START TRANSACTION' );
+        error_log("[MERGE ACTION DB] Transaction started.");
 
         $table_cardholders = 'ac_cardholders';
         $table_access_log = 'ac_access_log';
+        $table_properties = 'ac_property';
 
         $source_record = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table_cardholders} WHERE id = %d AND card_status = 'archived' FOR UPDATE", $source_id ), ARRAY_A );
         if ( ! $source_record ) {
+            error_log("[MERGE ACTION ERROR] Could not find or lock source record ID: {$source_id}. Rolling back.");
             $wpdb->query( 'ROLLBACK' );
             wp_die( 'Could not find or lock the archived source record to merge.', 'Error', ['back_link' => true] );
         }
+
+        // Get the property ID from the source record before we do anything else.
+        $manual_property_id = !empty($source_record['property_id']) ? absint($source_record['property_id']) : 0;
+        error_log("[MERGE ACTION INFO] Source record property ID is: {$manual_property_id}");
 
         // --- STEP 1: Update all simple text/numeric data using a prepared statement. ---
         $text_sql = $wpdb->prepare(
@@ -186,9 +195,11 @@ class Fsbhoa_Archived_Cardholder_Actions {
         );
         $updated_text = $wpdb->query($text_sql);
         if ( false === $updated_text ) {
+            error_log("[MERGE ACTION ERROR] DB error merging text data: " . $wpdb->last_error . ". Rolling back.");
             $wpdb->query( 'ROLLBACK' );
             wp_die( 'Database error while merging text data. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true] );
         }
+        error_log("[MERGE ACTION DB] Step 1: Merged text data. Rows affected: " . $updated_text);
 
         // --- STEP 2: Update the binary photo data in a separate, dedicated prepared statement. ---
         if (!empty($source_record['photo'])) {
@@ -199,27 +210,59 @@ class Fsbhoa_Archived_Cardholder_Actions {
             );
             $updated_photo = $wpdb->query($photo_sql);
             if ( false === $updated_photo ) {
+                error_log("[MERGE ACTION ERROR] DB error merging photo data: " . $wpdb->last_error . ". Rolling back.");
                 $wpdb->query( 'ROLLBACK' );
                 wp_die( 'Database error while merging the photo data. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true] );
             }
+            error_log("[MERGE ACTION DB] Step 2: Merged photo data. Rows affected: " . $updated_photo);
         }
 
         // --- STEP 3: Re-link historical access logs. ---
         $relinked = $wpdb->update( $table_access_log, ['cardholder_id' => $destination_id], ['cardholder_id' => $source_id], ['%d'], ['%d'] );
         if ( false === $relinked ) {
+            error_log("[MERGE ACTION ERROR] DB error re-linking access logs: " . $wpdb->last_error . ". Rolling back.");
             $wpdb->query( 'ROLLBACK' );
             wp_die( 'Database error while re-linking access logs. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true] );
         }
+        error_log("[MERGE ACTION DB] Step 3: Relinked access logs. Rows affected: " . $relinked);
 
         // --- STEP 4: Purge the now-merged source record. ---
         $purged = $wpdb->update( $table_cardholders, ['card_status' => 'purged'], ['id' => $source_id], ['%s'], ['%d'] );
         if ( false === $purged ) {
+            error_log("[MERGE ACTION ERROR] DB error purging source record: " . $wpdb->last_error . ". Rolling back.");
             $wpdb->query( 'ROLLBACK' );
             wp_die( 'Database error while purging the source record. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true] );
+        }
+        error_log("[MERGE ACTION DB] Step 4: Purged source record. Rows affected: " . $purged);
+
+        // --- STEP 5: Clean up the orphaned property. ---
+        if ( $manual_property_id > 0 ) {
+            // Check the origin of the property
+            $property_origin = $wpdb->get_var( $wpdb->prepare( "SELECT origin FROM {$table_properties} WHERE property_id = %d", $manual_property_id ) );
+
+            // Only proceed if the property was manually created
+            if ( $property_origin === 'manual' ) {
+                // Count how many cardholders are still linked to this property
+                $remaining_cardholders = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table_cardholders} WHERE property_id = %d", $manual_property_id ) );
+                error_log("[MERGE ACTION INFO] Checking manual property ID {$manual_property_id}. Found {$remaining_cardholders} remaining cardholders.");
+
+                // If the property is now empty, delete it
+                if ( $remaining_cardholders == 0 ) {
+                    $deleted_property = $wpdb->delete( $table_properties, ['property_id' => $manual_property_id], ['%d'] );
+                    
+                    if ( false === $deleted_property ) {
+                        error_log("[MERGE ACTION ERROR] DB error deleting orphaned property: " . $wpdb->last_error . ". Rolling back.");
+                        $wpdb->query( 'ROLLBACK' );
+                        wp_die( 'Database error while deleting orphaned manual property. DB Error: ' . esc_html($wpdb->last_error), 'Error', ['back_link' => true] );
+                    }
+                    error_log("[MERGE ACTION DB] Step 5: Deleted orphaned manual property ID {$manual_property_id}. Rows affected: " . $deleted_property);
+                }
+            }
         }
 
         $wpdb->query( 'COMMIT' );
         fsbhoa_log_pending_change();
+        error_log("[MERGE ACTION END] Commit successful. Redirecting.");
 
         $redirect_url = get_permalink(get_page_by_path('archived-cardholders'));
         if (!$redirect_url) {

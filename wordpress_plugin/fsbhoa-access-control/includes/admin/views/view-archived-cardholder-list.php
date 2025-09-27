@@ -57,7 +57,13 @@ function fsbhoa_render_archived_cardholder_list_view() {
         </thead>
         <tbody>
             <?php if ( ! empty($archived_cardholders) ) : foreach ( $archived_cardholders as $cardholder ) : ?>
-                <tr>
+                <?php
+                    $row_classes = '';
+                    if (isset($cardholder['origin']) && $cardholder['origin'] === 'manual') {
+                        $row_classes = 'fsbhoa-manual-record';
+                    }
+                ?>
+                <tr class="<?php echo esc_attr($row_classes); ?>">
                     <td class="fsbhoa-actions-column">
                         <?php
                         // UPDATED: All links and nonces changed from 'deleted' to 'archived' or 'purged'.
@@ -91,7 +97,7 @@ function fsbhoa_render_archived_cardholder_list_view() {
                             <span class="dashicons dashicons-controls-repeat"></span>
                         </a>
                         <a href="<?php echo esc_url($purge_url); ?>" class="fsbhoa-action-icon" title="Purge Record (Hide from view)" onclick="return confirm('WARNING: This will hide the record from this list. It will be retained for historical reports but cannot be restored. Are you sure?');">
-                            <span class="dashicons dashicons-minus" style="color: #d63638;"></span>
+                            <span class="dashicons dashicons-trash" style="color: #d63638;"></span>
                         </a>
                     </td>
                     <td><strong><?php echo esc_html( $cardholder['first_name'] . ' ' . $cardholder['last_name'] ); ?></strong></td>

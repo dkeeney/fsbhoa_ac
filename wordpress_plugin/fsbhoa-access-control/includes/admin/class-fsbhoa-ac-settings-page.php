@@ -172,6 +172,21 @@ class Fsbhoa_Ac_Settings_Page {
             add_settings_field($id . '_field', $field['label'], array($this, 'render_field_callback'), $general_page_slug, 'fsbhoa_ac_service_comm_section', ['id' => $id] + $field);
         }
         add_settings_section('fsbhoa_ac_api_keys_section', 'API Key Settings', null, $general_page_slug);
+        add_settings_section('fsbhoa_ac_operational_section', 'Operational Settings', null, $general_page_slug);
+        add_settings_field(
+            'fsbhoa_ac_rate_limit_minutes_field',
+            'Swipe Rate-Limit (Minutes)',
+            array($this, 'render_field_callback'),
+            $general_page_slug,
+            'fsbhoa_ac_operational_section',
+            [
+                'id'      => 'fsbhoa_ac_rate_limit_minutes',
+                'type'    => 'number',
+                'default' => 10,
+                'desc'    => 'Ignore duplicate swipes from the same person at the same location within this time. Set to 0 to disable.'
+            ]
+        );
+
         add_settings_field(
             'fsbhoa_ac_api_key_field',
             'CSV Import API Key',
@@ -190,6 +205,7 @@ class Fsbhoa_Ac_Settings_Page {
         register_setting($general_option_group, 'fsbhoa_ac_tls_cert_path', 'sanitize_text_field');
         register_setting($general_option_group, 'fsbhoa_ac_tls_key_path', 'sanitize_text_field');
         register_setting($general_option_group, 'fsbhoa_ac_api_key', 'sanitize_text_field');
+        register_setting($general_option_group, 'fsbhoa_ac_rate_limit_minutes', 'absint');
 
         // ====================================================================
         // --- EVENT SERVICE SETTINGS ---

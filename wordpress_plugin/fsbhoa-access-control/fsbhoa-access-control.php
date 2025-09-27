@@ -338,8 +338,8 @@ function fsbhoa_ac_fix_svg_thumb_display( $response, $attachment, $meta ) {
         // Use the full URL for the thumbnail so it displays.
         $response['sizes']['thumbnail'] = [
             'url' => $response['url'],
-            'width' => $response['width'],
-            'height' => $response['height'],
+            'width' => $response['width'] ?? null,
+            'height' => $response['height'] ?? null,
         ];
     }
     return $response;

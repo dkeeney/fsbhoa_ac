@@ -6,7 +6,7 @@
 # WARNING: THIS SCRIPT IS DESTRUCTIVE.
 # It will overwrite your WordPress database and wp-content/uploads
 # directory with the contents of the backup files provided.
-# It relies on a ~/.my.cnf file for secure database credentials.
+# It relies on a ~/.my.cnf file, [mysql] section, for secure database credentials.
 # =================================================================
 
 # --- BEGIN CONFIGURATION ---
@@ -21,6 +21,15 @@ WP_PATH="/var/www/html"
 
 
 # --- SCRIPT LOGIC (Do not edit below this line) ---
+
+#  CHECK FOR SUDO/ROOT PRIVILEGES
+if [[ $EUID -ne 0 ]]; then
+   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+   echo "!! ERROR: This script must be run with root privileges.     !!"
+   echo "!! Please run it again using: sudo ./restore.sh             !!"
+   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" 
+   exit 1
+fi
 
 # Check for required arguments
 if [ "$#" -ne 2 ]; then

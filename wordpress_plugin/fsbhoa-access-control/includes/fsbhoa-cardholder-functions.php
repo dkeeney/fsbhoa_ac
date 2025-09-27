@@ -69,7 +69,17 @@ function fsbhoa_get_event_description($event_type, $door, $granted) {
         case 2: return 'Door open';
         case 3: return 'Door close';
         case 4: return 'Button press';
-        // Add other event types as needed
-        default: return 'Unknown Event';
+        case 5:
+            return 'Access Denied: Card Not Found';
+        case 6:
+            return 'Access Denied: Outside Allowed Hours';
+        case 7:
+            return 'Access Denied: Door is Locked';
+        case 8:
+            return 'Access Denied: Door is Unlocked';
+        
+        // MODIFIED: Make the default more helpful for debugging
+        default:
+            return 'Unknown Event (Code: ' . $event_type . ')';
     }
 }

@@ -90,7 +90,7 @@ function fsbhoa_calculate_cardholder_permissions($cardholder_id, $permission_dat
         // *** END: CORRECTED DEBUGGING CODE ***
 
         // If any group grants all access, that takes ultimate precedence.
-        if ($group->has_all_access) {
+        if (!empty($group->all_access) && $group->all_access) {
             $has_all_access = true;
             break; // No need to check other groups
         }

@@ -45,8 +45,8 @@ function fsbhoa_perform_full_sync() {
 
     $db_cards = [];
     foreach ($cardholders as $cardholder) {
-        $card_number = intval($cardholder->rfid_id);
-        if ($card_number > 0) {
+        $card_number = $cardholder->rfid_id;
+        if (!empty($card_number)) {
             $db_cards[$card_number] = $cardholder;
         }
     }
@@ -68,6 +68,22 @@ function fsbhoa_perform_full_sync() {
         $device_id = $controller->uhppoted_device_id;
         $friendly_name = $controller->friendly_name;
         $controller_id = $controller->controller_record_id;
+
+        // HEALTH CHECK BLOCK
+        if (FSBHOA_DEBUG_MODE) {
+            error_log("SYNC SERVICE: Checking status of controller '$friendly_name' ($device_id)...");
+        }
+        // Use a short 2-second timeout for a quick check
+        $status_command = sprintf('uhppote-cli --timeout 2s get-status %s', $device_id);
+        $status_output = shell_exec($status_command . " 2>&1");
+
+        // If the output is empty or contains an error, the controller is offline.
+        if (strpos($status_output, 'ERROR') !== false || empty(trim($status_output))) {
+            if (FSBHOA_DEBUG_MODE) {
+                error_log("SYNC SERVICE: Controller '$friendly_name' ($device_id) is offline or not responding. Skipping.");
+            }
+            continue; // Skip to the next controller in the loop
+        }
         error_log("SYNC SERVICE - Controller: $device_id, $friendly_name");
 
 
@@ -117,8 +133,9 @@ error_log('SYNC DEBUG - Cards to Delete: ' . print_r(array_keys($cards_to_delete
             $card_count++;
             set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking card $card_count/" . count($db_cards) . " on '$friendly_name'..."], MINUTE_IN_SECONDS * 5);
             $permissions_string = fsbhoa_build_card_permissions_string($cardholder, $permission_data, $profile_map);
+error_log("SYNC FINAL CHECK - Card Number Type: " . gettype($card_number) . ", Value: '" . $card_number . "'");
             $put_card_command = sprintf(
-                'uhppote-cli put-card %s %d %s %s %s',
+                'uhppote-cli put-card %s %s %s %s %s',
                 $device_id,
                 $card_number,
                 $cardholder->card_issue_date ?? '2000-01-01',

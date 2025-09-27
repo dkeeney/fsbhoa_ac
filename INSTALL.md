@@ -358,4 +358,36 @@ Bash
 After completing these steps, reboot the kiosk machine. It should automatically log in and launch the Firefox browser in kiosk mode.
 
 
+## Step X: Install Image Processing Dependencies
+For full functionality, including SVG support for icons and higher-quality image processing, two external libraries are required.
+
+1. Server-Side: ImageMagick and Imagick
+The server requires the ImageMagick software suite and the corresponding PHP extension.
+
+On an Ubuntu/Debian server, run the following commands:
+
+Bash
+
+# First, update your package lists
+sudo apt update
+
+# Install the main ImageMagick software
+sudo apt install imagemagick -y
+
+# Install the PHP extension, matching your server's PHP version (e.g., php8.3-imagick)
+sudo apt install php8.3-imagick -y
+
+# Finally, restart your web server for the new extension to be loaded
+# For Apache:
+sudo systemctl restart apache2
+# For Nginx/PHP-FPM (use your PHP version):
+sudo systemctl restart php8.3-fpm
+2. Client-Side: canvg.js
+The cardholder photo editor uses the canvg.js library to convert SVG images to PNGs directly in the browser.
+
+Download the library file (umd.min.js) from the canvg GitHub releases.
+
+Rename the file to canvg.min.js.
+
+Place the canvg.min.js file inside the plugin's assets/vendor/ directory.
 

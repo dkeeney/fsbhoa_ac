@@ -13,7 +13,14 @@ function fsbhoa_render_merge_cardholder_view() {
 
     global $wpdb;
     // UPDATED QUERY: Select from the main table where status is 'archived'.
-    $source_cardholder = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_cardholders WHERE id = %d AND card_status = 'archived'", $source_id));
+    $source_cardholder = $wpdb->get_row($wpdb->prepare(
+        "SELECT c.*, p.street_address 
+         FROM ac_cardholders c 
+         LEFT JOIN ac_property p ON c.property_id = p.property_id 
+         WHERE c.id = %d AND c.card_status = 'archived'", 
+        $source_id
+    ));
+
     if (!$source_cardholder) {
         echo '<div class="notice notice-error"><p>Archived cardholder not found.</p></div>';
         return;
@@ -29,6 +36,7 @@ function fsbhoa_render_merge_cardholder_view() {
                 <div class="details-box">
                     <p><strong>Name:</strong> <?php echo esc_html($source_cardholder->first_name . ' ' . $source_cardholder->last_name); ?></p>
                     <p><strong>Formal Name:</strong> <?php echo esc_html($source_cardholder->import_first_name . ' ' . $source_cardholder->import_last_name); ?></p>
+                    <p><strong>Address:</strong> <?php echo esc_html($source_cardholder->street_address ?? 'N/A'); ?></p>
                     <p><strong>Photo:</strong> <?php echo !empty($source_cardholder->photo) ? 'Yes' : 'No'; ?></p>
                     <p><strong>RFID:</strong> <?php echo esc_html($source_cardholder->rfid_id ?: 'None'); ?></p>
                     <p><strong>Notes:</strong> <?php echo esc_html($source_cardholder->notes); ?></p>

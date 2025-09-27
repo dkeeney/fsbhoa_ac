@@ -171,12 +171,14 @@ class Fsbhoa_Import_V2
      */
     function process_csv_file($file_path,  $is_dry_run = false)
     {
+        $mismatched_contacts = [];
         $stats = [
             'rows_processed' => 0,
             'properties_created' => 0,
             'cardholders_created' => 0,
             'cardholders_updated' => 0,
             'cardholders_archived' => 0,
+            'properties_deleted' => 0,
             'landlords_identified' => 0,
             'errors' => [],
         ];
@@ -230,13 +232,20 @@ class Fsbhoa_Import_V2
 
                 $existing_db_cardholders = $this->get_cardholders_by_property($property_id);
                 $this->sync_property_occupants($new_cardholders_from_row, $existing_db_cardholders, $property_id, $stats, $is_dry_run);
-                $this->apply_changes_to_db($new_cardholders_from_row, $property_id, $stats, $is_dry_run);
+                $this->apply_changes_to_db($new_cardholders_from_row, $property_id, $property_address_raw, $stats, $is_dry_run, $mismatched_contacts);
 
             } catch (Exception $e) {
                 $stats['errors'][] = "Row " . ($stats['rows_processed'] + 1) . ": " . $e->getMessage();
             }
         }
         fclose($handle);
+
+        // --- Generate Mismatch Report ---
+        $report_result = $this->generate_mismatch_report($mismatched_contacts);
+
+        // --- Perform Property Cleanup ---
+        $properties_deleted = $this->cleanup_unused_properties($is_dry_run);
+        $stats['properties_deleted'] = $properties_deleted;
         
         // Only log a pending change if this is NOT a dry run
         if (!$is_dry_run) {
@@ -247,8 +256,9 @@ class Fsbhoa_Import_V2
             sprintf(__("Properties Created:   %d", 'fsbhoa-ac'), $stats['properties_created']),
             sprintf(__("Cardholders Created:  %d", 'fsbhoa-ac'), $stats['cardholders_created']),
             sprintf(__("Cardholders Updated:  %d", 'fsbhoa-ac'), $stats['cardholders_updated']),
-            sprintf(__("Cardholders Archived: %d", 'fsbhoa-ac'), $stats['cardholders_archive']),
-            sprintf(__("Owner sets updated to 'Landlord': %d", 'fsbhoa-ac'), $stats['landlords_identified']),
+            sprintf(__("Cardholders Archived: %d", 'fsbhoa-ac'), $stats['cardholders_archived']),
+            sprintf(__("Properties Deleted:   %d", 'fsbhoa-ac'), $stats['properties_deleted']),
+            //sprintf(__("Owner sets updated to 'Landlord': %d", 'fsbhoa-ac'), $stats['landlords_identified']),
         ];
 
         // Add a message to the results if this was a dry run
@@ -257,6 +267,15 @@ class Fsbhoa_Import_V2
         }
 
 
+        if ($report_result) {
+            // Check if the result is an error message or a file path
+            if (strpos($report_result, 'Error:') === 0) {
+                $feedback_messages[] = "Contact Mismatch Report Generation Failed: " . esc_html($report_result);
+            } else {
+                $feedback_messages[] = "Contact Mismatch Report Generated: " . esc_html($report_result);
+            }
+        }
+	
         if (!empty($stats['errors'])) {
             $feedback_messages[] = __("--- The following errors occurred: ---", 'fsbhoa-ac');
             $feedback_messages = array_merge($feedback_messages, $stats['errors']);
@@ -308,6 +327,9 @@ class Fsbhoa_Import_V2
         /****************************************************************************
         ***************** comment this code out.  Might need it later however.  ****
          *************So, do not remove this block.    ******************************
+        // If the cardholder is a tenent then any owners at that address are landlords
+        // assuming that the owner does not live there.
+        // HOWEVER: We don't know if the owner also lives there so this may not be valid.
         $has_tenants = false;
         foreach ($new_cardholders_from_row as $cardholder) { 
             if ($cardholder['resident_type'] === 'Tenant') { 
@@ -446,22 +468,34 @@ private function parse_cardholders_from_row($row)
         }
         $house_number = trim($matches[1]);
         $street_name = trim($matches[2]);
-
+error_log("[IMPORT DEBUG] Searching for property with House Number: '{$house_number}' and Street Name: '{$street_name}'");
         // 3. Check if property exists based on the new split fields
         $query = $this->wpdb->prepare(
-            "SELECT property_id FROM {$this->table_properties} WHERE house_number = %s AND street_name = %s",
+            "SELECT property_id, origin FROM {$this->table_properties} WHERE house_number = %s AND street_name = %s",
             $house_number,
             $street_name
         );
-        $property_id = $this->wpdb->get_var($query);
+        $property_record = $this->wpdb->get_row($query);
 
         if ($this->wpdb->last_error) {
             throw new Exception("Database error while checking for property '{$clean_address}': " . $this->wpdb->last_error);
         }
 
-        if ($property_id) {
-            return (int) $property_id;
+        if ($property_record) {
+error_log("[IMPORT DEBUG] FOUND a property record. ID: {$property_record->property_id}, Origin: {$property_record->origin}");
+            // --- LOGIC TO "PROMOTE" A MANUAL PROPERTY ---
+            // If the property exists and was manually created, the import overrides it as the source of truth.
+            if ($property_record->origin === 'manual' && !$is_dry_run) {
+error_log("[IMPORT DEBUG] Property is 'manual', attempting to promote to 'import'.");
+                $this->wpdb->update(
+                    $this->table_properties,
+                    ['origin' => 'import'], // Promote to 'import'
+                    ['property_id' => $property_record->property_id]
+                );
+            }
+            return (int) $property_record->property_id;
         } else {
+error_log("[IMPORT DEBUG] DID NOT FIND a property record. Will attempt to create a new one.");
             if (!$is_dry_run) {
                 // 4. Create new property, populating all three address columns
                 $result = $this->wpdb->insert(
@@ -493,14 +527,14 @@ private function parse_cardholders_from_row($row)
     }
     
     
-    private function apply_changes_to_db($new_list, $property_id, &$stats, $is_dry_run)
+    private function apply_changes_to_db($new_list, $property_id, $property_address, &$stats, $is_dry_run, &$mismatched_contacts)
     {
         foreach ($new_list as $cardholder_data) {
             $cardholder_data['property_id'] = $property_id;
             
             // Find existing records using the IMPORT names as the key
             $query = $this->wpdb->prepare(
-                "SELECT id, phone, email, resident_type, import_first_name, import_last_name 
+                "SELECT id, phone, email, resident_type, import_first_name, import_last_name, card_status
                     FROM {$this->table_cardholders} 
                     WHERE import_first_name = %s 
                       AND import_last_name = %s 
@@ -511,12 +545,32 @@ private function parse_cardholders_from_row($row)
                 $property_id
             );
             $existing_record = $this->wpdb->get_row($query);
-            
+
             if ($this->wpdb->last_error) {
                 throw new Exception("DB error checking for cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}': " . $this->wpdb->last_error);
             }
 
             if ($existing_record) {
+
+                // Check for contact info mismatches, BUT only for active cardholders.
+                if ($existing_record->card_status === 'active') {
+                    $db_phone = trim($existing_record->phone);
+                    $csv_phone = trim($cardholder_data['phone']);
+                    $db_email = trim(strtolower($existing_record->email));
+                    $csv_email = trim(strtolower($cardholder_data['email']));
+
+                    if ($db_phone !== $csv_phone || $db_email !== $csv_email) {
+                        $mismatched_contacts[] = [
+                            'full_name'        => trim($existing_record->import_first_name . ' ' . $existing_record->import_last_name),
+                            'property_address' => $property_address,
+                            'db_phone'         => $db_phone,
+                            'csv_phone'        => $csv_phone,
+                            'db_email'         => $db_email,
+                            'csv_email'        => $csv_email,
+                        ];
+                    }
+                }
+
                 // UPDATE existing record
                 $data_to_update = [];
 
@@ -599,6 +653,98 @@ private function parse_cardholders_from_row($row)
         if (strlen($digits) == 11 && substr($digits, 0, 1) == '1') 
             return substr($digits, 1); 
         return (strlen($digits) == 10) ? $digits : $phone; 
+    }
+
+    /**
+     * Deletes unused, import-generated properties from the database.
+     *
+     * This function deletes only properties that were
+     * created by an import AND have no cardholders whatsoever linked to them.
+     *
+     * @param bool $is_dry_run If true, only reports what would be deleted.
+     * @return int The number of properties deleted or that would be deleted.
+     */
+    private function cleanup_unused_properties($is_dry_run)
+    {
+        global $wpdb;
+        $property_table = 'ac_property';
+        $cardholder_table = 'ac_cardholders';
+    
+        // The SQL to find property IDs that are eligible for deletion.
+        // They must originate from an 'import' AND not have any matching
+        // records in the cardholders table.
+        $sql_find_orphans = "
+            SELECT p.property_id
+            FROM {$property_table} AS p
+            LEFT JOIN {$cardholder_table} AS c ON p.property_id = c.property_id
+            WHERE p.origin = 'import' AND c.id IS NULL
+        ";
+
+        $properties_to_delete_ids = $wpdb->get_col($sql_find_orphans);
+    
+        if (empty($properties_to_delete_ids)) {
+            return 0;
+        }
+
+        $count = count($properties_to_delete_ids);
+
+        if (!$is_dry_run) {
+            $placeholders = implode(',', array_fill(0, $count, '%d'));
+            $sql_delete = $wpdb->prepare(
+                "DELETE FROM {$property_table} WHERE property_id IN ($placeholders)",
+                $properties_to_delete_ids
+            );
+            $wpdb->query($sql_delete);
+        }
+
+        return $count;
+    }
+
+
+    /**
+     * Generates a CSV report of contact information mismatches to the NAS.
+     *
+     * @param array $mismatches The array of mismatched data.
+     * @return string|false The path to the report file, an error string, or false.
+     */
+    private function generate_mismatch_report($mismatches) {
+        if (empty($mismatches)) {
+            return false;
+        }
+
+        $report_dir = '/mnt/shared/AccessControl/';
+
+        // Check if the NAS directory is writable by the web server user (e.g., www-data)
+        if (!is_writable($report_dir)) {
+            return "Error: Report directory {$report_dir} is not writable by the web server.";
+        }
+
+        $filename = 'contact_mismatch_report.csv';
+        $filepath = $report_dir . $filename;
+
+        $handle = fopen($filepath, 'w');
+        if (!$handle) {
+            return "Error: Could not open file for writing at {$filepath}";
+        }
+
+        // Write header row
+        fputcsv($handle, ['Name', 'Address', 'DB Phone', 'Import Phone', 'DB Email', 'Import Email']);
+
+        // Write data rows
+        foreach ($mismatches as $row) {
+            fputcsv($handle, [
+                $row['full_name'],
+                $row['property_address'],
+                $row['db_phone'],
+                $row['csv_phone'],
+                $row['db_email'],
+                $row['csv_email'],
+            ]);
+        }
+
+        fclose($handle);
+
+        return "Y:/AccessControl/".$filename; // Return the full server path of the generated report
     }
 }
 

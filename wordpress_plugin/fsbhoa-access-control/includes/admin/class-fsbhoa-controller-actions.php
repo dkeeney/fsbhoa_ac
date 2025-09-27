@@ -11,6 +11,7 @@ class Fsbhoa_Controller_Actions {
         add_action('admin_post_fsbhoa_add_discovered_controllers', [ $this, 'handle_add_discovered_action' ]);
         add_action('wp_ajax_fsbhoa_sync_all_controllers', [ $this, 'ajax_handle_sync_all' ]);
         add_action('wp_ajax_fsbhoa_get_sync_status', [ $this, 'ajax_get_sync_status' ]);
+        add_action('wp_ajax_fsbhoa_factory_reset', array($this, 'ajax_factory_reset_controller'));
     }
 
     public function handle_form_submission() {
@@ -387,4 +388,35 @@ class Fsbhoa_Controller_Actions {
         }
     }
 
+    /**
+     * AJAX handler to reset a controller to factory defaults.
+     */
+    public function ajax_factory_reset_controller() {
+        // Security checks
+        check_ajax_referer('fsbhoa_factory_reset_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission Denied.', 403);
+        }
+
+        $controller_id = isset($_POST['controller_id']) ? absint($_POST['controller_id']) : 0;
+        if (!$controller_id) {
+            wp_send_json_error('Invalid Controller ID.', 400);
+        }
+
+        global $wpdb;
+        $serial_number = $wpdb->get_var($wpdb->prepare("SELECT uhppoted_device_id FROM ac_controllers WHERE controller_record_id = %d", $controller_id));
+
+        if (!$serial_number) {
+            wp_send_json_error('Controller not found in database.', 404);
+        }
+
+        // Execute the command
+        $command = sprintf('uhppote-cli restore-default-parameters %s', escapeshellarg($serial_number));
+        shell_exec($command . " 2>&1");
+
+        // Activate the sync banner by logging a pending change
+        fsbhoa_log_pending_change();
+
+        wp_send_json_success('Controller reset to factory defaults. Please sync the controller to apply settings.');
+    }
 }

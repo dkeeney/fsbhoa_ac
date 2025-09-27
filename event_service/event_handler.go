@@ -37,9 +37,9 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
                     eventMessage = "Access Denied" 
                 }
             case 5:
-                eventMessage = "Outside Allowed Hours"
-            case 6:
                 eventMessage = "Card Not Found"
+            case 6:
+                eventMessage = "Outside Allowed Hours"
             case 11:
                 eventMessage = "Card Disabled"
             case 13:

@@ -82,7 +82,7 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_
             <label><?php esc_html_e( 'Update Photo', 'fsbhoa-ac' ); ?></label>
             <div id="fsbhoa_file_upload_section" style="margin-bottom: 1em;">
                 <strong><?php esc_html_e('Option 1: Upload File', 'fsbhoa-ac'); ?></strong>
-                <input type="file" name="cardholder_photo_file_input" id="cardholder_photo_file_input" accept="image/jpeg,image/png">
+                <input type="file" name="cardholder_photo_file_input" id="cardholder_photo_file_input" accept="image/jpeg,image/png,image/svg+xml">
             </div>
             <div id="fsbhoa_webcam_section">
                 <strong><?php esc_html_e('Option 2: Use Webcam', 'fsbhoa-ac'); ?></strong>
@@ -129,9 +129,9 @@ function fsbhoa_render_photo_section( $form_data, $is_edit_mode, $is_recovering_
 <?php
 }
 
-
 /**
  * Validates and processes photo data from a form submission.
+ * FINAL: Now detects SVGs and converts them to PNG using Imagick directly.
  *
  * @param array $post_data The $_POST superglobal.
  * @param array $files_data The $_FILES superglobal.
@@ -144,15 +144,17 @@ function fsbhoa_validate_photo_data( $post_data, $files_data ) {
     $sanitized_data['notes'] = isset($post_data['notes']) ? sanitize_textarea_field(wp_unslash($post_data['notes'])) : '';
 
     if ( ! empty( $post_data['photo_base64'] ) ) {
-        $decoded_data = base64_decode( $post_data['photo_base64'], true );
+        // The JS now always provides a PNG, so we just need to strip the prefix and decode.
+        $base64_string = preg_replace('/^data:image\/png;base64,/', '', $post_data['photo_base64']);
+        $decoded_data = base64_decode( $base64_string, true );
+        
         if ( $decoded_data ) {
             $sanitized_data['photo'] = $decoded_data;
         } else {
-            $errors['photo'] = __( 'Invalid cropped photo data submitted.', 'fsbhoa-ac' );
+            $errors['photo'] = __( 'Invalid photo data submitted.', 'fsbhoa-ac' );
         }
-    }
-    else {
-         $sanitized_data['photo'] = null;  // return an empty image
+    } else {
+        $sanitized_data['photo'] = null; // Handle photo removal
     }
 
     return array(

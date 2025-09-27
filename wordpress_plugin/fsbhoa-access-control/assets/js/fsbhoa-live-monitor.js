@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const isGranted = eventData.eventType === 'accessGranted';
             li.className = `p-4 flex items-start space-x-4 border-l-4 ${isGranted ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} is-expanded`;
             li.innerHTML = `
-                <img class="h-16 w-16 rounded-lg object-cover" src="${eventData.photoURL}" alt="${eventData.cardholderName}" onerror="this.onerror=null;this.src='https://placehold.co/128x128/ccc/ffffff?text=Error';">
+                <img class="w-16 rounded-lg" src="${eventData.photoURL}" alt="${eventData.cardholderName}" onerror="this.onerror=null;this.src='https://placehold.co/128x128/ccc/ffffff?text=Error';">
                 <div class="flex-1 event-text-content">
                     <p class="text-lg font-semibold text-gray-900">${eventData.cardholderName}</p>
                     <p class="text-gray-500">${eventData.streetAddress}</p>

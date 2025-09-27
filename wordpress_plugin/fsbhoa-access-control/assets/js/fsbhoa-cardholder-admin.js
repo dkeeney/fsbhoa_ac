@@ -4,7 +4,7 @@ jQuery(function($) {
         isInitialized: false,
         vars: {},
 
-init: function() {
+    init: function() {
             if (this.isInitialized) { return; }
             this.isInitialized = true;
 
@@ -290,6 +290,33 @@ init: function() {
             formContainer.on('change', '#resident_type', () => this.handleResidentTypeChange());
         },
 
+
+
+        convertSvgToPng: function(svgText) {
+            const canvas = document.createElement('canvas');
+            const targetWidth = fsbhoa_ajax_settings.photo_width || 640;
+            const targetHeight = fsbhoa_ajax_settings.photo_height || 800;
+
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+
+            // Use the older canvg v1.x API syntax.
+            // This function is globally available from the script you downloaded.
+            canvg(canvas, svgText, {
+                ignoreMouse: true,
+                ignoreAnimation: true,
+                ignoreDimensions: true, // Tell canvg to ignore dimensions in the SVG
+                scaleWidth: targetWidth,  // and scale it to our canvas size
+                scaleHeight: targetHeight
+            });
+            
+            const pngDataUri = canvas.toDataURL('image/png');
+
+            // Update the UI with the new PNG data
+            this.updateMainPhotoDisplay(pngDataUri);
+        },
+
+
         handleRemovePhotoButtonClick: function() {
             // Clear the visual preview by calling our central display function.
             // Passing 'null' clears the image.
@@ -421,9 +448,18 @@ init: function() {
 
         handleFileSelect: function(e) {
             if (e.target.files && e.target.files[0]) {
+                const file = e.target.files[0];
                 const reader = new FileReader();
-                reader.onload = (event) => { this.updateMainPhotoDisplay(event.target.result); };
-                reader.readAsDataURL(e.target.files[0]);
+        
+                if (file.type === 'image/svg+xml') {
+                    // If it's an SVG, read as text for conversion
+                    reader.onload = (event) => { this.convertSvgToPng(event.target.result); };
+                    reader.readAsText(file);
+                } else {
+                    // For regular images, read as Data URL
+                    reader.onload = (event) => { this.updateMainPhotoDisplay(event.target.result); };
+                    reader.readAsDataURL(file);
+                }
             }
         },
 
@@ -549,6 +585,7 @@ init: function() {
     };
 
     App.init();
+
 });
 
 
