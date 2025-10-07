@@ -18,7 +18,7 @@ function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_gro
             <label for="last_name">Last Name</label>
             <input type="text" name="last_name" id="last_name" value="<?php echo esc_attr($form_data['last_name']); ?>" required>
         </div>
-        <div class="form-field" style="max-width: 120px;">
+        <div class="form-field" style="max-width: 200px;">
             <label for="title">Title</label>
             <input type="text" name="title" id="title" value="<?php echo esc_attr($form_data['title']); ?>">
         </div>
@@ -35,7 +35,7 @@ function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_gro
     <div class="form-row">
         <div class="form-field">
             <label for="email">Email</label>
-            <input type="text" name="email" id="email" value="<?php echo esc_attr($form_data['email']); ?>" pattern=".+@.+\..+" title="Please enter a valid email address (e.g., name@domain.com)">
+            <input type="text" name="email" id="email" value="<?php echo esc_attr($form_data['email']); ?>" pattern=".+@.+\..+" title="Please enter a valid email address (e.g., name@domain.com)" style="width: 275px; font-size: 15px; font-weight: 500; color: #2c3338;">
         </div>
         <div class="form-field fsbhoa-checkbox-field">
                 <label>
@@ -45,7 +45,7 @@ function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_gro
             </div>
         <div class="form-field">
             <label for="phone">Phone Number</label>
-            <input type="tel" name="phone" id="phone" value="<?php echo esc_attr($form_data['phone']); ?>" pattern="[0-9\s\(\)\-\.+]{10,}" title="Please enter a valid 10-digit phone number.">
+            <input type="tel" name="phone" id="phone" value="<?php echo esc_attr($form_data['phone']); ?>" pattern="[0-9\s\(\)\-\.+]{10,}"  title="Please enter a valid 10-digit phone number."  style="width: 120px; font-size: 15px; font-weight: 500; color: #2c3338;">
         </div>
         <div class="form-field">
             <label for="phone_type">Phone Type</label>
@@ -61,21 +61,11 @@ function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_gro
         <div class="form-third-width">
             <label>Permissions Groups</label>
             <div class="checkbox-group-container">
-                    <?php // Display the default group(s) as checked and disabled. ?>
-                    <?php if (!empty($default_groups)) : ?>
-                        <?php foreach ($default_groups as $group) : ?>
-                            <label class="disabled-checkbox">
-                                <input type="checkbox" checked disabled>
-                                <?php echo esc_html($group->group_name); ?> <em>(default)</em>
-                            </label>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-
                     <?php // Display the assignable groups. ?>
                     <?php if (!empty($all_groups)) : ?>
                         <?php foreach ($all_groups as $group) : ?>
                             <label>
-                                <input type="checkbox" name="cardholder_groups[]" value="<?php echo esc_attr($group->group_id); ?>" <?php checked(in_array($group->group_id, $cardholder_groups)); ?>>
+                            <input type="checkbox" name="cardholder_groups[]" value="<?php echo esc_attr($group->group_id); ?>" <?php checked(in_array($group->group_id, $cardholder_groups)); ?>>
                                 <?php echo esc_html($group->group_name); ?>
                             </label>
                         <?php endforeach; ?>

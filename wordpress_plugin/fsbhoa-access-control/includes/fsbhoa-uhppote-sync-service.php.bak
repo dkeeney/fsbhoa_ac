@@ -28,13 +28,13 @@ function fsbhoa_perform_full_sync() {
         return; 
     }
 
-    // --- Pre-calculation Phase ---
+    // --- Optimized Pre-calculation Phase ---
     $all_cardholders_permissions = [];
     foreach ($cardholders as $cardholder) {
         $all_cardholders_permissions[$cardholder->id] = fsbhoa_calculate_cardholder_permissions($cardholder->id, $permission_data);
     }
-    $chains_by_door = fsbhoa_build_profile_chains($all_cardholders_permissions);
-
+    $unique_schedules = fsbhoa_build_unique_schedules_for_sync($all_cardholders_permissions);
+    
     $db_cards = [];
     foreach ($cardholders as $cardholder) {
         if (!empty($cardholder->rfid_id)) { $db_cards[$cardholder->rfid_id] = $cardholder; }
@@ -47,8 +47,6 @@ function fsbhoa_perform_full_sync() {
         $device_id = $controller->uhppoted_device_id;
         $friendly_name = $controller->friendly_name;
         $controller_id = $controller->controller_record_id;
-        $puts_sent = 0;
-        $deletes_sent = 0;
 
         $message = sprintf("Checking controller %d of %d (%s)...", $processed_controllers, $total_controllers, $friendly_name);
         set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => $message], MINUTE_IN_SECONDS * 10);
@@ -59,18 +57,9 @@ function fsbhoa_perform_full_sync() {
             if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Controller '$friendly_name' ($device_id) is offline or not responding. Skipping."); }
             continue;
         }
-
-        // AUTOMATICALLY SYNC THE CLOCK
-        $time_sync_command = sprintf('uhppote-cli set-time %s', $device_id);
-        if ($is_dry_run) {
-            error_log("DRY RUN: Would execute: " . $time_sync_command);
-        } else {
-            if (FSBHOA_DEBUG_MODE) { error_log("SYNC SERVICE: Setting time on controller {$device_id}..."); }
-            shell_exec($time_sync_command . " 2>&1");
-        }
-
-        $profile_map = fsbhoa_sync_time_profiles($device_id, $chains_by_door, $is_dry_run);
- 
+        
+        $profile_map = fsbhoa_sync_time_profiles($device_id, $unique_schedules, $is_dry_run);
+        
         $get_cards_command = sprintf('uhppote-cli get-cards %s', $device_id);
         $output = shell_exec($get_cards_command . " 2>&1");
         $controller_cards = [];
@@ -86,14 +75,12 @@ function fsbhoa_perform_full_sync() {
                 }
             }
         }
-        $get_cards_count = count($controller_cards);
         
         $cards_to_delete = array_diff_key($controller_cards, $db_cards);
         foreach (array_keys($cards_to_delete) as $card_to_del) {
             $delete_card_command = sprintf('uhppote-cli delete-card %s %s', $device_id, $card_to_del);
             if ($is_dry_run) { error_log("DRY RUN: Would execute: " . $delete_card_command); } 
             else { shell_exec($delete_card_command . " 2>&1"); }
-            $deletes_sent++;
         }
         
         $card_count = 0;
@@ -101,28 +88,8 @@ function fsbhoa_perform_full_sync() {
             $card_count++;
             set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => "Checking card $card_count/" . count($db_cards) . " on '$friendly_name'..."], MINUTE_IN_SECONDS * 10);
             
-            // Get all permissions calculated for this cardholder
-            $all_perms_for_card = $all_cardholders_permissions[$cardholder->id] ?? null;
-
-            // Filter these permissions to only include doors on the CURRENT controller
-            $perms_for_this_controller = [];
-            if ($all_perms_for_card && !isset($all_perms_for_card['all_access'])) {
-                // Get a list of all door IDs that belong to the controller we are currently syncing
-                $door_ids_on_this_controller = $wpdb->get_col($wpdb->prepare("SELECT door_record_id FROM ac_doors WHERE controller_record_id = %d", $controller_id));
-                if (!empty($door_ids_on_this_controller)) {
-                    foreach ($all_perms_for_card as $perm) {
-                        if (in_array($perm->door_id, $door_ids_on_this_controller)) {
-                            $perms_for_this_controller[] = $perm;
-                        }
-                    }
-                }
-            } elseif (isset($all_perms_for_card['all_access'])) {
-                $perms_for_this_controller = $all_perms_for_card; // 'all_access' applies to every controller
-            }
-
-            // Now, build the permission string using only the filtered list
-            $new_permissions_string = fsbhoa_build_card_permissions_string($cardholder, $perms_for_this_controller, $profile_map);
-
+            $cardholder_permissions = $all_cardholders_permissions[$cardholder->id] ?? null;
+            $new_permissions_string = fsbhoa_build_card_permissions_string($cardholder, $cardholder_permissions, $profile_map);
             $new_start_date = $cardholder->card_issue_date ?? '2000-01-01';
             $new_end_date = $cardholder->card_expiry_date ?? '2099-12-31';
             
@@ -150,7 +117,6 @@ function fsbhoa_perform_full_sync() {
                 $put_card_command = sprintf('uhppote-cli put-card %s %s %s %s %s', $device_id, $card_number, $new_start_date, $new_end_date, $new_permissions_string);
                 if ($is_dry_run) { error_log("DRY RUN: Would execute: " . $put_card_command); } 
                 else { shell_exec($put_card_command . " 2>&1"); }
-                $puts_sent++;
             }
         }
         
@@ -177,21 +143,11 @@ function fsbhoa_perform_full_sync() {
         }
         if (!$is_dry_run) { shell_exec(sprintf('uhppote-cli refresh-task-list %s 2>&1', $device_id)); } 
         else { error_log("DRY RUN: Would execute: uhppote-cli refresh-task-list " . $device_id); }
-        if (FSBHOA_DEBUG_MODE) {
-            error_log(sprintf(
-                "SYNC STATS for '%s': Found %d cards on controller. Sent %d delete commands. Sent %d put commands.",
-                $friendly_name,
-                $get_cards_count,
-                $deletes_sent,
-                $puts_sent
-            ));
-        }
     }
     
     $wpdb->query("DELETE FROM ac_pending_changes");
     $final_message = "Sync complete for all " . $total_controllers . " controllers.";
     if ($is_dry_run) { $final_message = "Dry run complete."; }
     set_transient('fsbhoa_sync_status', ['status' => 'complete', 'message' => $final_message], MINUTE_IN_SECONDS * 5);
-    error_log("Sync Complete for all controllers");
 }
 

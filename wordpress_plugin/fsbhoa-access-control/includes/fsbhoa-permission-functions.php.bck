@@ -1,5 +1,5 @@
 <?php
-// FILE: fsbhoa-permission-functions.php - DEFINITIVE LINKED PROFILE VERSION
+// File: wordpress_plugin/fsbhoa-access-control/includes/fsbhoa-permission-functions.php - DEFINITIVE VERSION
 
 if (!defined('WPINC')) { die; }
 
@@ -20,10 +20,14 @@ function fsbhoa_get_all_permission_data() {
     if ($wpdb->last_error) { return false; }
 
     $permissions_by_group = [];
-    foreach ($all_permissions as $perm) { $permissions_by_group[$perm->group_id][] = $perm; }
+    foreach ($all_permissions as $perm) {
+        $permissions_by_group[$perm->group_id][] = $perm;
+    }
 
     $groups_by_cardholder = [];
-    foreach ($all_memberships as $member) { $groups_by_cardholder[$member->cardholder_id][] = $member->group_id; }
+    foreach ($all_memberships as $member) {
+        $groups_by_cardholder[$member->cardholder_id][] = $member->group_id;
+    }
 
     return [
         'groups'                 => $all_groups,
@@ -143,10 +147,11 @@ function fsbhoa_get_final_permissions_for_group($group_id, $permission_data) {
 }
 
 /**
- * Builds a map of all unique schedule chains needed for the sync.
+ * Builds the list of unique time profiles needed for the sync.
  */
-function fsbhoa_build_profile_chains($all_cardholders_permissions) {
-    $chains_by_door = [];
+function fsbhoa_build_unique_schedules_for_sync($all_cardholders_permissions) {
+    $unique_schedules = [];
+    if (empty($all_cardholders_permissions)) return [];
     foreach ($all_cardholders_permissions as $cardholder_perms) {
         if ($cardholder_perms && !isset($cardholder_perms['all_access'])) {
             foreach ($cardholder_perms as $perm) {
@@ -156,76 +161,27 @@ function fsbhoa_build_profile_chains($all_cardholders_permissions) {
                         $signature = implode(',', $segments);
                         $schedules_by_signature[$signature][] = $day;
                     }
-
-                    if (!isset($chains_by_door[$perm->door_id])) {
-                        $chains_by_door[$perm->door_id] = [];
-                    }
-
-                    foreach($schedules_by_signature as $sig => $days) {
-                         $chains_by_door[$perm->door_id][$sig] = array_unique(array_merge($chains_by_door[$perm->door_id][$sig] ?? [], $days));
+                    foreach($schedules_by_signature as $signature => $days) {
+                        $full_signature = implode(':', $days) . '|' . $signature;
+                         if (!isset($unique_schedules[$full_signature])) {
+                            $schedule_data = ['mon' => false, 'tue' => false, 'wed' => false, 'thu' => false, 'fri' => false, 'sat' => false, 'sun' => false, 'valid_from' => '2020-01-01', 'valid_to' => '2099-12-31'];
+                            foreach($days as $day) { $schedule_data[$day] = true; }
+                            $segments = explode(',', $signature);
+                            foreach ($segments as $index => $segment) {
+                                if ($index < 3 && !empty($segment)) {
+                                    list($start, $end) = explode('-', $segment);
+                                    $schedule_data['segment_' . ($index + 1) . '_start'] = $start;
+                                    $schedule_data['segment_' . ($index + 1) . '_end'] = $end;
+                                }
+                            }
+                            $unique_schedules[$full_signature] = $schedule_data;
+                        }
                     }
                 }
             }
         }
     }
-    return $chains_by_door;
-}
-
-/**
- * Uploads all necessary time profiles to a controller, creating linked chains.
- */
-function fsbhoa_sync_time_profiles($device_id, $chains_by_door, $is_dry_run = false) {
-    $profile_map = []; // Final map: [door_id => entry_profile_id]
-    $schedule_to_profile_id = []; // Cache: [full_signature => profile_id]
-    $profile_id_counter = 2;
-
-    if (!$is_dry_run) { shell_exec(sprintf('uhppote-cli clear-time-profiles %s 2>&1', $device_id)); } 
-    else { error_log("DRY RUN: Would execute: uhppote-cli clear-time-profiles " . $device_id); }
-
-    // First pass: Pre-assign a unique profile ID to every single unique daily schedule across all doors.
-    foreach ($chains_by_door as $door_id => $schedules) {
-        foreach ($schedules as $signature => $days) {
-            sort($days);
-            $full_signature = implode(':', $days) . '|' . $signature;
-            if (!isset($schedule_to_profile_id[$full_signature])) {
-                if ($profile_id_counter > 254) { return []; }
-                $schedule_to_profile_id[$full_signature] = $profile_id_counter++;
-            }
-        }
-    }
-
-    // Second pass: Upload the profiles for each door, creating linked chains.
-    $uploaded_profiles = []; 
-    foreach ($chains_by_door as $door_id => $schedules) {
-        $schedule_keys = array_keys($schedules);
-        $entry_profile_id = 0;
-        $linked_profile_id = 0; // The end of any chain links to 0 (none).
-
-        // Build the chain in REVERSE order of the schedules array.
-        for ($i = count($schedule_keys) - 1; $i >= 0; $i--) {
-            $signature = $schedule_keys[$i];
-            $days = $schedules[$signature];
-            sort($days);
-            $full_signature = implode(':', $days) . '|' . $signature;
-            $current_profile_id = $schedule_to_profile_id[$full_signature] ?? 0;
-            if (!$current_profile_id) continue;
-            
-            $entry_profile_id = $current_profile_id; // The last one we process is the entry point.
-
-            if (!in_array($current_profile_id, $uploaded_profiles)) {
-                $weekdays = implode(',', array_map('ucfirst', $days));
-                $command = sprintf("uhppote-cli set-time-profile %s %d %s %s '%s' %d", $device_id, $current_profile_id, '2020-01-01:2099-12-31', $weekdays, $signature, $linked_profile_id);
-
-                if ($is_dry_run) { error_log("DRY RUN: Would execute: " . $command); } 
-                else { shell_exec($command . " 2>&1"); }
-                $uploaded_profiles[] = $current_profile_id;
-            }
-            // The profile we just created becomes the one the *next* one in the chain will link to.
-            $linked_profile_id = $current_profile_id;
-        }
-        $profile_map[$door_id] = $entry_profile_id;
-    }
-    return $profile_map;
+    return $unique_schedules;
 }
 
 /**
@@ -240,8 +196,19 @@ function fsbhoa_build_card_permissions_string($cardholder, $cardholder_permissio
     $door_perms = []; 
     foreach ($cardholder_permissions as $perm) {
         $door_obj = $wpdb->get_row($wpdb->prepare("SELECT door_number_on_controller FROM ac_doors WHERE door_record_id = %d", $perm->door_id));
-        if ($door_obj && isset($profile_map[$perm->door_id])) {
-            $door_perms[$door_obj->door_number_on_controller] = $profile_map[$perm->door_id];
+        if ($door_obj && !empty($perm->schedules)) {
+            $schedules_by_signature = [];
+            foreach((array)$perm->schedules as $day => $segments) {
+                $signature = implode(',', $segments);
+                $schedules_by_signature[$signature][] = $day;
+            }
+            foreach($schedules_by_signature as $signature => $days) {
+                $full_signature = implode(':', $days) . '|' . $signature;
+                 if (isset($profile_map[$full_signature])) {
+                    $door_perms[$door_obj->door_number_on_controller] = $profile_map[$full_signature];
+                    break; 
+                }
+            }
         }
     }
     ksort($door_perms);
@@ -251,10 +218,60 @@ function fsbhoa_build_card_permissions_string($cardholder, $cardholder_permissio
 }
 
 /**
+ * Uploads all necessary time profiles to a controller.
+ */
+function fsbhoa_sync_time_profiles($device_id, $unique_schedules, $is_dry_run = false) {
+    $profile_map = [];
+    $profile_id = 2;
+
+    if (!$is_dry_run) {
+        shell_exec(sprintf('uhppote-cli clear-time-profiles %s 2>&1', $device_id));
+    } else {
+        error_log("DRY RUN: Would execute: uhppote-cli clear-time-profiles " . $device_id);
+    }
+
+    foreach ($unique_schedules as $full_signature => $schedule_data) {
+        if ($profile_id > 254) { 
+            error_log("SYNC SERVICE ERROR: Exceeded maximum of 254 time profiles for device {$device_id}.");
+            break; 
+        }
+        $profile_map[$full_signature] = $profile_id;
+        
+        $active_dates = '2020-01-01:2099-12-31';
+        $weekdays_arr = [];
+        $days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+        foreach($days as $day) { if(!empty($schedule_data[$day])) $weekdays_arr[] = ucfirst($day); }
+        $weekdays = implode(',', $weekdays_arr);
+        
+        $segments = [];
+        for ($i = 1; $i <= 3; $i++) {
+            if (!empty($schedule_data['segment_' . $i . '_start'])) {
+                $segments[] = $schedule_data['segment_' . $i . '_start'] . '-' . $schedule_data['segment_' . $i . '_end'];
+            }
+        }
+        $segments_str = implode(',', $segments);
+
+        $command = sprintf(
+            "uhppote-cli set-time-profile %s %d %s %s '%s'",
+            $device_id, $profile_id, $active_dates, $weekdays, $segments_str
+        );
+
+        if ($is_dry_run) {
+            error_log("DRY RUN: Would execute: " . $command);
+        } else {
+            if (FSBHOA_DEBUG_MODE) { error_log("SYNC DEBUG (Time Profile): Uploading Profile ID {$profile_id} for schedule: {$full_signature}"); }
+            shell_exec($command . " 2>&1");
+        }
+        $profile_id++;
+    }
+    return $profile_map;
+}
+
+/**
  * Helper function to merge overlapping time windows.
  */
 function fsbhoa_merge_time_windows($windows) {
-    if (empty($windows) || count($windows) < 2) { return $windows ?? []; }
+    if (count($windows) < 2) { return $windows; }
     $timestamps = [];
     foreach ($windows as $window) {
         if(empty($window)) continue;

@@ -32,6 +32,28 @@ jQuery(document).ready(function($) {
         }
     });
 
+    /**
+     * Handles toggling the enabled/disabled status of a permission rule.
+     */
+    $('#permissions-container').on('click', '.toggle-permission-status', function(e) {
+        e.preventDefault();
+        
+        const $button = $(this);
+        // Find the hidden checkbox that is next to this button
+        const $checkbox = $button.siblings('.is-enabled-checkbox');
+        const $icon = $button.find('.dashicons');
+
+        // Toggle the 'checked' property of the hidden checkbox
+        const isCurrentlyEnabled = $checkbox.prop('checked');
+        $checkbox.prop('checked', !isCurrentlyEnabled);
+
+        // Update the visual icon based on the new state
+        if ($checkbox.prop('checked')) { // It is now enabled
+            $icon.removeClass('dashicons-no-alt').addClass('dashicons-yes-alt');
+        } else { // It is now disabled
+            $icon.removeClass('dashicons-yes-alt').addClass('dashicons-no-alt');
+        }
+    });
 
     /**
      * Function to toggle the visibility of the permissions section based on the checkbox.

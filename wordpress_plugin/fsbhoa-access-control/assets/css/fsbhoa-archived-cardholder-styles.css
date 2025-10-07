@@ -168,3 +168,13 @@ tr.fsbhoa-manual-record td {
 tr.fsbhoa-manual-record:hover td {
     background-color: #FDFDCC !important; /* Slightly darker yellow on hover */
 }
+
+/*
+ * Styles for the Notes column on the archived list table.
+ * Targets the 6th column and allows text to wrap.
+ */
+#fsbhoa-archived-cardholder-table td:nth-child(6),
+#fsbhoa-archived-cardholder-table th:nth-child(6) {
+    max-width: 200px; /* You can adjust this value */
+    white-space: normal; /* Allow text to wrap to new lines */
+}

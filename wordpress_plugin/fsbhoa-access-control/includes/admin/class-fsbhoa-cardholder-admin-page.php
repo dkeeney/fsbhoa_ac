@@ -148,13 +148,13 @@ class Fsbhoa_Cardholder_Admin_Page {
      */
     public function get_assignable_groups() {
         global $wpdb;
-        $groups = $wpdb->get_results("SELECT group_id, group_name FROM ac_groups WHERE is_enabled = 1 AND parent_group_id IS NULL AND is_default = 0 ORDER BY group_name ASC");
+        $groups = $wpdb->get_results("SELECT group_id, group_name FROM ac_groups WHERE is_enabled = 1 AND parent_group_id IS NULL ORDER BY group_name ASC");
         if ($wpdb->last_error) {
             // Handle or log the error appropriately
             return [];
         }
         return $groups;
-}
+    }
 
     /**
      * Fetches the current group memberships for a specific cardholder.

@@ -134,6 +134,11 @@ if ($wpdb->last_error) {
         <a href="<?php echo esc_url(remove_query_arg(['action', 'group_id'])); ?>" class="button button-secondary"><?php _e('Cancel', 'fsbhoa-ac'); ?></a>
     </div>
 
+<?php // This block will only show the visualizer when editing an existing group ?>
+<?php if ($is_new === false) : ?>
+    <hr>
+    <?php include_once 'view-group-schedule-visualizer.php'; ?>
+<?php endif; ?>
 </form>
 
 <table style="display: none;">

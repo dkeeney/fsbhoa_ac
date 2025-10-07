@@ -163,79 +163,72 @@ class FSBHOA_Groups_Actions {
         exit;
     }
     
-    /**
+/**
      * Saves the permission rules for a given group.
-     * This expands "All Gates" and "Controller" selections into individual gate rules.
+     * This version saves the abstract rules ("All Gates", "Controller") directly.
      */
     private function save_group_permissions($group_id, $permissions) {
         global $wpdb;
-        
+
+error_log('[GROUP SAVE DEBUG] Raw permissions data received: ' . print_r($permissions, true));
+
+        // Clear existing permissions for this group
         $wpdb->delete("ac_group_permissions", ['group_id' => $group_id]);
         if ($wpdb->last_error) {
+            error_log('[GROUP SAVE DEBUG] DATABASE DELETE FAILED: ' . $wpdb->last_error);
             add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error clearing old permissions: ' . $wpdb->last_error, 'error');
             return;
         }
 
         if (empty($permissions)) {
-            return;
-        }
-
-        // Get all doors once to avoid querying in a loop.
-        $all_doors = $wpdb->get_results("SELECT door_record_id, controller_record_id FROM ac_doors");
-        if ($wpdb->last_error) {
-            add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error fetching doors list: ' . $wpdb->last_error, 'error');
+            error_log('[GROUP SAVE DEBUG] Permissions array is empty. No new rules to save.');
+            fsbhoa_log_pending_change(); // Log change even if all permissions are removed
             return;
         }
 
         foreach ($permissions as $perm) {
+            // Skip any incomplete permission rows from the form
             if (empty($perm['door_id']) || empty($perm['start_time']) || empty($perm['end_time'])) {
+                error_log('[GROUP SAVE DEBUG] Skipping incomplete permission row: ' . print_r($perm, true));
                 continue;
             }
 
             $target_id = sanitize_text_field($perm['door_id']);
-            $doors_to_save = [];
+            
+            // Prepare the data for insert, starting with the schedule
+            $data_to_insert = [
+                'group_id'      => $group_id,
+                'controller_id' => null, // Default to NULL
+                'door_id'       => null, // Default to NULL
+                'is_enabled'    => isset($perm['is_enabled']) ? 1 : 0,
+                'start_time'    => sanitize_text_field($perm['start_time']),
+                'end_time'      => sanitize_text_field($perm['end_time']),
+                'on_mon'        => isset($perm['on_mon']) ? 1 : 0,
+                'on_tue'        => isset($perm['on_tue']) ? 1 : 0,
+                'on_wed'        => isset($perm['on_wed']) ? 1 : 0,
+                'on_thu'        => isset($perm['on_thu']) ? 1 : 0,
+                'on_fri'        => isset($perm['on_fri']) ? 1 : 0,
+                'on_sat'        => isset($perm['on_sat']) ? 1 : 0,
+                'on_sun'        => isset($perm['on_sun']) ? 1 : 0,
+            ];
 
+            // Set the correct ID based on the selection
             if ($target_id === 'all') {
-                // If "All Gates" is selected, add every door.
-                foreach ($all_doors as $door) {
-                    $doors_to_save[] = $door->door_record_id;
-                }
+                // For "All Gates", both controller_id and door_id remain NULL
             } elseif (strpos($target_id, 'controller-') === 0) {
-                // If a controller is selected, find all doors for that controller.
-                $controller_id = absint(str_replace('controller-', '', $target_id));
-                foreach ($all_doors as $door) {
-                    if ($door->controller_record_id == $controller_id) {
-                        $doors_to_save[] = $door->door_record_id;
-                    }
-                }
+                $data_to_insert['controller_id'] = absint(str_replace('controller-', '', $target_id));
             } else {
-                // It's an individual gate.
-                $doors_to_save[] = absint(str_replace('gate-', '', $target_id));
+                $data_to_insert['door_id'] = absint(str_replace('gate-', '', $target_id));
             }
 
-            // Now, loop through the resolved list of doors and insert a rule for each one.
-            foreach ($doors_to_save as $door_id_to_save) {
-                $data_to_insert = [
-                    'group_id'   => $group_id,
-                    'door_id'    => $door_id_to_save,
-                    'is_enabled' => isset($perm['is_enabled']) ? 1 : 0,
-                    'start_time' => sanitize_text_field($perm['start_time']),
-                    'end_time'   => sanitize_text_field($perm['end_time']),
-                    'on_mon'     => isset($perm['on_mon']) ? 1 : 0,
-                    'on_tue'     => isset($perm['on_tue']) ? 1 : 0,
-                    'on_wed'     => isset($perm['on_wed']) ? 1 : 0,
-                    'on_thu'     => isset($perm['on_thu']) ? 1 : 0,
-                    'on_fri'     => isset($perm['on_fri']) ? 1 : 0,
-                    'on_sat'     => isset($perm['on_sat']) ? 1 : 0,
-                    'on_sun'     => isset($perm['on_sun']) ? 1 : 0,
-                ];
-                $wpdb->insert("ac_group_permissions", $data_to_insert);
-
-                if ($wpdb->last_error) {
-                    add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error saving a permission rule: ' . $wpdb->last_error, 'error');
-                    // Stop processing on the first error to avoid flooding with messages.
-                    return;
-                }
+error_log('[GROUP SAVE DEBUG] Attempting to insert data: ' . print_r($data_to_insert, true));
+            $wpdb->insert("ac_group_permissions", $data_to_insert);
+            if ($wpdb->last_error) {
+                error_log('[GROUP SAVE DEBUG] DATABASE INSERT FAILED: ' . $wpdb->last_error);
+                add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error saving a permission rule: ' . $wpdb->last_error, 'error');
+                return; // Stop on the first error
+            } else {
+                error_log('[GROUP SAVE DEBUG] Successfully inserted permission rule.');
             }
         }
         fsbhoa_log_pending_change();

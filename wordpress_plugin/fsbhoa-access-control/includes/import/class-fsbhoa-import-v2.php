@@ -625,6 +625,16 @@ error_log("[IMPORT DEBUG] DID NOT FIND a property record. Will attempt to create
                     if ($result === false) {
                         throw new Exception("DB error inserting cardholder '{$cardholder_data['first_name']} {$cardholder_data['last_name']}'. DB Error: " . $this->wpdb->last_error);
                     }
+$new_cardholder_id = $this->wpdb->insert_id;
+                    $default_groups = $this->wpdb->get_col("SELECT group_id FROM ac_groups WHERE is_default = 1");
+                    if (!empty($default_groups)) {
+                        foreach ($default_groups as $group_id) {
+                            $this->wpdb->insert('ac_cardholder_groups', [
+                                'cardholder_id' => $new_cardholder_id,
+                                'group_id' => $group_id
+                            ]);
+                        }
+                    }
                 }
                 $stats['cardholders_created']++;
             }

@@ -18,6 +18,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
         add_action( 'admin_post_fsbhoa_restore_archived_cardholder', [ $this, 'handle_restore_action' ] );
         add_action( 'admin_post_fsbhoa_purge_archived_cardholder', [ $this, 'handle_purge_action' ] );
         add_action( 'admin_post_fsbhoa_confirm_merge', [ $this, 'handle_confirm_merge_action' ] );
+        add_action( 'admin_post_fsbhoa_update_archived_notes', [ $this, 'handle_update_archived_notes_action' ] );
     }
 
     /**
@@ -272,4 +273,45 @@ class Fsbhoa_Archived_Cardholder_Actions {
         wp_safe_redirect( $redirect_url );
         exit;
     }
+
+    /**
+     * Handles updating the notes for a single archived cardholder.
+     */
+    public function handle_update_archived_notes_action() {
+        global $wpdb;
+
+        // Security and permission checks
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'fsbhoa_update_archived_notes_nonce')) {
+            wp_die('Security check failed.', 'Error', ['back_link' => true]);
+        }
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have permission to perform this action.', 'Error', ['back_link' => true]);
+        }
+
+        $cardholder_id = isset($_POST['cardholder_id']) ? absint($_POST['cardholder_id']) : 0;
+        if (!$cardholder_id) {
+            wp_die('Invalid cardholder ID.', 'Error', ['back_link' => true]);
+        }
+
+        // Sanitize and update the notes
+        $notes = isset($_POST['notes']) ? sanitize_textarea_field(wp_unslash($_POST['notes'])) : '';
+        $result = $wpdb->update(
+            'ac_cardholders',
+            ['notes' => $notes],
+            ['id' => $cardholder_id],
+            ['%s'],
+            ['%d']
+        );
+
+        if ($result === false) {
+            wp_die('Database error while updating notes.', 'Error', ['back_link' => true]);
+        }
+        
+        // Redirect back to the preview page with a success message
+        $redirect_url = wp_get_referer();
+        $redirect_url = add_query_arg('message', 'notes_updated', $redirect_url);
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+
 }

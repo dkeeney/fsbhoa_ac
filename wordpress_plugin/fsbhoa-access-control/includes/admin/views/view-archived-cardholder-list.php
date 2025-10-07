@@ -53,6 +53,7 @@ function fsbhoa_render_archived_cardholder_list_view() {
                 <th><?php esc_html_e( 'Property', 'fsbhoa-ac' ); ?></th>
                 <th><?php esc_html_e( 'Email', 'fsbhoa-ac' ); ?></th>
                 <th><?php esc_html_e( 'Date Archived', 'fsbhoa-ac' ); ?></th>
+                <th><?php esc_html_e( 'Notes', 'fsbhoa-ac' ); ?></th>
             </tr>
         </thead>
         <tbody>
@@ -104,6 +105,7 @@ function fsbhoa_render_archived_cardholder_list_view() {
                     <td><?php echo esc_html( $cardholder['street_address'] ?? 'N/A' ); ?></td>
                     <td><?php echo esc_html( $cardholder['email'] ); ?></td>
                     <td><?php echo !empty($cardholder['deleted_at']) ? esc_html( date( 'Y-m-d H:i:s', strtotime( $cardholder['deleted_at'] ) ) ) : 'N/A'; ?></td>
+                    <td><?php echo esc_html( $cardholder['notes'] ); ?></td>
                 </tr>
             <?php endforeach;
               endif;

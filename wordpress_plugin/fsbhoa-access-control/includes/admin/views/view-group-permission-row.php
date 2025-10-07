@@ -13,12 +13,22 @@ if (!defined('WPINC')) {
  * @var array       $all_doors       List of all available doors.
  * @var array       $all_controllers List of all available controllers.
  */
+
+// NEW: Determine the selected value for the dropdown based on the new schema
+$selected_value = '';
+if (isset($perm)) {
+    if ($perm->door_id !== null) {
+        $selected_value = 'gate-' . $perm->door_id;
+    } elseif ($perm->controller_id !== null) {
+        $selected_value = 'controller-' . $perm->controller_id;
+    } elseif ($perm->door_id === null && $perm->controller_id === null) {
+        $selected_value = 'all';
+    }
+}
 ?>
 <tr class="permission-row">
     <td class="actions-column">
-        <!-- Hidden checkbox that holds the actual value -->
         <input type="checkbox" class="is-enabled-checkbox" name="permissions[<?php echo $index; ?>][is_enabled]" value="1" <?php checked($perm->is_enabled ?? 1, 1); ?> style="display: none;">
-        <!-- Visible icon that acts as a toggle button -->
         <button type="button" class="button-link-delete toggle-permission-status" title="Toggle Status">
             <span class="dashicons <?php echo ($perm->is_enabled ?? 1) ? 'dashicons-yes-alt' : 'dashicons-no-alt'; ?>"></span>
         </button>
@@ -27,15 +37,13 @@ if (!defined('WPINC')) {
     <td>
         <select name="permissions[<?php echo $index; ?>][door_id]" required>
             <option value=""><?php _e('-- Select a Target --', 'fsbhoa-ac'); ?></option>
-            <option value="all" <?php selected($perm->door_id ?? '', 'all'); ?>>All Gates</option>
-            
+            <option value="all" <?php selected($selected_value, 'all'); ?>>All Gates</option>
+
             <?php if (!empty($all_controllers)) : ?>
                 <optgroup label="Controllers">
                     <?php foreach ($all_controllers as $controller) : ?>
-                        <?php
-                            $controller_value = 'controller-' . $controller->controller_record_id;
-                        ?>
-                        <option value="<?php echo esc_attr($controller_value); ?>" <?php selected($perm->door_id ?? '', $controller_value); ?>>
+                        <?php $controller_value = 'controller-' . $controller->controller_record_id; ?>
+                        <option value="<?php echo esc_attr($controller_value); ?>" <?php selected($selected_value, $controller_value); ?>>
                             <?php echo esc_html($controller->friendly_name); ?>
                         </option>
                     <?php endforeach; ?>
@@ -45,10 +53,8 @@ if (!defined('WPINC')) {
             <?php if (!empty($all_doors)) : ?>
                 <optgroup label="Individual Gates">
                     <?php foreach ($all_doors as $door) : ?>
-                         <?php
-                            $gate_value = 'gate-' . $door->door_record_id;
-                        ?>
-                        <option value="<?php echo esc_attr($gate_value); ?>" <?php selected('gate-' . ($perm->door_id ?? 0), $gate_value); ?>>
+                        <?php $gate_value = 'gate-' . $door->door_record_id; ?>
+                        <option value="<?php echo esc_attr($gate_value); ?>" <?php selected($selected_value, $gate_value); ?>>
                             <?php echo esc_html($door->friendly_name); ?>
                         </option>
                     <?php endforeach; ?>
@@ -72,4 +78,5 @@ if (!defined('WPINC')) {
         <label title="Sunday"><input type="checkbox" name="permissions[<?php echo $index; ?>][on_sun]" value="1" <?php checked($perm->on_sun ?? 0, 1); ?>> S</label>
     </td>
 </tr>
+
 

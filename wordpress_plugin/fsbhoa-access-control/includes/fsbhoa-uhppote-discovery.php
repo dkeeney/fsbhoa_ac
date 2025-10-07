@@ -12,13 +12,14 @@ function fsbhoa_discover_controllers_udp() {
 
     // Get the necessary network settings from WordPress options.
     $bind_address = get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0');
-    $broadcast_address = get_option('fsbhoa_ac_broadcast_addr', '0.0.0.0:0');
+    //$broadcast_address = get_option('fsbhoa_ac_broadcast_addr', '0.0.0.0:0');
+    $universal_broadcast = '255.255.255.255:60000';
 
     // Build the command with the explicit configuration flags.
     $command = sprintf(
         '/usr/local/bin/uhppote-cli --bind %s --broadcast %s get-devices 2>&1',
         escapeshellarg($bind_address),
-        escapeshellarg($broadcast_address)
+        escapeshellarg($universal_broadcast)
     );
 
     if (FSBHOA_DEBUG_MODE) {
@@ -76,7 +77,7 @@ function fsbhoa_set_controller_ip($device_id, $ip_address, $netmask, $gateway) {
     $base_command = sprintf(
         'uhppote-cli --bind %s --broadcast %s --listen %s',
         escapeshellarg(get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0')),
-        escapeshellarg(get_option('fsbhoa_ac_broadcast_addr', '0.0.0.0:0')),
+        escapeshellarg('255.255.255.255:60000'),
         escapeshellarg($listen_address)
     );
 

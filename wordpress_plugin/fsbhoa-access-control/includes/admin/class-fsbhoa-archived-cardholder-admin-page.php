@@ -109,14 +109,11 @@ class Fsbhoa_Archived_Cardholder_Admin_Page {
         $full_name = $first_name . ' ' . $last_name;
         $title = trim($cardholder['title'] ?? '');
         $photo_src = !empty($cardholder['photo']) ? 'data:image/jpeg;base64,' . base64_encode($cardholder['photo']) : '';
-
         $subtitle_text = '';
         if (!empty($title)) {
             $subtitle_text = $title;
-        } elseif (isset($cardholder['card_expiry_date']) && $cardholder['card_expiry_date'] !== '2099-12-31') {
-            $expiration_text = date('m/d/Y', strtotime($cardholder['card_expiry_date']));
-            $subtitle_text = 'Expires: ' . $expiration_text;
         }
+
         ?>
         <div class="fsbhoa-print-page-wrapper">
             <div class="fsbhoa-print-columns">
@@ -145,7 +142,6 @@ class Fsbhoa_Archived_Cardholder_Admin_Page {
                     <h3>Cardholder Details</h3>
                     <div class="details-box">
                         <p><strong>Name:</strong> <?php echo esc_html($full_name); ?></p>
-
                         <?php if (!empty($cardholder['import_first_name']) || !empty($cardholder['import_last_name'])): ?>
                             <p><strong>Formal Name:</strong> <?php echo esc_html(trim($cardholder['import_first_name'] . ' ' . $cardholder['import_last_name'])); ?></p>
                         <?php endif; ?>
@@ -158,6 +154,20 @@ class Fsbhoa_Archived_Cardholder_Admin_Page {
                         <p><strong>Email:</strong> <?php echo esc_html($cardholder['email'] ?? 'N/A'); ?></p>
                         <p><strong>Resident Type:</strong> <?php echo esc_html($cardholder['resident_type'] ?? 'N/A'); ?></p>
                     </div>
+                    
+                    <h3 style="margin-top: 1.5em;">Notes</h3>
+                    <form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="fsbhoa_update_archived_notes">
+                        <input type="hidden" name="cardholder_id" value="<?php echo esc_attr($cardholder['id']); ?>">
+                        <?php wp_nonce_field('fsbhoa_update_archived_notes_nonce'); ?>
+                        
+                        <textarea name="notes" rows="4" style="width: 100%;"><?php echo esc_textarea($cardholder['notes'] ?? ''); ?></textarea>
+                        
+                        <p class="submit" style="margin-top: 1em; padding-top: 0;">
+                            <button type="submit" class="button button-primary">Save Notes</button>
+                        </p>
+                    </form>
+
                 </div>
 
             </div>

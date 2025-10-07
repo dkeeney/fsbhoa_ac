@@ -219,6 +219,7 @@ class Fsbhoa_Ac_Settings_Page {
             'fsbhoa_ac_websocket_port'   => ['label' => 'WebSocket Service Port', 'type' => 'number', 'default' => 8083],
             'fsbhoa_ac_event_log_path'   => ['label' => 'Event Service Log Path', 'default' => '', 'desc' => 'Leave empty for console output.'],
             'fsbhoa_ac_debug_mode'       => ['label' => 'Debug Mode', 'type' => 'checkbox', 'default' => 'on'],
+            'fsbhoa_ac_sync_dry_run'    => ['label' => 'Enable Sync Dry Run', 'type' => 'checkbox', 'desc' => 'Calculates all changes but does not send commands to controllers. Logs intended actions instead.'],
             'fsbhoa_ac_test_stub'        => ['label' => 'Enable Test Stub', 'type' => 'checkbox', 'default' => 'on'],
         ];
         foreach ($event_fields as $id => $field) {

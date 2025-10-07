@@ -45,17 +45,17 @@ body.page .entry-title {
     display: block;
 }
 .form-field input[type="text"],
-.form-field input[type="email"],
-.form-field input[type="tel"],
 .form-field input[type="number"],
 .form-field input[type="date"],
+.form-field input[type="tel"],
 .form-field select,
 .form-field textarea,
 .fsbhoa-control-group input,
 .fsbhoa-control-group select {
     width: 100%;
     padding: 4px;
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 500;
     border: 1px solid #8c8f94;
     border-radius: 3px;
 }
