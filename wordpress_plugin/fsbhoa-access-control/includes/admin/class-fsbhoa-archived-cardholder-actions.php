@@ -101,7 +101,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
         
         // --- COMMIT TRANSACTION ---
         $wpdb->query( 'COMMIT' );
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('cardholder', $cardholder_id);
 
         $redirect_url = remove_query_arg( [ 'action', 'cardholder_id', '_wpnonce' ], wp_get_referer() );
         $redirect_url = add_query_arg( 'message', 'cardholder_restored', $redirect_url );
@@ -262,7 +262,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
         }
 
         $wpdb->query( 'COMMIT' );
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('cardholder', $destination_id);
         error_log("[MERGE ACTION END] Commit successful. Redirecting.");
 
         $redirect_url = get_permalink(get_page_by_path('archived-cardholders'));

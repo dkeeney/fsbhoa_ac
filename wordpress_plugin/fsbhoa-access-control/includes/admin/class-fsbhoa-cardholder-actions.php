@@ -76,7 +76,7 @@ class Fsbhoa_Cardholder_Actions {
             $error_string = $result->get_error_message();
             $redirect_url = add_query_arg( array( 'message' => 'cardholder_archive_error', 'error' => urlencode($error_string) ), $redirect_url );
         } else {
-            fsbhoa_log_pending_change();
+            fsbhoa_log_pending_change('cardholder', $item_id_to_delete );
             $redirect_url = add_query_arg( array( 'message' => 'cardholder_archived_successfully' ), $redirect_url );
         }
 
@@ -176,7 +176,7 @@ class Fsbhoa_Cardholder_Actions {
         }
 
         if ($sync_needed) {
-            fsbhoa_log_pending_change();
+            fsbhoa_log_pending_change('cardholder', $item_id);
         }
 
         if ( isset($_POST['fsbhoa_after_save_action']) && $_POST['fsbhoa_after_save_action'] === 'print' ) {

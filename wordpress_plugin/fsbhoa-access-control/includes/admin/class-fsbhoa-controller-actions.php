@@ -125,7 +125,7 @@ class Fsbhoa_Controller_Actions {
 
 		$redirect_url = add_query_arg('message', $message_code, $list_page_url);
         $redirect_url = add_query_arg('sync_started', '1', $redirect_url);
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('controller', $item_id);
 		wp_safe_redirect($redirect_url);
 		exit;
     }
@@ -153,7 +153,7 @@ class Fsbhoa_Controller_Actions {
         // This is the correct block for the delete action
         $redirect_url = remove_query_arg( ['action', 'controller_id', '_wpnonce'], $redirect_url );
         $redirect_url = add_query_arg('message', 'controller_deleted', $redirect_url);
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('controller', $item_id);
 
         wp_safe_redirect($redirect_url);
         exit;
@@ -248,7 +248,7 @@ class Fsbhoa_Controller_Actions {
         $list_page_url = remove_query_arg( 'discovery-results', $redirect_url );
 
         self::regenerate_config_file();
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('controller', $controller_id);
 
         // Add a success message to the final URL
         $final_url = add_query_arg('message', 'controller_added', $list_page_url);
@@ -287,35 +287,37 @@ class Fsbhoa_Controller_Actions {
      */
     public function ajax_get_sync_status() {
         check_ajax_referer('fsbhoa_sync_nonce', 'nonce');
-        error_log("AJAX GET STATUS: Polling function executed.");
 
-        // First, check for the "sticky" final status flag in the options table.
-        error_log("AJAX GET STATUS: >>> Checking for 'fsbhoa_sync_final_status' option.");
-        $final_status = get_option('fsbhoa_sync_final_status');
-
-        if ($final_status !== false) {
-            error_log("AJAX GET STATUS: <<< FOUND final status option: " . json_encode($final_status));
-            wp_send_json_success($final_status);
-
-            // This runs after the browser has received the 'complete' message.
-            error_log("AJAX GET STATUS: >>> Deleting 'fsbhoa_sync_final_status' option.");
-            delete_option('fsbhoa_sync_final_status');
-            error_log("AJAX GET STATUS: <<< Deleted final status option. Terminating poll check.");
-            return; // We are done.
+        global $wpdb;
+        $count = $wpdb->get_var("SELECT COUNT(*) FROM ac_pending_changes");
+        $transient = get_transient('fsbhoa_sync_status');
+    
+        // If the transient is gone but the count is 0, the sync is complete.
+        if ( $count == 0 ) {
+            wp_send_json_success([
+                'count'   => 0,
+                'status'  => 'complete',
+                'message' => 'Sync complete!',
+            ]);
+            return;
         }
-        error_log("AJAX GET STATUS: <<< Final status option NOT found.");
 
-        // If no final flag was found, check for a normal 'in-progress' transient.
-        error_log("AJAX GET STATUS: >>> Checking for 'fsbhoa_sync_status' transient.");
-        $in_progress_status = get_transient('fsbhoa_sync_status');
-
-        if ($in_progress_status !== false) {
-            error_log("AJAX GET STATUS: <<< FOUND in-progress transient: " . json_encode($in_progress_status));
-            wp_send_json_success($in_progress_status);
-        } else {
-            error_log("AJAX GET STATUS: <<< In-progress transient NOT found. Sending 'idle'.");
-            wp_send_json_success(['status' => 'idle', 'message' => '']);
+        // If a transient exists, it means the sync is actively in progress.
+        if ( $transient ) {
+             wp_send_json_success([
+                'count'   => $count, // Send the current count
+                'status'  => $transient['status'],
+                'message' => $transient['message'],
+            ]);
+            return;
         }
+
+        // Otherwise, there's no transient but the count is > 0, so it's idle/stuck.
+        wp_send_json_success([
+            'count'   => $count,
+            'status'  => 'idle',
+            'message' => '',
+        ]);
     }
 
     /**
@@ -415,7 +417,7 @@ class Fsbhoa_Controller_Actions {
         shell_exec($command . " 2>&1");
 
         // Activate the sync banner by logging a pending change
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('controller', $controller_id);
 
         wp_send_json_success('Controller reset to factory defaults. Please sync the controller to apply settings.');
     }

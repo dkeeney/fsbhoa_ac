@@ -247,10 +247,6 @@ class Fsbhoa_Import_V2
         $properties_deleted = $this->cleanup_unused_properties($is_dry_run);
         $stats['properties_deleted'] = $properties_deleted;
         
-        // Only log a pending change if this is NOT a dry run
-        if (!$is_dry_run) {
-            fsbhoa_log_pending_change(); 
-        }
         $feedback_messages = [
             sprintf(__("Import complete. Processed %d rows.", 'fsbhoa-ac'), $stats['rows_processed']),
             sprintf(__("Properties Created:   %d", 'fsbhoa-ac'), $stats['properties_created']),
@@ -299,6 +295,7 @@ class Fsbhoa_Import_V2
             // If an existing person from an import is NOT in the new import file, delete them.
             if (!in_array($existing_full_name, $new_full_names)) {
                 if ($db_cardholder->origin === 'import') {
+
                     // Only archive if it's not a dry run
                     if (!$is_dry_run) {
                         $result = fsbhoa_archive_and_delete_cardholder($db_cardholder->id);

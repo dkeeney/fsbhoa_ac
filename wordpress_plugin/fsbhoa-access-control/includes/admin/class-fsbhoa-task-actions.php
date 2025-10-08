@@ -74,7 +74,7 @@ class Fsbhoa_Task_Actions {
             wp_die('Database operation failed. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true]);
         }
 
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('tasks');
 
         $redirect_url = remove_query_arg(['action', 'task_id'], wp_get_referer());
         $redirect_url = add_query_arg('sync_started', '1', $redirect_url);
@@ -94,7 +94,7 @@ class Fsbhoa_Task_Actions {
             wp_die('Database delete operation failed. DB Error: ' . esc_html( $wpdb->last_error ), 'Error', ['back_link' => true]);
         }
         // Request the background sync to push changes to the hardware.
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('tasks');
         
         
         $redirect_url = remove_query_arg(['action', 'task_id', '_wpnonce'], wp_get_referer());
@@ -125,7 +125,7 @@ class Fsbhoa_Task_Actions {
         }
 
         // request a background sync to push the change
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('tasks');
 
         // Redirect back to the task list with a sync flag
         $redirect_url = remove_query_arg(['action', 'task_id', '_wpnonce'], wp_get_referer());

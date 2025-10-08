@@ -54,6 +54,7 @@ function fsbhoa_archive_and_delete_cardholder( $cardholder_id ) {
         // This is a critical failure, but the user is already archived. Log it.
         error_log( 'FSBHOA SECURITY WARNING: Failed to delete group memberships for archived cardholder ID ' . $cardholder_id . '. DB Error: ' . $wpdb->last_error );
     }
+    fsbhoa_log_pending_change('cardholder', $cardholder_id);
 
     return true;
 }
@@ -74,9 +75,11 @@ function fsbhoa_get_event_description($event_type, $door, $granted) {
         case 6:
             return 'Access Denied: Outside Allowed Hours';
         case 7:
-            return 'Access Denied: Door is Locked';
+            return 'Access Denied: Gate is Locked';
         case 8:
-            return 'Access Denied: Door is Unlocked';
+            return 'Access Allowed: Gate is Unlocked';
+        case 15:
+            return 'Access Denied: Has no permissions on this Gate';
         
         // MODIFIED: Make the default more helpful for debugging
         default:

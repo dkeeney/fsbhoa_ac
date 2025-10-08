@@ -8,13 +8,21 @@ if ( ! defined( 'WPINC' ) ) {
  * Logs that a change has occurred which requires a sync to the controllers.
  * This adds a single row to the pending changes table.
  */
-function fsbhoa_log_pending_change() {
+function fsbhoa_log_pending_change($change_type = 'generic', $record_id = null) {
     global $wpdb;
     $table_name = 'ac_pending_changes';
 
-    // Insert a dummy row. We only care about the COUNT, so the data doesn't matter.
-    // A column named 'id' with AUTO_INCREMENT is all that's needed.
-    $wpdb->query("INSERT INTO {$table_name} (id) VALUES (NULL)");
+    // Don't log if a sync is already pending. We only care that *something* changed.
+    // This is a simple way to keep the table small. A more advanced system might update timestamps.
+    $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+    if ($count > 0 && $change_type === 'generic') {
+        return; // Don't flood the log with generic changes if a specific one is already there.
+    }
+
+    $wpdb->insert($table_name, [
+        'change_type' => $change_type,
+        'record_id'   => $record_id
+    ]);
 
     if ($wpdb->last_error) {
         error_log('FSBHOA SYNC ERROR: Could not log a pending change. ' . $wpdb->last_error);
@@ -22,27 +30,3 @@ function fsbhoa_log_pending_change() {
 }
 
 
-/**
- * AJAX handler to get the current status of the sync process.
- * Returns a JSON object with the count of pending changes and the last status message.
- */
-function fsbhoa_ajax_get_sync_status() {
-    // Nonce check for security
-    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fsbhoa_sync_nonce')) {
-        wp_send_json_error('Invalid security nonce.', 403);
-        return;
-    }
-    
-    global $wpdb;
-    $count = $wpdb->get_var("SELECT COUNT(*) FROM ac_pending_changes");
-    $transient = get_transient('fsbhoa_sync_status');
-
-    $response_data = [
-        'count'   => absint($count),
-        'status'  => $transient ? $transient['status'] : 'idle', // e.g., 'in_progress' or 'idle'
-        'message' => $transient ? $transient['message'] : '',
-    ];
-    
-    wp_send_json_success($response_data);
-}
-add_action('wp_ajax_fsbhoa_get_sync_status', 'fsbhoa_ajax_get_sync_status');

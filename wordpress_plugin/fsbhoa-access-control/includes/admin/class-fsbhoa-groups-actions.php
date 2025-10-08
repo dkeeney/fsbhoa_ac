@@ -53,7 +53,7 @@ class FSBHOA_Groups_Actions {
                 add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error updating group status: ' . $wpdb->last_error, 'error');
             } else {
                 // Success
-                fsbhoa_log_pending_change();
+                fsbhoa_log_pending_change('group', $group_id);
                 $message = $new_status == 1 ? 'Group enabled successfully.' : 'Group disabled successfully.';
                 add_settings_error('fsbhoa-groups-notices', 'group_status_changed', __($message, 'fsbhoa-ac'), 'updated');
             }
@@ -88,7 +88,7 @@ class FSBHOA_Groups_Actions {
         if ($result === false) {
             add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error deleting group: ' . $wpdb->last_error, 'error');
         } else {
-            fsbhoa_log_pending_change();
+            fsbhoa_log_pending_change('group', $group_id);
             add_settings_error('fsbhoa-groups-notices', 'group_deleted', __('Group deleted successfully.', 'fsbhoa-ac'), 'updated');
         }
         set_transient('settings_errors', get_settings_errors(), 30);
@@ -150,7 +150,7 @@ class FSBHOA_Groups_Actions {
         $this->save_group_permissions($group_id, $permissions_data);
 
         // 5. Redirect with success message
-        fsbhoa_log_pending_change();
+        fsbhoa_log_pending_change('group', $group_id);
         add_settings_error('fsbhoa-groups-notices', 'group_saved', __('Group saved successfully.', 'fsbhoa-ac'), 'updated');
         set_transient('settings_errors', get_settings_errors(), 30);
         
@@ -182,7 +182,7 @@ error_log('[GROUP SAVE DEBUG] Raw permissions data received: ' . print_r($permis
 
         if (empty($permissions)) {
             error_log('[GROUP SAVE DEBUG] Permissions array is empty. No new rules to save.');
-            fsbhoa_log_pending_change(); // Log change even if all permissions are removed
+            fsbhoa_log_pending_change('group', $group_id); // Log change even if all permissions are removed
             return;
         }
 
@@ -231,7 +231,6 @@ error_log('[GROUP SAVE DEBUG] Attempting to insert data: ' . print_r($data_to_in
                 error_log('[GROUP SAVE DEBUG] Successfully inserted permission rule.');
             }
         }
-        fsbhoa_log_pending_change();
     }
 }
 
