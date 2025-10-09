@@ -61,5 +61,38 @@ jQuery(document).ready(function($) {
             }
         });
     });
-});
 
+
+// Handler for the Force Full Rebuild button
+    $('body').on('click', '#fsbhoa-trigger-rebuild-button', function() {
+        if (!confirm('This will perform a FULL rebuild, wiping all cards from all controllers and reprogramming them from the database. This may take several minutes. Are you sure?')) {
+            return;
+        }
+
+        const button = $(this);
+        const originalText = button.text();
+        button.text('Scheduling...').prop('disabled', true);
+
+        $.ajax({
+            url: fsbhoa_hardware_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'fsbhoa_trigger_rebuild',
+                nonce: fsbhoa_hardware_vars.rebuild_nonce,
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Reload the page. The sync banner will automatically appear and show progress.
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + response.data);
+                    button.text(originalText).prop('disabled', false);
+                }
+            },
+            error: function() {
+                alert('An unknown error occurred while communicating with the server.');
+                button.text(originalText).prop('disabled', false);
+            }
+        });
+    });
+});

@@ -12,6 +12,7 @@ class Fsbhoa_Controller_Actions {
         add_action('wp_ajax_fsbhoa_sync_all_controllers', [ $this, 'ajax_handle_sync_all' ]);
         add_action('wp_ajax_fsbhoa_get_sync_status', [ $this, 'ajax_get_sync_status' ]);
         add_action('wp_ajax_fsbhoa_factory_reset', array($this, 'ajax_factory_reset_controller'));
+        add_action('wp_ajax_fsbhoa_trigger_rebuild', [ $this, 'ajax_trigger_nightly_rebuild' ]);
     }
 
     public function handle_form_submission() {
@@ -421,4 +422,27 @@ class Fsbhoa_Controller_Actions {
 
         wp_send_json_success('Controller reset to factory defaults. Please sync the controller to apply settings.');
     }
+
+
+    /**
+     * AJAX handler to kick off the background nightly rebuild process on demand.
+     */
+    public function ajax_trigger_nightly_rebuild() {
+        check_ajax_referer('fsbhoa_rebuild_nonce', 'nonce');
+
+        // Prevent duplicates if a rebuild is already scheduled.
+        if (wp_next_scheduled('fsbhoa_run_nightly_rebuild')) {
+            wp_send_json_error('A rebuild is already in progress or scheduled.');
+            return;
+        }
+
+        // Set the initial transient so the sync banner appears immediately on page reload.
+        set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => 'Full rebuild scheduled...'], MINUTE_IN_SECONDS * 10);
+        fsbhoa_log_pending_change('generic');
+        // Schedule the event to run in the background.
+        wp_schedule_single_event(time(), 'fsbhoa_run_nightly_rebuild');
+
+        wp_send_json_success('Full rebuild process has been scheduled.');
+    }
+
 }

@@ -67,11 +67,15 @@ function fsbhoa_perform_nightly_rebuild_sync() {
     set_time_limit(600); 
     global $wpdb;
 
+    $is_dry_run = (get_option('fsbhoa_ac_sync_dry_run') === 'on');
+    if ($is_dry_run) { error_log("NIGHTLY REBUILD: --- DRY RUN MODE ENABLED ---"); }
+
+
     $cardholders_to_sync = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status = 'active'");
     $permission_data = fsbhoa_get_all_permission_data();
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers");
 
-    fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, [], true, false, true);
+    fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, [], true, $is_dry_run, true);
 }
 
 function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $cardholders_to_delete, $task_sync_needed, $is_dry_run, $is_rebuild) {
@@ -99,6 +103,12 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
     }
 
     foreach ($controllers as $controller) {
+        // Update the transient to show which controller is being processed.
+        set_transient('fsbhoa_sync_status', [
+            'status'  => 'in_progress',
+            'message' => 'Processing controller: ' . esc_html($controller->friendly_name) . '...'
+        ], MINUTE_IN_SECONDS * 10);
+
         $device_id = $controller->uhppoted_device_id;
         $controller_id = $controller->controller_record_id;
         $friendly_name = $controller->friendly_name;

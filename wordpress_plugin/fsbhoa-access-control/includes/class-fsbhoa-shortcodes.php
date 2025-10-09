@@ -92,8 +92,15 @@ class Fsbhoa_Shortcodes {
 
         // ASSETS FOR: sync.  They are used by every shortcode
         wp_enqueue_script('fsbhoa-sync-script', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-sync-admin.js', ['jquery'], FSBHOA_AC_PLUGIN_VERSION, true);
-        wp_localize_script('fsbhoa-sync-script', 'fsbhoa_sync_vars', [ 'ajax_url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('fsbhoa_sync_nonce')]);
 
+        $sync_status_transient = get_transient('fsbhoa_sync_status');
+        $is_sync_in_progress = ($sync_status_transient && isset($sync_status_transient['status']) && $sync_status_transient['status'] === 'in_progress');
+
+        wp_localize_script('fsbhoa-sync-script', 'fsbhoa_sync_vars', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('fsbhoa_sync_nonce'),
+            'is_sync_in_progress' => $is_sync_in_progress
+        ]);
 
 
         // ASSETS FOR: [fsbhoa_cardholder_management]
@@ -176,7 +183,8 @@ class Fsbhoa_Shortcodes {
                 array(
                     'ajax_url'      => admin_url('admin-ajax.php'),
                     'discovery_nonce' => wp_create_nonce('fsbhoa_discovery_nonce'), // For other functions in that file
-                    'reset_nonce'   => wp_create_nonce('fsbhoa_factory_reset_nonce')   // For our new button
+                    'reset_nonce'   => wp_create_nonce('fsbhoa_factory_reset_nonce'),   // For our new button
+                    'rebuild_nonce' => wp_create_nonce('fsbhoa_rebuild_nonce')  // For rebuild button
                 )
             );
 

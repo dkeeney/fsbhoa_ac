@@ -5,6 +5,16 @@ jQuery(document).ready(function($) {
     const syncButton = $('#fsbhoa-sync-banner-button');
     const syncMessageSpan = $('#fsbhoa-sync-banner-message');
     let pollingInterval = null;
+    
+    // Check if a sync is already in progress on page load
+    if (fsbhoa_sync_vars.is_sync_in_progress) {
+        // Update UI to reflect the in-progress state
+        syncButton.prop('disabled', true).text('Syncing...');
+        
+        // Start polling immediately
+        setTimeout(pollSyncStatus, 500); // Check status almost instantly
+        pollingInterval = setInterval(pollSyncStatus, 1000); // Then check every 1 seconds
+    }
 
     function startSync() {
         if (syncButton.prop('disabled')) {
