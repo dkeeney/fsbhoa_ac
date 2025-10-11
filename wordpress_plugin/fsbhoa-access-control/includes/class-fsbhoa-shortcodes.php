@@ -16,7 +16,6 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_reports', array( $this, 'render_reports_shortcode' ) );
         add_shortcode( 'fsbhoa_usage_analytics', array( $this, 'render_analytics_shortcode' ) );
         add_shortcode( 'fsbhoa_amenity_management', array( $this, 'render_amenity_management_shortcode' ) );
-        add_shortcode( 'fsbhoa_groups_page', [$this, 'render_groups_page']);
         add_shortcode( 'fsbhoa_cardholder_report', array( $this, 'render_cardholder_report_shortcode' ) );
         add_shortcode( 'fsbhoa_task_list', array( $this, 'render_task_list_shortcode' ) );
         add_shortcode( 'fsbhoa_archived_cardholders', array( $this, 'render_archived_cardholders_shortcode' ) );

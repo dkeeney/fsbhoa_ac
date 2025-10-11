@@ -89,9 +89,6 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-property-list-table.php';
 
-// For Permission Groups
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-groups-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-groups-actions.php';
 
 // For Schedules
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedules-actions.php';
@@ -184,9 +181,6 @@ function run_fsbhoa_action_handlers() {
          add_action('admin_notices', function() {
             echo '<div class="error"><p><strong>FSBHOA Access Control Plugin Error:</strong> The Fsbhoa_Property_Actions_Page class is missing. Property management functionality will not work.</p></div>';
         });
-    }
-    if (class_exists('FSBHOA_Groups_Actions')) {
-        new FSBHOA_Groups_Actions();
     }
 
     // Instantiate report actions handler

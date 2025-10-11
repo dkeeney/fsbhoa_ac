@@ -97,22 +97,7 @@ function fsbhoa_calculate_cardholder_permissions($cardholder_id, $permission_dat
  */
 function fsbhoa_get_final_permissions_for_group($group_id, $permission_data) {
     global $wpdb;
-    $group_hierarchy = [];
-    $current_group_id = $group_id;
-    while ($current_group_id) {
-        if (isset($permission_data['groups'][$current_group_id])) {
-            $group_hierarchy[$current_group_id] = $permission_data['groups'][$current_group_id];
-            $current_group_id = $permission_data['groups'][$current_group_id]->parent_group_id;
-        } else { $current_group_id = null; }
-    }
-    if (empty($group_hierarchy)) { return []; }
-
-    $rules_for_hierarchy = [];
-    foreach (array_keys($group_hierarchy) as $gid) {
-        if (isset($permission_data['permissions_by_group'][$gid])) {
-            $rules_for_hierarchy = array_merge($rules_for_hierarchy, $permission_data['permissions_by_group'][$gid]);
-        }
-    }
+    $rules_for_hierarchy = $permission_data['permissions_by_group'][$group_id] ?? [];
     if (empty($rules_for_hierarchy)) { return []; }
     
     $expanded_perms_by_door = [];

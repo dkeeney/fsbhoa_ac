@@ -56,7 +56,6 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
         <h2><?php echo $is_default_schedule ? 'Default ' : ''; ?>Permission Rules</h2>
         <div class="all-access-toggle">
             <label><input type="checkbox" id="has_all_access" name="has_all_access" value="1" <?php checked($has_all_access); ?> <?php disabled(!$is_default_schedule); ?>> <?php _e('Unrestricted access', 'fsbhoa-ac'); ?></label>
-            <label><input type="checkbox" name="is_default" value="1" <?php checked($group->is_default ?? 0, 1); ?> <?php disabled(!$is_default_schedule); ?>> <?php _e('Default Group', 'fsbhoa-ac'); ?></label>
         </div>
     </div>
 
@@ -75,7 +74,7 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
                 <?php
                 if (!empty($permissions)) {
                     foreach ($permissions as $index => $perm) {
-                        include FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-group-permission-row.php';
+                        include FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-permission-row.php';
                     }
                 }
                 ?>
@@ -97,7 +96,7 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
         <?php
             $index = '{{INDEX}}';
             $perm = null;
-            include FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-group-permission-row.php';
+            include FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-permission-row.php';
         ?>
     </tbody>
 </table>
@@ -108,6 +107,6 @@ if (!$is_new && isset($group->has_all_access) && !$group->has_all_access) :
     <hr>
     <?php 
     // The visualizer uses the $group_id and $schedule_id variables defined in this file's context.
-    include_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-group-schedule-visualizer.php'; 
+    include_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-schedule-visualizer.php'; 
     ?>
 <?php endif; ?>

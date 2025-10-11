@@ -56,8 +56,6 @@ class Fsbhoa_Schedule_Groups_Actions {
             'group_name'        => sanitize_text_field($_POST['group_name']),
             'group_description' => sanitize_textarea_field($_POST['group_description']),
             'has_all_access'    => isset($_POST['has_all_access']) ? 1 : 0,
-            'is_default'        => isset($_POST['is_default']) ? 1 : 0,
-            'parent_group_id'   => null, // Parent groups are obsolete
         ];
 
         if ($group_id > 0) {

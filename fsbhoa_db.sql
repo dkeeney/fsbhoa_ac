@@ -3,8 +3,8 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Aug 06, 2025 at 04:13 PM
--- Server version: 8.0.42-0ubuntu0.24.04.2
+-- Generation Time: Oct 11, 2025 at 10:57 PM
+-- Server version: 8.0.43-0ubuntu0.24.04.1
 -- PHP Version: 8.3.6
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -83,7 +83,10 @@ CREATE TABLE `ac_cardholders` (
   `resident_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'Resident Owner',
   `origin` varchar(20) NOT NULL DEFAULT 'manual' COMMENT 'Indicates if the record was from a csv import or added manually',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` datetime DEFAULT NULL,
+  `groups_csv` text COMMENT 'Comma-separated list of group IDs the user belonged to at the time of deletion.',
+  `active_rfid` varchar(8) GENERATED ALWAYS AS (if(((`card_status` in (_utf8mb4'active',_utf8mb4'inactive',_utf8mb4'disabled')) and (`rfid_id` is not null) and (`rfid_id` <> _utf8mb4'')),`rfid_id`,NULL)) STORED
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -118,38 +121,6 @@ CREATE TABLE `ac_controllers` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `ac_deleted_cardholders`
---
-
-CREATE TABLE `ac_deleted_cardholders` (
-  `id` int NOT NULL COMMENT 'The Primary Key from the original ac_cardholders table.',
-  `rfid_id` varchar(8) DEFAULT NULL,
-  `first_name` varchar(100) DEFAULT NULL,
-  `last_name` varchar(100) DEFAULT NULL,
-  `title` varchar(50) DEFAULT NULL,
-  `import_first_name` varchar(255) DEFAULT NULL,
-  `import_last_name` varchar(255) DEFAULT NULL,
-  `property_id` int DEFAULT NULL,
-  `email` varchar(255) DEFAULT NULL,
-  `email_used` tinyint(1) NOT NULL DEFAULT '0',
-  `phone` varchar(30) DEFAULT NULL,
-  `phone_type` varchar(10) DEFAULT 'Mobile',
-  `photo` longblob,
-  `card_status` varchar(20) NOT NULL DEFAULT 'inactive',
-  `notes` text,
-  `card_issue_date` date DEFAULT NULL,
-  `card_expiry_date` date NOT NULL DEFAULT '2099-12-31',
-  `resident_type` varchar(50) DEFAULT 'Resident Owner',
-  `origin` varchar(20) NOT NULL DEFAULT 'manual',
-  `created_at` datetime DEFAULT NULL,
-  `updated_at` datetime DEFAULT NULL,
-  `deleted_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `groups_csv` text COMMENT 'Comma-separated list of group IDs the user belonged to at the time of deletion.'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
 -- Table structure for table `ac_doors`
 --
 
@@ -176,11 +147,7 @@ CREATE TABLE `ac_groups` (
   `group_name` varchar(100) NOT NULL,
   `group_description` text COMMENT 'Notes field to describe the group''s purpose.',
   `is_enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT '0 = Disabled, 1 = Enabled. A disabled group grants no permissions.',
-  `has_all_access` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'If set to 1, this group has 24/7 access to all doors, overriding other permissions.',
-  `valid_from` date NOT NULL DEFAULT '2020-01-01',
-  `valid_to` date NOT NULL DEFAULT '2099-12-31',
-  `parent_group_id` int DEFAULT NULL,
-  `is_default` tinyint(1) NOT NULL DEFAULT '0'
+  `has_all_access` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'If set to 1, this group has 24/7 access to all doors, overriding other permissions.'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -192,7 +159,9 @@ CREATE TABLE `ac_groups` (
 CREATE TABLE `ac_group_permissions` (
   `permission_id` int NOT NULL,
   `group_id` int NOT NULL,
-  `door_id` int NOT NULL,
+  `schedule_id` int UNSIGNED NOT NULL DEFAULT '1',
+  `controller_id` int UNSIGNED DEFAULT NULL,
+  `door_id` int DEFAULT NULL,
   `is_enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT '0 = Disabled, 1 = Enabled.',
   `start_time` time NOT NULL,
   `end_time` time NOT NULL,
@@ -212,7 +181,9 @@ CREATE TABLE `ac_group_permissions` (
 --
 
 CREATE TABLE `ac_pending_changes` (
-  `id` int NOT NULL
+  `id` int NOT NULL,
+  `change_type` varchar(20) NOT NULL DEFAULT 'cardholder',
+  `record_id` int UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -254,11 +225,28 @@ CREATE TABLE `ac_property` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `ac_schedules`
+--
+
+CREATE TABLE `ac_schedules` (
+  `schedule_id` int UNSIGNED NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `start_date` date DEFAULT NULL,
+  `end_date` date DEFAULT NULL,
+  `is_default` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `ac_task_list`
 --
 
 CREATE TABLE `ac_task_list` (
   `id` int NOT NULL,
+  `schedule_id` int UNSIGNED NOT NULL DEFAULT '1',
   `controller_id` int DEFAULT NULL,
   `door_number` tinyint DEFAULT NULL COMMENT '1-4, or NULL for all doors on the targeted controller(s)',
   `task_type` tinyint NOT NULL COMMENT 'Numeric ID for the uhppoted task type',
@@ -306,7 +294,7 @@ ALTER TABLE `ac_amenities`
 --
 ALTER TABLE `ac_cardholders`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `idx_rfid_id_unique` (`rfid_id`),
+  ADD UNIQUE KEY `idx_active_rfid_unique` (`active_rfid`),
   ADD KEY `idx_last_name` (`last_name`),
   ADD KEY `idx_first_name` (`first_name`),
   ADD KEY `idx_property_id` (`property_id`),
@@ -332,12 +320,6 @@ ALTER TABLE `ac_controllers`
   ADD UNIQUE KEY `idx_friendly_name_unique` (`friendly_name`);
 
 --
--- Indexes for table `ac_deleted_cardholders`
---
-ALTER TABLE `ac_deleted_cardholders`
-  ADD PRIMARY KEY (`id`);
-
---
 -- Indexes for table `ac_doors`
 --
 ALTER TABLE `ac_doors`
@@ -351,8 +333,7 @@ ALTER TABLE `ac_doors`
 --
 ALTER TABLE `ac_groups`
   ADD PRIMARY KEY (`group_id`),
-  ADD UNIQUE KEY `unique_group_name` (`group_name`),
-  ADD KEY `fk_parent_group` (`parent_group_id`);
+  ADD UNIQUE KEY `unique_group_name` (`group_name`);
 
 --
 -- Indexes for table `ac_group_permissions`
@@ -360,7 +341,9 @@ ALTER TABLE `ac_groups`
 ALTER TABLE `ac_group_permissions`
   ADD PRIMARY KEY (`permission_id`),
   ADD KEY `idx_group_id` (`group_id`),
-  ADD KEY `idx_door_id` (`door_id`);
+  ADD KEY `idx_door_id` (`door_id`),
+  ADD KEY `fk_controller_id` (`controller_id`),
+  ADD KEY `fk_group_permissions_schedule` (`schedule_id`);
 
 --
 -- Indexes for table `ac_pending_changes`
@@ -389,12 +372,19 @@ ALTER TABLE `ac_property`
   ADD KEY `idx_street_name_house_number` (`street_name`,`house_number`);
 
 --
+-- Indexes for table `ac_schedules`
+--
+ALTER TABLE `ac_schedules`
+  ADD PRIMARY KEY (`schedule_id`);
+
+--
 -- Indexes for table `ac_task_list`
 --
 ALTER TABLE `ac_task_list`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_controller_id_task_list` (`controller_id`),
-  ADD KEY `idx_enabled_task_list` (`enabled`);
+  ADD KEY `idx_enabled_task_list` (`enabled`),
+  ADD KEY `fk_task_list_schedule` (`schedule_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -461,6 +451,12 @@ ALTER TABLE `ac_property`
   MODIFY `property_id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `ac_schedules`
+--
+ALTER TABLE `ac_schedules`
+  MODIFY `schedule_id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `ac_task_list`
 --
 ALTER TABLE `ac_task_list`
@@ -474,7 +470,7 @@ ALTER TABLE `ac_task_list`
 -- Constraints for table `ac_access_log`
 --
 ALTER TABLE `ac_access_log`
-  ADD CONSTRAINT `fk_ac_access_log_cardholder` FOREIGN KEY (`cardholder_id`) REFERENCES `ac_cardholders` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_ac_access_log_cardholder` FOREIGN KEY (`cardholder_id`) REFERENCES `ac_cardholders` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 --
 -- Constraints for table `ac_cardholders`
@@ -496,17 +492,12 @@ ALTER TABLE `ac_doors`
   ADD CONSTRAINT `fk_ac_doors_controller` FOREIGN KEY (`controller_record_id`) REFERENCES `ac_controllers` (`controller_record_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
--- Constraints for table `ac_groups`
---
-ALTER TABLE `ac_groups`
-  ADD CONSTRAINT `fk_parent_group` FOREIGN KEY (`parent_group_id`) REFERENCES `ac_groups` (`group_id`) ON DELETE SET NULL;
-
---
 -- Constraints for table `ac_group_permissions`
 --
 ALTER TABLE `ac_group_permissions`
-  ADD CONSTRAINT `fk_group_permissions_door` FOREIGN KEY (`door_id`) REFERENCES `ac_doors` (`door_record_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_group_permissions_group` FOREIGN KEY (`group_id`) REFERENCES `ac_groups` (`group_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `fk_group_permissions_door` FOREIGN KEY (`door_id`) REFERENCES `ac_doors` (`door_record_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_group_permissions_group` FOREIGN KEY (`group_id`) REFERENCES `ac_groups` (`group_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_group_permissions_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ac_schedules` (`schedule_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `ac_print_log`
@@ -518,7 +509,8 @@ ALTER TABLE `ac_print_log`
 -- Constraints for table `ac_task_list`
 --
 ALTER TABLE `ac_task_list`
-  ADD CONSTRAINT `fk_ac_task_list_controller` FOREIGN KEY (`controller_id`) REFERENCES `ac_controllers` (`controller_record_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_ac_task_list_controller` FOREIGN KEY (`controller_id`) REFERENCES `ac_controllers` (`controller_record_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_task_list_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ac_schedules` (`schedule_id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
