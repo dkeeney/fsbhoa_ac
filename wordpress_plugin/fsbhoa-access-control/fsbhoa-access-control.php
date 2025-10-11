@@ -93,6 +93,10 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-pro
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-groups-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-groups-actions.php';
 
+// For Schedules
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedules-actions.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-tasks-actions.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-groups-actions.php';
 
 // List Table classes
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
@@ -221,6 +225,15 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_Test_Suite_Actions();
     }
 
+    if (class_exists('Fsbhoa_Schedules_Actions')) {
+        new Fsbhoa_Schedules_Actions();
+    }
+    if (class_exists('Fsbhoa_Schedule_Tasks_Actions')) {
+        new Fsbhoa_Schedule_Tasks_Actions();
+    }
+    if (class_exists('Fsbhoa_Schedule_Groups_Actions')) {
+        new Fsbhoa_Schedule_Groups_Actions();
+    }
 
     // The Print Actions handler is only needed on its own AJAX calls.
     // Only instantiate for traditional admin-ajax requests, and explicitly NOT for REST API requests.
@@ -349,23 +362,32 @@ add_filter( 'wp_prepare_attachment_for_js', 'fsbhoa_ac_fix_svg_thumb_display', 1
 /**
  * Injects a small JavaScript snippet to remove theme padding on plugin pages.
  */
+/**
+ * Injects a small JavaScript snippet to apply style fixes on plugin pages.
+ */
 function fsbhoa_remove_theme_padding_script() {
     ?>
-    <script type="text/javascript" id="fsbhoa-padding-fix">
+    <script type="text/javascript" id="fsbhoa-style-fix">
         document.addEventListener('DOMContentLoaded', function() {
             const pluginWrap = document.querySelector('.fsbhoa-frontend-wrap');
             if (pluginWrap) {
+                // Remove extra theme padding/margin
                 const primaryContent = document.getElementById('primary');
                 if (primaryContent) {
                     primaryContent.style.paddingTop = '0';
                     primaryContent.style.marginTop = '0';
+                }
+
+                // Hide the default theme page title
+                const entryTitle = document.querySelector('.entry-title');
+                if (entryTitle) {
+                    entryTitle.style.display = 'none';
                 }
             }
         });
     </script>
     <?php
 }
-// Run this script in the footer of both front-end and admin pages.
 add_action('wp_footer', 'fsbhoa_remove_theme_padding_script');
 add_action('admin_footer', 'fsbhoa_remove_theme_padding_script');
 

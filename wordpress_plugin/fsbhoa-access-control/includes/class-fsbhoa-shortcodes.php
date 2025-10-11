@@ -20,6 +20,7 @@ class Fsbhoa_Shortcodes {
         add_shortcode( 'fsbhoa_cardholder_report', array( $this, 'render_cardholder_report_shortcode' ) );
         add_shortcode( 'fsbhoa_task_list', array( $this, 'render_task_list_shortcode' ) );
         add_shortcode( 'fsbhoa_archived_cardholders', array( $this, 'render_archived_cardholders_shortcode' ) );
+        add_shortcode( 'fsbhoa_schedules_page', [$this, 'render_schedules_page_shortcode'] );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_shortcode_assets' ) );
         add_action( 'wp_body_open', array( $this, 'display_sync_banner' ) );
     }
@@ -66,20 +67,9 @@ class Fsbhoa_Shortcodes {
     public function enqueue_shortcode_assets() {
         global $post;
 
-        if ( ! is_a( $post, 'WP_Post' )
-            || (! has_shortcode( $post->post_content, 'fsbhoa_cardholder_management' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_import_form' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_print_card' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_hardware_management' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_live_monitor' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_reports' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_usage_analytics' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_amenity_management' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_groups_page' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_task_list' )
-            && ! has_shortcode( $post->post_content, 'fsbhoa_archived_cardholders' )
-            ) ) {
+
+        // Gate keeper
+        if ( ! is_a( $post, 'WP_Post' ) || strpos($post->post_content, '[fsbhoa_') === false ) {
             return;
         }
 
@@ -88,9 +78,8 @@ class Fsbhoa_Shortcodes {
         wp_enqueue_script('jquery');
         wp_enqueue_style('dashicons');
         wp_enqueue_style('fsbhoa-shared-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-shared-styles.css', array(), FSBHOA_AC_PLUGIN_VERSION);
-        ////////wp_enqueue_style('jquery-ui-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/jquery-ui/jquery-ui.css', array(), '1.12.1');
 
-        // ASSETS FOR: sync.  They are used by every shortcode
+        // ASSETS FOR: sync banner.  They are used by every shortcode
         wp_enqueue_script('fsbhoa-sync-script', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-sync-admin.js', ['jquery'], FSBHOA_AC_PLUGIN_VERSION, true);
 
         $sync_status_transient = get_transient('fsbhoa_sync_status');
@@ -320,6 +309,44 @@ class Fsbhoa_Shortcodes {
             );
         }
 
+        // ASSETS FOR: [fsbhoa_schedules_page]
+        if ( has_shortcode( $post->post_content, 'fsbhoa_schedules_page' ) || strpos($post->post_content, '[fsbhoa_schedules_page]') !== false ) {
+            
+            wp_enqueue_style('wp-admin-styles', admin_url('css/wp-admin.min.css'));
+            wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css');
+            wp_enqueue_style('fsbhoa-schedules-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-schedules-styles.css', ['fsbhoa-shared-styles'], FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_style('fsbhoa-groups-style', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-groups.css', ['fsbhoa-shared-styles'], FSBHOA_AC_PLUGIN_VERSION);
+            wp_enqueue_style('fsbhoa-task-list-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-task-list-styles.css', ['fsbhoa-shared-styles'], FSBHOA_AC_PLUGIN_VERSION);
+            
+            wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
+
+            $handle = 'fsbhoa-schedules-admin';
+            wp_enqueue_script(
+                $handle,
+                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-schedules-admin.js',
+                ['jquery', 'datatables-script'],
+                FSBHOA_AC_PLUGIN_VERSION,
+                true
+            );
+            
+            wp_localize_script($handle, 'fsbhoa_schedules_vars', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('fsbhoa_schedules_nonce')
+            ]);
+
+            // Conditionally load the group form script only when on the edit screen
+            $action = isset($_GET['action']) ? sanitize_key($_GET['action']) : '';
+            if ($action === 'edit_group_schedule' || $action === 'add_group_schedule') {
+                wp_enqueue_script(
+                    'fsbhoa-groups-admin-js',
+                    FSBHOA_AC_PLUGIN_URL . 'assets/js/groups-admin.js',
+                    ['jquery'],
+                    FSBHOA_AC_PLUGIN_VERSION,
+                    true
+                );
+            }
+        }
+
         // ASSETS FOR: [fsbhoa_cardholder_report]
         if ( has_shortcode( $post->post_content, 'fsbhoa_cardholder_report' ) ) {
             wp_enqueue_style(
@@ -522,6 +549,20 @@ class Fsbhoa_Shortcodes {
         return ob_get_clean();
     }
 
+    public function render_schedules_page_shortcode($atts) {
+        if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+            return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
+        }
+
+        // We will need to require our new file. Let's place it here for now.
+        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedules-admin-page.php';
+
+        ob_start();
+        $schedules_page = new Fsbhoa_Schedules_Admin_Page();
+        $schedules_page->render_page();
+        return ob_get_clean();
+    }
+
     /**
      * Checks for pending changes and displays a sync banner if needed.
      * This is hooked into wp_body_open to be theme-independent.
@@ -553,4 +594,3 @@ class Fsbhoa_Shortcodes {
         <?php
     }
 }
-

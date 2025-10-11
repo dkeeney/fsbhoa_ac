@@ -1,0 +1,23 @@
+/* Hide the default theme page title on the Schedules page */
+.fsbhoa-schedules-page .entry-title {
+    display: none;
+}
+
+/* Styles for the compact, single-line schedule header */
+.schedule-header-controls { display: flex; flex-wrap: wrap; gap: 15px; padding: 1em; background-color: #f6f7f7; border: 1px solid #c3c4c7; border-radius: 4px; margin-bottom: 2em; }
+.schedule-header-controls .form-field-group { display: flex; flex-direction: column; justify-content: flex-end; margin: 0; }
+.schedule-header-controls .form-field-group label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.schedule-header-controls .form-field-group input, .schedule-header-controls .form-field-group select { margin: 0; }
+.schedule-header-controls .form-field-group.separator { border-left: 1px solid #ddd; padding-left: 15px; margin-left: 5px; }
+.schedule-header-controls .checkbox-options-inline { display: flex; gap: 15px; padding-top: 5px; }
+.schedule-header-controls .checkbox-options-inline label { font-weight: normal; display: flex; align-items: center; gap: 5px; }
+
+/* Section headers on the tab content */
+.fsbhoa-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+.fsbhoa-section-header h2 { margin: 0; padding: 0; font-size: 20px; }
+
+/* Final alignment fix for all tables on the Schedules page */
+.fsbhoa-schedules-page table.display tbody td {
+    vertical-align: middle;
+}
+

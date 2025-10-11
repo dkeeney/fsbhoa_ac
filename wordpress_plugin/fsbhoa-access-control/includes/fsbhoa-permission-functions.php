@@ -6,12 +6,15 @@ if (!defined('WPINC')) { die; }
 /**
  * Fetches all necessary group and permission data from the database.
  */
-function fsbhoa_get_all_permission_data() {
+function fsbhoa_get_all_permission_data($schedule_id = 1) {
     global $wpdb;
     $all_groups = $wpdb->get_results("SELECT * FROM ac_groups WHERE is_enabled = 1", OBJECT_K);
     if ($wpdb->last_error) { return false; }
 
-    $permissions_query = "SELECT group_id, controller_id, door_id, start_time, end_time, on_mon, on_tue, on_wed, on_thu, on_fri, on_sat, on_sun FROM ac_group_permissions WHERE is_enabled = 1";
+    $permissions_query = $wpdb->prepare(
+        "SELECT group_id, controller_id, door_id, start_time, end_time, on_mon, on_tue, on_wed, on_thu, on_fri, on_sat, on_sun FROM ac_group_permissions WHERE is_enabled = 1 AND schedule_id = %d",
+        $schedule_id
+    );
     $all_permissions = $wpdb->get_results($permissions_query);
     if ($wpdb->last_error) { return false; }
 
@@ -277,3 +280,17 @@ function fsbhoa_merge_time_windows($windows) {
     return $result;
 }
 
+
+
+/**
+ * Determines the currently active schedule ID.
+ * Looks for a holiday schedule for the current date, otherwise returns 1 for Default.
+ * @return int The active schedule ID.
+ */
+function fsbhoa_get_active_schedule_id() {
+    global $wpdb;
+    $active_id = $wpdb->get_var(
+        "SELECT schedule_id FROM ac_schedules WHERE is_default = 0 AND NOW() BETWEEN start_date AND DATE_ADD(end_date, INTERVAL 1 DAY) ORDER BY start_date DESC LIMIT 1"
+    );
+    return $active_id ? absint($active_id) : 1;
+}

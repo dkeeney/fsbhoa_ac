@@ -1,118 +1,46 @@
-
-
-
 /* Hide the page title on the FSBHOA pages */
 body.page-slug-permissions .entry-title {
     display: none;
 }
 
+/* Styles for single-line group form layout */
+.form-single-line-container { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; margin-bottom: 20px; }
+.form-field-group { display: flex; flex-direction: column; }
+.form-field-group label { font-weight: bold; margin-bottom: 5px; }
+.form-field-group input[type="text"], .form-field-group select { width: 250px; }
+.form-field-group input[type="date"] { width: 160px; }
+.form-checkbox-group-inline { flex-direction: row; gap: 15px; padding-bottom: 5px; }
+.form-single-line-container .form-field-group.save-button-group { margin-left: auto; }
+.form-row-container .compact-description { font-size: 13px; padding: 4px 8px; }
+.form-single-line-container .form-field-group.is-flexible { flex-grow: 1; }
+.form-single-line-container .form-field-group.is-flexible input { width: 100%; }
 
-/* New styles for single-line group form layout */
-.form-single-line-container {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 20px;
-    margin-bottom: 20px;
-}
-
-.form-field-group {
-    display: flex;
-    flex-direction: column;
-}
-
-.form-field-group label {
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.form-field-group input[type="text"],
-.form-field-group select {
-    width: 250px;
-}
-
-.form-field-group input[type="date"] {
-    width: 160px;
-}
-
-.form-checkbox-group-inline {
-    flex-direction: row;
-    gap: 15px;
-    padding-bottom: 5px;
-}
-
-.form-single-line-container .form-field-group.save-button-group {
-    margin-left: auto; /* Pushes the button to the far right */
-}
-
-.form-row-container .compact-description {
-    font-size: 13px;
-    padding: 4px 8px;
-}
-
-/* Styling for the header above the permissions table */
-.permissions-header {
-    display: flex;
-    align-items: center; /* Vertically aligns the title and checkbox */
-    flex-wrap: wrap; /* Allows items to wrap on very small screens */
-    margin-bottom: 1em;
-}
-
-.permissions-header h2 {
-    margin: 0 2em 0 0; /* Removes default margins and adds space to the right */
-}
-
+/* Header above the permissions table */
+.permissions-header { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 1em; }
+.permissions-header h2 { margin: 0 2em 0 0; }
 
 /* Styles for icon-only action buttons in tables */
 .actions-column {
     display: flex;
-    align-items: center;
-    gap: 8px; /* Adjust this value to add more or less space between the icons */
+    align-items: center !important; /* Force vertical centering */
+    gap: 8px;
 }
-.actions-column .button-link-delete {
-    background: none;
-    border: none;
-    padding: 0 5px;
-    cursor: pointer;
-    box-shadow: none;
-    color: #2271b1; /* Default WordPress link color */
-}
+.actions-column .button-link-delete { background: none; border: none; padding: 0 5px; cursor: pointer; box-shadow: none; color: #2271b1; }
+.actions-column .button-link-delete:hover .dashicons { color: #135e96; }
+.actions-column .button-link-delete .dashicons { font-size: 18px; vertical-align: middle; }
+.actions-column .remove-permission-rule .dashicons-trash { color: #a00; }
+.actions-column .remove-permission-rule:hover .dashicons-trash { color: #dc143c; }
+.actions-column .toggle-permission-status .dashicons-yes-alt { color: #228B22; }
+.actions-column .toggle-permission-status .dashicons-no-alt { color: #a00; }
+.actions-column a { text-decoration: none !important; }
 
-.actions-column .button-link-delete:hover .dashicons {
-    color: #135e96; /* Darker link color on hover */
-}
-
-.actions-column .button-link-delete .dashicons {
-    font-size: 18px;
-    vertical-align: middle;
-}
-
-/* Specific color for the trash icon */
-.actions-column .remove-permission-rule .dashicons-trash {
-    color: #a00;
-}
-.actions-column .remove-permission-rule:hover .dashicons-trash {
-    color: #dc143c;
-}
-
-/* Specific colors for the toggle icon */
-.actions-column .toggle-permission-status .dashicons-yes-alt {
-    color: #228B22;
-}
-.actions-column .toggle-permission-status .dashicons-no-alt {
-    color: #a00;
-}
-
-.child-row td {
-    background-color: #f9f9f9;
-}
-
-.child-indent {
-    display: inline-block;
-    margin-right: 10px;
-    color: #999;
-}
-
-.actions-column a {
-    text-decoration: none !important;
+/* Styles for hierarchical list */
+.child-row td { background-color: #f9f9f9; }
+.child-indent { display: inline-block; margin-right: 10px; color: #999; }
+/*
+ * Hyper-specific override to fix vertical alignment on the group edit
+ * permissions table, winning against conflicting theme/plugin styles.
+*/
+#group-permissions-table .actions-column {
+    vertical-align: middle !important;
 }

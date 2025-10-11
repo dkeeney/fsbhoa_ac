@@ -62,23 +62,35 @@ function fsbhoa_perform_delta_sync() {
 
 
 
+// --- Nightly Build ---
 function fsbhoa_perform_nightly_rebuild_sync() {
     error_log("NIGHTLY REBUILD: Process started.");
-    set_time_limit(600); 
+    set_time_limit(600);
     global $wpdb;
 
     $is_dry_run = (get_option('fsbhoa_ac_sync_dry_run') === 'on');
     if ($is_dry_run) { error_log("NIGHTLY REBUILD: --- DRY RUN MODE ENABLED ---"); }
 
+    // --- Find the active schedule for today ---
+    $active_schedule_id = $wpdb->get_var(
+        "SELECT schedule_id FROM ac_schedules WHERE is_default = 0 AND NOW() BETWEEN start_date AND DATE_ADD(end_date, INTERVAL 1 DAY) ORDER BY start_date DESC LIMIT 1"
+    );
+    if (!$active_schedule_id) {
+        $active_schedule_id = 1; // Default to 1 if no holiday is found
+    }
+    error_log("NIGHTLY REBUILD: Determined active schedule ID is: " . $active_schedule_id);
 
+    // Fetch permissions for the active schedule
+    $permission_data = fsbhoa_get_all_permission_data($active_schedule_id);
+    
     $cardholders_to_sync = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status = 'active'");
-    $permission_data = fsbhoa_get_all_permission_data();
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers");
 
-    fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, [], true, $is_dry_run, true);
+    //  Pass the active schedule ID to the main sync logic
+    fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, [], true, $is_dry_run, true, $active_schedule_id);
 }
 
-function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $cardholders_to_delete, $task_sync_needed, $is_dry_run, $is_rebuild) {
+function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $cardholders_to_delete, $task_sync_needed, $is_dry_run, $is_rebuild, $active_schedule_id = 1) {
     global $wpdb;
 
     if (defined('FSBHOA_DEBUG_MODE') && FSBHOA_DEBUG_MODE) {
@@ -168,7 +180,7 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
         }
 
         if ($task_sync_needed || $is_rebuild) {
-            $tasks = $wpdb->get_results("SELECT * FROM ac_task_list WHERE enabled = 1");
+            $tasks = $wpdb->get_results($wpdb->prepare("SELECT * FROM ac_task_list WHERE enabled = 1 AND schedule_id = %d", $active_schedule_id));
             if (!$is_dry_run) { shell_exec(sprintf('uhppote-cli clear-task-list %s 2>&1', $device_id)); } 
             else { error_log("DRY RUN: Would execute: uhppote-cli clear-task-list " . $device_id); }
             foreach ($tasks as $task) {

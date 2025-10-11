@@ -29,10 +29,12 @@ class Fsbhoa_Cardholder_Admin_Page {
         $cardholder_table_name = 'ac_cardholders';
         $property_table_name = 'ac_property';
         $form_data = array(
-            'first_name' => '', 'last_name' => '', 'email' => '', 'phone' => '', 'phone_type' => '', 
-            'resident_type' => '', 'property_id' => '', 'property_address_display' => '', 'photo' => null, 
-            'rfid_id' => '', 'notes' => '', 'card_status' => 'inactive', 'card_issue_date' => '', 
-            'card_expiry_date' => '',  'origin' => 'manual', 'photo_base64' => '',
+            'first_name' => '', 'last_name' => '', 'title' => '', 'email' => '', 'phone' => '', 'phone_type' => '',
+            'import_first_name' => '', 'import_last_name' => '', 'email_used' => 0,
+            'resident_type' => '', 'property_id' => '', 'property_address_display' => '', 'photo' => null,
+            'rfid_id' => '', 'notes' => '', 'card_status' => 'inactive',
+            'card_issue_date' => date('Y-m-d', strtotime('-1 day')),
+            'card_expiry_date' => '2099-12-31',  'origin' => 'manual', 'photo_base64' => '',
         );
         $errors = array();
         $is_edit_mode = ($current_page_action === 'edit_cardholder' && isset($_GET['cardholder_id']));

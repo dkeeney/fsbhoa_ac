@@ -8,18 +8,14 @@ body.page .entry-title {
 }
 
 /* --- Main Plugin Wrapper & Title --- */
-/*
- * Global override to remove extra top padding from the theme's
- * main content area on all FSBHOA plugin pages.
- */
 #primary:has(.fsbhoa-frontend-wrap) {
     padding-top: 0;
 }
 .fsbhoa-frontend-wrap {
-    display: block;         /* Ensure it's treated as a block */
-    box-sizing: border-box; /* A good practice for consistent sizing */
-    width: 100%;            /* Tell it to be 100% of the available space... */
-    max-width: 850px;       /* But no wider than this */
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 850px;
     margin: 0.5em auto 2em;
 }
 .fsbhoa-frontend-wrap h1 {
@@ -29,12 +25,8 @@ body.page .entry-title {
     padding-bottom: 5px;
     border-bottom: 1px solid #ddd;
 }
-/* --- container specifically for form views --- */
 .fsbhoa-frontend-wrap.is-form-view {
-    max-width: 700px; 
-}
-body.page .entry-title {
-    display: none !important; /* Hides theme's page title */
+    max-width: 700px;
 }
 
 /* --- Basic Form Element Appearance --- */
@@ -80,129 +72,34 @@ body.page .entry-title {
 .dataTables_paginate .paginate_button.disabled, .dataTables_paginate .paginate_button.disabled:hover { cursor: default; color: #999 !important; }
 .dataTables_info { padding-top: 0.8em; font-size: 13px; }
 
-
-/* Make controller and door forms more compact */
-#fsbhoa-controller-form .form-table,
-#fsbhoa-door-form .form-table {
-    max-width: 800px;
-}
-
 /* Wider layout specifically for task list and forms */
 .fsbhoa-frontend-wrap.is-wide-view {
     max-width: 800px;
 }
 
-/* For wide forms like the task form, be more specific to override the 600px rule */
+/* For wide forms like the task form, be more specific */
 .fsbhoa-frontend-wrap.is-form-view.is-wide-view {
     max-width: 800px;
 }
 
-/* For System management screen */
-.wrap .fsbhoa-status-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: bold;
-}
+/* System Status Indicators */
+.wrap .fsbhoa-status-indicator { display: inline-flex; align-items: center; gap: 6px; font-weight: bold; }
+.wrap .fsbhoa-status-indicator::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #9ca3af; }
+.wrap .fsbhoa-status-indicator.is-running { color: #166534 !important; }
+.wrap .fsbhoa-status-indicator.is-running::before { background-color: #22c55e; }
+.wrap .fsbhoa-status-indicator.is-stopped { color: #991b1b !important; }
+.wrap .fsbhoa-status-indicator.is-stopped::before { background-color: #ef4444; }
 
-.wrap .fsbhoa-status-indicator::before {
-    content: '';
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: #9ca3af; /* Gray for 'checking' */
-}
+/* jQuery UI Autocomplete Styles */
+.ui-autocomplete { background-color: #ffffff; border: 1px solid #c5c5c5; z-index: 99999; list-style: none; padding: 5px 0; margin: 0; max-height: 250px; overflow-y: auto; overflow-x: hidden; }
+.ui-menu-item { padding: 5px 10px; cursor: pointer; }
+.ui-autocomplete .ui-menu-item:hover, .ui-autocomplete .ui-menu-item.ui-state-active { background-color: #0073aa; color: #fff; border: none; }
 
-.wrap .fsbhoa-status-indicator.is-running {
-    color: #166534 !important; /* Green */
-}
-.wrap .fsbhoa-status-indicator.is-running::before {
-    background-color: #22c55e;
-}
+/* Sync Banner Styles */
+#fsbhoa-sync-banner { position: fixed; top: 32px; left: 0; width: 100%; background-color: #dc3232; color: #fff; z-index: 99998; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+body:not(.admin-bar) #fsbhoa-sync-banner { top: 0; }
+.fsbhoa-sync-banner-content { display: flex; align-items: center; justify-content: center; padding: 10px 20px; font-size: 14px; font-weight: 600; }
+#fsbhoa-sync-banner .dashicons-warning { margin-right: 8px; font-size: 20px; height: 20px; width: 20px; }
+#fsbhoa-sync-banner .button-primary { margin-left: 20px; background: #fff !important; color: #dc3232 !important; border-color: #fff !important; text-transform: none; padding: 2px 10px; font-size: 13px; height: auto; line-height: 1.8; }
+#fsbhoa-sync-banner .button-primary:hover { background: #f0f0f1 !important; border-color: #f0f0f1 !important; }
 
-.wrap .fsbhoa-status-indicator.is-stopped {
-    color: #991b1b !important; /* Red */
-}
-.wrap .fsbhoa-status-indicator.is-stopped::before {
-    background-color: #ef4444;
-}
-
-/* ==========================================================================
-   jQuery UI Autocomplete Styles
-   ========================================================================== */
-.ui-autocomplete {
-    background-color: #ffffff;
-    border: 1px solid #c5c5c5;
-    z-index: 99999; /* Ensure it appears on top of all other elements */
-    list-style: none;
-    padding: 5px 0;
-    margin: 0;
-    max-height: 250px;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-.ui-menu-item {
-    padding: 5px 10px;
-    cursor: pointer;
-}
-
-.ui-autocomplete .ui-menu-item:hover,
-.ui-autocomplete .ui-menu-item.ui-state-active {
-    background-color: #0073aa; /* WordPress blue for hover/active */
-    color: #fff;
-    border: none;
-}
-
-
-/* ==========================================================================
-   Sync Banner Styles
-   ========================================================================== */
-#fsbhoa-sync-banner {
-    position: fixed;
-    top: 32px; /* Default position below the WP Admin Bar */
-    left: 0;
-    width: 100%;
-    background-color: #dc3232; /* WordPress red */
-    color: #fff;
-    z-index: 99998; /* High z-index to stay on top */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-/* Adjust top position if admin bar is not showing */
-body:not(.admin-bar) #fsbhoa-sync-banner {
-    top: 0;
-}
-
-.fsbhoa-sync-banner-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-#fsbhoa-sync-banner .dashicons-warning {
-    margin-right: 8px;
-    font-size: 20px;
-    height: 20px;
-    width: 20px;
-}
-
-#fsbhoa-sync-banner .button-primary {
-    margin-left: 20px;
-    background: #fff !important;
-    color: #dc3232 !important;
-    border-color: #fff !important;
-    text-transform: none;
-    padding: 2px 10px;
-    font-size: 13px;
-    height: auto;
-    line-height: 1.8;
-}
-#fsbhoa-sync-banner .button-primary:hover {
-    background: #f0f0f1 !important;
-    border-color: #f0f0f1 !important;
-}

@@ -11,76 +11,45 @@ if (!defined('WPINC')) {
  */
 class FSBHOA_Groups_Actions {
 
-    /**
-     * Constructor. Hooks into the appropriate admin_post actions.
-     */
     public function __construct() {
         add_action('admin_post_fsbhoa_save_group', [$this, 'handle_save_group']);
         add_action('admin_post_fsbhoa_delete_group', [$this, 'handle_delete_group']);
         add_action('admin_post_fsbhoa_toggle_group_status', [$this, 'handle_toggle_group_status']);
     }
 
-    /**
-     * Handles the request to enable or disable a group.
-     */
     public function handle_toggle_group_status() {
-        // 1. Get the group ID from the URL.
         $group_id = isset($_GET['group_id']) ? absint($_GET['group_id']) : 0;
-
-        // 2. Security Checks
-        if ($group_id === 0) {
-            wp_die('Invalid group ID.');
-        }
+        if ($group_id === 0) { wp_die('Invalid group ID.'); }
         check_admin_referer('fsbhoa_toggle_status_action_' . $group_id, 'fsbhoa_toggle_status_nonce');
-        if (!current_user_can('manage_options')) {
-            wp_die('You do not have permission to change group status.');
-        }
+        if (!current_user_can('manage_options')) { wp_die('You do not have permission to change group status.'); }
 
-        // 3. Database Operation
         global $wpdb;
-        // Get the current status
         $current_status = $wpdb->get_var($wpdb->prepare("SELECT is_enabled FROM ac_groups WHERE group_id = %d", $group_id));
 
         if ($current_status === null) {
             add_settings_error('fsbhoa-groups-notices', 'db_error', 'Could not find group to update.', 'error');
         } else {
-            // Toggle the status (if it's 1, make it 0; if it's 0, make it 1).
             $new_status = $current_status == 1 ? 0 : 1;
             $result = $wpdb->update('ac_groups', ['is_enabled' => $new_status], ['group_id' => $group_id], ['%d'], ['%d']);
-            
             if ($result === false) {
-                // Error
                 add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error updating group status: ' . $wpdb->last_error, 'error');
             } else {
-                // Success
                 fsbhoa_log_pending_change('group', $group_id);
                 $message = $new_status == 1 ? 'Group enabled successfully.' : 'Group disabled successfully.';
                 add_settings_error('fsbhoa-groups-notices', 'group_status_changed', __($message, 'fsbhoa-ac'), 'updated');
             }
         }
-        
-        // 4. Set notice and redirect
         set_transient('settings_errors', get_settings_errors(), 30);
-        
-        // Redirect back to the main list page.
         $redirect_url = remove_query_arg(['action', 'group_id', 'fsbhoa_toggle_status_nonce'], wp_get_referer());
         wp_safe_redirect($redirect_url);
         exit;
     }
 
-    /**
-     * Handles the request to delete a group.
-     */
     public function handle_delete_group() {
         $group_id = isset($_GET['group_id']) ? absint($_GET['group_id']) : 0;
-
-        if ($group_id === 0) {
-            wp_die('Invalid group ID.');
-        }
+        if ($group_id === 0) { wp_die('Invalid group ID.'); }
         check_admin_referer('fsbhoa_delete_group_action_' . $group_id, 'fsbhoa_delete_group_nonce');
-        if (!current_user_can('manage_options')) {
-            wp_die('You do not have permission to delete groups.');
-        }
+        if (!current_user_can('manage_options')) { wp_die('You do not have permission to delete groups.'); }
 
         global $wpdb;
         $result = $wpdb->delete('ac_groups', ['group_id' => $group_id], ['%d']);
@@ -92,24 +61,15 @@ class FSBHOA_Groups_Actions {
             add_settings_error('fsbhoa-groups-notices', 'group_deleted', __('Group deleted successfully.', 'fsbhoa-ac'), 'updated');
         }
         set_transient('settings_errors', get_settings_errors(), 30);
-        
         $redirect_url = remove_query_arg(['action', 'group_id', 'fsbhoa_delete_group_nonce'], wp_get_referer());
         wp_safe_redirect($redirect_url);
         exit;
     }
 
-    /**
-     * Handles the form submission for saving or updating a group.
-     */
     public function handle_save_group() {
-        // 1. Security Checks
         check_admin_referer('fsbhoa_save_group', 'fsbhoa_group_nonce');
+        if (!current_user_can('manage_options')) { wp_die('You do not have permission to save groups.'); }
 
-        if (!current_user_can('manage_options')) {
-            wp_die('You do not have permission to save groups.');
-        }
-
-        // 2. Data Sanitization
         global $wpdb;
         $group_id = isset($_POST['group_id']) ? absint($_POST['group_id']) : 0;
 
@@ -122,14 +82,11 @@ class FSBHOA_Groups_Actions {
             'valid_to'          => empty($_POST['valid_to']) ? '2099-12-31' : sanitize_text_field($_POST['valid_to']),
             'parent_group_id'   => isset($_POST['parent_group_id']) && absint($_POST['parent_group_id']) > 0 ? absint($_POST['parent_group_id']) : null,
         ];
-        
-        // Only set the 'is_enabled' status when creating a new group.
-        // For existing groups, this is handled by the toggle action.
+
         if ($group_id === 0) {
-            $group_data['is_enabled'] = 1; // Default new groups to enabled.
+            $group_data['is_enabled'] = 1;
         }
-        
-        // 3. Database Operation
+
         if ($group_id > 0) {
             $result = $wpdb->update("ac_groups", $group_data, ['group_id' => $group_id]);
         } else {
@@ -144,62 +101,44 @@ class FSBHOA_Groups_Actions {
              wp_safe_redirect(add_query_arg(['action' => 'edit', 'group_id' => $group_id]));
              exit;
         }
-        
-        // 4. Process Permissions Sub-table
+
         $permissions_data = isset($_POST['permissions']) ? (array) $_POST['permissions'] : [];
         $this->save_group_permissions($group_id, $permissions_data);
 
-        // 5. Redirect with success message
         fsbhoa_log_pending_change('group', $group_id);
         add_settings_error('fsbhoa-groups-notices', 'group_saved', __('Group saved successfully.', 'fsbhoa-ac'), 'updated');
         set_transient('settings_errors', get_settings_errors(), 30);
-        
+
         $redirect_url = wp_get_referer();
-        if (!$redirect_url) {
-            $redirect_url = wp_unslash($_POST['_wp_http_referer']);
-        }
+        if (!$redirect_url) { $redirect_url = wp_unslash($_POST['_wp_http_referer']); }
         $redirect_url = remove_query_arg(['action', 'group_id'], $redirect_url);
         wp_safe_redirect($redirect_url);
         exit;
     }
-    
-/**
-     * Saves the permission rules for a given group.
-     * This version saves the abstract rules ("All Gates", "Controller") directly.
-     */
+
     private function save_group_permissions($group_id, $permissions) {
         global $wpdb;
-
-error_log('[GROUP SAVE DEBUG] Raw permissions data received: ' . print_r($permissions, true));
-
-        // Clear existing permissions for this group
         $wpdb->delete("ac_group_permissions", ['group_id' => $group_id]);
         if ($wpdb->last_error) {
-            error_log('[GROUP SAVE DEBUG] DATABASE DELETE FAILED: ' . $wpdb->last_error);
             add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error clearing old permissions: ' . $wpdb->last_error, 'error');
             return;
         }
 
         if (empty($permissions)) {
-            error_log('[GROUP SAVE DEBUG] Permissions array is empty. No new rules to save.');
-            fsbhoa_log_pending_change('group', $group_id); // Log change even if all permissions are removed
+            fsbhoa_log_pending_change('group', $group_id);
             return;
         }
 
         foreach ($permissions as $perm) {
-            // Skip any incomplete permission rows from the form
             if (empty($perm['door_id']) || empty($perm['start_time']) || empty($perm['end_time'])) {
-                error_log('[GROUP SAVE DEBUG] Skipping incomplete permission row: ' . print_r($perm, true));
                 continue;
             }
 
             $target_id = sanitize_text_field($perm['door_id']);
-            
-            // Prepare the data for insert, starting with the schedule
             $data_to_insert = [
                 'group_id'      => $group_id,
-                'controller_id' => null, // Default to NULL
-                'door_id'       => null, // Default to NULL
+                'controller_id' => null,
+                'door_id'       => null,
                 'is_enabled'    => isset($perm['is_enabled']) ? 1 : 0,
                 'start_time'    => sanitize_text_field($perm['start_time']),
                 'end_time'      => sanitize_text_field($perm['end_time']),
@@ -212,25 +151,19 @@ error_log('[GROUP SAVE DEBUG] Raw permissions data received: ' . print_r($permis
                 'on_sun'        => isset($perm['on_sun']) ? 1 : 0,
             ];
 
-            // Set the correct ID based on the selection
             if ($target_id === 'all') {
-                // For "All Gates", both controller_id and door_id remain NULL
+                // IDs remain NULL
             } elseif (strpos($target_id, 'controller-') === 0) {
                 $data_to_insert['controller_id'] = absint(str_replace('controller-', '', $target_id));
             } else {
                 $data_to_insert['door_id'] = absint(str_replace('gate-', '', $target_id));
             }
 
-error_log('[GROUP SAVE DEBUG] Attempting to insert data: ' . print_r($data_to_insert, true));
             $wpdb->insert("ac_group_permissions", $data_to_insert);
             if ($wpdb->last_error) {
-                error_log('[GROUP SAVE DEBUG] DATABASE INSERT FAILED: ' . $wpdb->last_error);
                 add_settings_error('fsbhoa-groups-notices', 'db_error', 'Database error saving a permission rule: ' . $wpdb->last_error, 'error');
-                return; // Stop on the first error
-            } else {
-                error_log('[GROUP SAVE DEBUG] Successfully inserted permission rule.');
+                return;
             }
         }
     }
 }
-
