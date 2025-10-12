@@ -133,12 +133,14 @@ class Fsbhoa_Shortcodes {
             wp_enqueue_style('fsbhoa-archived-cardholder-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-archived-cardholder-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
 
             $handle = 'fsbhoa-archived-cardholder-script';
+            wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-archived-cardholder.js', ['jquery', 'jquery-ui-autocomplete', 'datatables-script', 'jquery-ui-dialog'], FSBHOA_AC_PLUGIN_VERSION, true);
             wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-archived-cardholder.js', ['jquery', 'jquery-ui-autocomplete', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
 
             // Localize settings to OUR new handle
             $ajax_settings = array(
                 'ajax_url' => admin_url('admin-ajax.php'),
-                'cardholder_search_nonce' => wp_create_nonce('fsbhoa_cardholder_search_nonce')
+                'cardholder_search_nonce' => wp_create_nonce('fsbhoa_cardholder_search_nonce'),
+                'notes_nonce' => wp_create_nonce('fsbhoa_archived_notes_nonce')
             );
             wp_localize_script($handle, 'fsbhoa_ajax_settings', $ajax_settings);
         }

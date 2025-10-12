@@ -1,180 +1,80 @@
-/* Styles for archived-cardholder's screen */
+/* --- Styles for Archived Cardholder Screen --- */
 
+/* 1. Widen the overall page container */
+body.page-slug-archived-cardholders .fsbhoa-frontend-wrap {
+    max-width: 1200px;
+}
 .fsbhoa-frontend-wrap .fsbhoa-table-controls {
     display: flex;
-    flex-direction: row;
     justify-content: space-between;
     width: 100%;
 }
 
-/* 1. Widen the Actions column to prevent wrapping */
+/* 2. Force compact, middle-aligned table cells */
+#fsbhoa-archived-cardholder-table tbody td {
+    padding: 3px 8px !important; /* Smaller vertical padding */
+    vertical-align: middle !important;
+}
+
+/* 3. Set a max-width on the Notes column to prevent it from growing too large */
+#fsbhoa-archived-cardholder-table th:nth-child(6),
+#fsbhoa-archived-cardholder-table td:nth-child(6) {
+    max-width: 350px;
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* 4. Prevent other columns from wrapping */
+#fsbhoa-archived-cardholder-table td:nth-child(2), /* Name */
+#fsbhoa-archived-cardholder-table td:nth-child(3), /* Property */
+#fsbhoa-archived-cardholder-table td:nth-child(4), /* Email */
+#fsbhoa-archived-cardholder-table td:nth-child(5)  /* Date */ {
+    white-space: nowrap;
+}
+
+/* 5. Force the Notes text to have no indentation */
+.notes-cell .notes-text-container {
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+    text-indent: 0 !important;
+}
+
+/* 6. Widen the Actions column and position the Edit button */
 #fsbhoa-archived-cardholder-table .fsbhoa-actions-column {
     width: 140px;
 }
-
-/* 2. Style the top control bar */
-.fsbhoa-table-right-controls {
-    display: flex;
-    justify-content: flex-end;
-}
-#fsbhoa-archived-cardholder-table_wrapper .fsbhoa-control-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
-}
-#fsbhoa-archived-cardholder-table_wrapper .fsbhoa-control-group input {
-    width: auto; /* Allow input to be its natural width */
-}
-
-/* --- DataTables Sorting Arrow Styles --- */
-/* Add space on the right of header cells for the arrow */
-#fsbhoa-archived-cardholder-table thead th {
+.notes-cell {
     position: relative;
-    padding-right: 25px;
+    padding-right: 40px !important;
+}
+.edit-notes-button {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    transform: translateY(-50%);
+    display: none;
+}
+tr:hover .edit-notes-button {
+    display: inline-flex;
 }
 
-/* Style the arrow icon using the Dashicons font */
+/* --- Other original styles --- */
+#fsbhoa-archived-cardholder-table_wrapper .fsbhoa-control-group { display: flex; align-items: center; gap: 0.5em; }
+#fsbhoa-archived-cardholder-table_wrapper .fsbhoa-control-group input { width: auto; }
+#fsbhoa-archived-cardholder-table thead th { position: relative; padding-right: 25px; }
 #fsbhoa-archived-cardholder-table thead .sorting::after,
 #fsbhoa-archived-cardholder-table thead .sorting_asc::after,
-#fsbhoa-archived-cardholder-table thead .sorting_desc::after {
-    font-family: 'dashicons';
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    opacity: 0.4; /* Make it subtle by default */
-    font-size: 16px;
-}
+#fsbhoa-archived-cardholder-table thead .sorting_desc::after { font-family: 'dashicons'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); opacity: 0.4; font-size: 16px; }
+#fsbhoa-archived-cardholder-table thead .sorting::after { content: '\f142'; }
+#fsbhoa-archived-cardholder-table thead .sorting_asc::after { content: '\f143'; opacity: 1; }
+#fsbhoa-archived-cardholder-table thead .sorting_desc::after { content: '\f140'; opacity: 1; }
+#fsbhoa-archived-custom-length-menu { min-width: 65px; width: auto; }
+#fsbhoa-archived-cardholder-search-input { width: auto; }
+tr.fsbhoa-manual-record td { background-color: #FFFFE0 !important; }
+tr.fsbhoa-manual-record:hover td { background-color: #FDFDCC !important; }
 
-/* Which icon to show for each state */
-#fsbhoa-archived-cardholder-table thead .sorting::after {
-    content: '\\f142'; /* Up/Down arrow icon */
-}
-#fsbhoa-archived-cardholder-table thead .sorting_asc::after {
-    content: '\\f143'; /* Down arrow icon */
-    opacity: 1;
-}
-#fsbhoa-archived-cardholder-table thead .sorting_desc::after {
-    content: '\\f140'; /* Up arrow icon */
-    opacity: 1;
-}
-
-/* Set a minimum width for the "Show Entries" dropdown on the archived cardholders page */
-#fsbhoa-archived-custom-length-menu {
-    min-width: 65px;
-    width: auto;
-}
-
-#fsbhoa-archived-cardholder-search-input {
-    width: auto;
-}
-
-/* ==========================================================================
-   Archived Cardholder Preview Layout Styles
-   ========================================================================== */
-
-#primary .fsbhoa-print-columns {
-    display: flex;
-    gap: 2em;
-    align-items: flex-start;
-}
-
-#primary .fsbhoa-card-preview-container,
-#primary .fsbhoa-cardholder-details-container {
-    flex: 1;
-    min-width: 0;
-}
-
-#primary .details-box {
-    background: #f9f9f9;
-    border: 1px solid #e5e5e5;
-    padding: 1em;
-    border-radius: 4px;
-}
-
-#primary .details-box p {
-    margin: 0 0 0.8em 0;
-    font-size: 14px;
-}
-
-#primary .details-box p:last-child {
-    margin-bottom: 0;
-}
-
-/* --- Card Preview Component Styles --- */
-.id-card-container {
-    width: 2.125in;
-    height: 3.375in;
-    border: 1px solid #333;
-    padding: 5px;
-    font-family: sans-serif;
-    background: #fff;
-    margin: 0 auto; /* Center the card in its column */
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-}
-
-.id-card-body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.id-card-photo {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 375 / 450;
-    margin-bottom: 15px;
-    flex-shrink: 0;
-    background-color: #f0f0f0;
-}
-
-.id-card-photo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.id-card-info {
-    width: 100%;
-    text-align: center;
-}
-
-.id-card-info p {
-    margin: 0 0 4px 0;
-    font-size: 12px;
-}
-
-.id-card-info p.card-name {
-    font-size: 1.8em;
-    font-weight: bold;
-    line-height: 1.0;
-}
-
-.id-card-info p.card-subtitle {
-    font-size: 1.2em;
-}
-
-
-/*
- * Styles for manually created cardholder records in the archived list table.
- */
-tr.fsbhoa-manual-record td {
-    background-color: #FFFFE0 !important; /* Light Yellow */
-}
-
-/* A slightly different hover color for the highlighted rows */
-tr.fsbhoa-manual-record:hover td {
-    background-color: #FDFDCC !important; /* Slightly darker yellow on hover */
-}
-
-/*
- * Styles for the Notes column on the archived list table.
- * Targets the 6th column and allows text to wrap.
- */
-#fsbhoa-archived-cardholder-table td:nth-child(6),
-#fsbhoa-archived-cardholder-table th:nth-child(6) {
-    max-width: 200px; /* You can adjust this value */
-    white-space: normal; /* Allow text to wrap to new lines */
+/* Make the border of the notes editor pop-up more prominent */
+.ui-dialog#fsbhoa-notes-editor-dialog {
+    border: 2px solid #444;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
 }

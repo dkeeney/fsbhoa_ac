@@ -64,9 +64,76 @@ jQuery(function($) {
         }
     }
 
+    /**
+     * Initializes the inline notes editor functionality.
+     */
+    function initNotesEditor() {
+        const dialog = $('#fsbhoa-notes-editor-dialog');
+        const table = $('#fsbhoa-archived-cardholder-table');
+
+        // Open the dialog when an edit button is clicked
+        table.on('click', '.edit-notes-button', function() {
+            const button = $(this);
+            const cell = button.closest('td');
+            const row = button.closest('tr');
+            const cardholderId = cell.data('cardholder-id');
+            const currentNotes = cell.find('.notes-text').text();
+            const cardholderName = row.find('td:nth-child(2)').text();
+
+            // Populate the dialog
+            dialog.find('#notes-editor-cardholder-name').text(cardholderName);
+            dialog.find('#notes-editor-textarea').val(currentNotes);
+            dialog.find('#notes-editor-cardholder-id').val(cardholderId);
+            
+            dialog.dialog('open');
+        });
+
+        // Initialize the jQuery UI Dialog
+        dialog.dialog({
+            autoOpen: false,
+            modal: true,
+            width: 500,
+            buttons: {
+                "Save Notes": function() {
+                    const newNotes = $('#notes-editor-textarea').val();
+                    const cardholderId = $('#notes-editor-cardholder-id').val();
+                    const currentDialog = $(this);
+
+                    $.ajax({
+                        url: fsbhoa_ajax_settings.ajax_url,
+                        type: 'POST',
+                        data: {
+                            action: 'fsbhoa_update_archived_notes',
+                            nonce: fsbhoa_ajax_settings.notes_nonce,
+                            cardholder_id: cardholderId,
+                            notes: newNotes
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Update the text in the table cell
+                                const cell = table.find(`td[data-cardholder-id="${cardholderId}"]`);
+                                cell.find('.notes-text').text(newNotes);
+                                currentDialog.dialog('close');
+                            } else {
+                                alert('Error: ' + response.data);
+                            }
+                        },
+                        error: function() {
+                            alert('An unknown AJAX error occurred.');
+                        }
+                    });
+                },
+                "Cancel": function() {
+                    $(this).dialog('close');
+                }
+            }
+        });
+    }
+
+
     // Run the initializers
     initArchivedCardholderTable();
     initMergeTool();
-
+    initNotesEditor();
 });
 

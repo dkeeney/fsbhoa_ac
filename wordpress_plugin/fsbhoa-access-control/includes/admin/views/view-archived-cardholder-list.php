@@ -105,13 +105,25 @@ function fsbhoa_render_archived_cardholder_list_view() {
                     <td><?php echo esc_html( $cardholder['street_address'] ?? 'N/A' ); ?></td>
                     <td><?php echo esc_html( $cardholder['email'] ); ?></td>
                     <td><?php echo !empty($cardholder['deleted_at']) ? esc_html( date( 'Y-m-d H:i:s', strtotime( $cardholder['deleted_at'] ) ) ) : 'N/A'; ?></td>
-                    <td><?php echo esc_html( $cardholder['notes'] ); ?></td>
+                    <td class="notes-cell" data-cardholder-id="<?php echo esc_attr($cardholder['id']); ?>">
+                        <div class="notes-text-container">
+                            <span class="notes-text"><?php echo esc_html( $cardholder['notes'] ); ?></span>
+                        </div>
+                        <button type="button" class="edit-notes-button button-link" title="Edit Notes">
+                            <span class="dashicons dashicons-edit"></span>
+                        </button>
+                    </td>
                 </tr>
             <?php endforeach;
               endif;
             ?>
         </tbody>
     </table>
+    <div id="fsbhoa-notes-editor-dialog" title="Edit Notes" style="display:none;">
+        <p><strong>Cardholder:</strong> <span id="notes-editor-cardholder-name"></span></p>
+        <textarea id="notes-editor-textarea" rows="8" style="width: 100%; font-family: monospace;"></textarea>
+        <input type="hidden" id="notes-editor-cardholder-id" value="">
+    </div>
 <?php
 }
 

@@ -19,6 +19,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
         add_action( 'admin_post_fsbhoa_purge_archived_cardholder', [ $this, 'handle_purge_action' ] );
         add_action( 'admin_post_fsbhoa_confirm_merge', [ $this, 'handle_confirm_merge_action' ] );
         add_action( 'admin_post_fsbhoa_update_archived_notes', [ $this, 'handle_update_archived_notes_action' ] );
+        add_action('wp_ajax_fsbhoa_update_archived_notes', [$this, 'ajax_update_archived_notes']);
     }
 
     /**
@@ -312,6 +313,34 @@ class Fsbhoa_Archived_Cardholder_Actions {
         $redirect_url = add_query_arg('message', 'notes_updated', $redirect_url);
         wp_safe_redirect($redirect_url);
         exit;
+    }
+
+
+    public function ajax_update_archived_notes() {
+        check_ajax_referer('fsbhoa_archived_notes_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied.', 403);
+        }
+
+        $cardholder_id = isset($_POST['cardholder_id']) ? absint($_POST['cardholder_id']) : 0;
+        if (!$cardholder_id) {
+            wp_send_json_error('Invalid cardholder ID.');
+        }
+
+        global $wpdb;
+        $notes = isset($_POST['notes']) ? sanitize_textarea_field(wp_unslash($_POST['notes'])) : '';
+        $result = $wpdb->update(
+            'ac_cardholders',
+            ['notes' => $notes],
+            ['id' => $cardholder_id],
+            ['%s'], ['%d']
+        );
+
+        if ($result === false) {
+            wp_send_json_error('Database error updating notes: ' . $wpdb->last_error);
+        }
+
+        wp_send_json_success('Notes updated successfully.');
     }
 
 }
