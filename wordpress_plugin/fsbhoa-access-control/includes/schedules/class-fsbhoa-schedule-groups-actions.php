@@ -52,10 +52,19 @@ class Fsbhoa_Schedule_Groups_Actions {
         $group_id = isset($_POST['group_id']) ? absint($_POST['group_id']) : 0;
         $schedule_id = isset($_POST['schedule_id']) ? absint($_POST['schedule_id']) : 1;
 
+        $other_default_groups_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}ac_groups WHERE is_default = 1 AND group_id != %d", $group_id
+        ));
+        $other_default_groups_count += isset($_POST['is_default']);
+        if ($other_default_groups_count == 0) {
+            wp_die('Error: The system must have at least one "Default Group". Please check the "Default Group" box before saving.', 'Error', ['back_link' => true]);
+        }
+
         $group_data = [
             'group_name'        => sanitize_text_field($_POST['group_name']),
             'group_description' => sanitize_textarea_field($_POST['group_description']),
             'has_all_access'    => isset($_POST['has_all_access']) ? 1 : 0,
+            'is_default'        => isset($_POST['is_default']) ? 1 : 0,
         ];
 
         if ($group_id > 0) {

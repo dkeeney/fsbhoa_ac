@@ -27,7 +27,7 @@ if (isset($perm)) {
 }
 ?>
 <tr class="permission-row">
-    <td class="actions-column">
+    <td class="permission-row-actions">
         <input type="checkbox" class="is-enabled-checkbox" name="permissions[<?php echo $index; ?>][is_enabled]" value="1" <?php checked($perm->is_enabled ?? 1, 1); ?> style="display: none;">
         <button type="button" class="button-link-delete toggle-permission-status" title="Toggle Status">
             <span class="dashicons <?php echo ($perm->is_enabled ?? 1) ? 'dashicons-yes-alt' : 'dashicons-no-alt'; ?>"></span>

@@ -56,6 +56,7 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
         <h2><?php echo $is_default_schedule ? 'Default ' : ''; ?>Permission Rules</h2>
         <div class="all-access-toggle">
             <label><input type="checkbox" id="has_all_access" name="has_all_access" value="1" <?php checked($has_all_access); ?> <?php disabled(!$is_default_schedule); ?>> <?php _e('Unrestricted access', 'fsbhoa-ac'); ?></label>
+            <label><input type="checkbox" name="is_default" value="1" <?php checked($group->is_default ?? 0, 1); ?>> <?php _e('Default Group', 'fsbhoa-ac'); ?></label>
         </div>
     </div>
 

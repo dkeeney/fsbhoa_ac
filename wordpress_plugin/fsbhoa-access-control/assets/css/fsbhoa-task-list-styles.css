@@ -15,7 +15,13 @@ body.fsbhoa-task-list .entry-title { display: none !important; }
 .day-col { text-align: center; padding-left: 5px; padding-right: 5px; width: 35px; }
 .task-id-column { text-align: center; width: 60px; padding-left: 5px; padding-right: 5px; }
 .task-time-column { width: 80px; padding-left: 5px; padding-right: 5px; }
-.fsbhoa-actions-column { width: 90px; padding: 0 5px; display: flex; justify-content: space-around; align-items: center; }
+
+.fsbhoa-actions-column {
+    width: 90px;
+    padding: 0 5px;
+    vertical-align: middle;
+    text-align: center;
+}
 .fsbhoa-actions-column a.fsbhoa-action-icon { text-decoration: none; box-shadow: none; }
 .fsbhoa-actions-column .dashicons { font-size: 1.4em; vertical-align: middle; }
 .fsbhoa-action-icon .dashicons-edit { color: #50575e; }

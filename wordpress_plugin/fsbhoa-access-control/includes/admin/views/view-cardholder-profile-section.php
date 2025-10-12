@@ -6,7 +6,7 @@ if ( ! defined( 'WPINC' ) ) { die; }
  *
  * @param array $form_data The current data for the form.
  */
-function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_groups, $default_groups, $is_edit_mode ) {
+function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_groups, $is_edit_mode ) {
 ?>
 <div class="fsbhoa-form-section">
     <div class="form-row">
@@ -60,18 +60,17 @@ function fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_gro
         </div>
         <div class="form-third-width">
             <label>Permissions Groups</label>
-            <div class="checkbox-group-container">
-                    <?php // Display the assignable groups. ?>
-                    <?php if (!empty($all_groups)) : ?>
-                        <?php foreach ($all_groups as $group) : ?>
-                            <label>
-                                <input type="checkbox" name="cardholder_groups[]" value="<?php echo esc_attr($group->group_id); ?>" <?php checked(in_array($group->group_id, $cardholder_groups) || (!$is_edit_mode && $group->is_default)); ?>>
-                                <?php echo esc_html($group->group_name); ?>
-                            </label>
-                        <?php endforeach; ?>
-                    <?php elseif (empty($default_groups)) : ?>
-                        <p class="description"><?php _e('No groups available.', 'fsbhoa-ac'); ?></p>
-                    <?php endif; ?>
+                <div class="checkbox-group-container">
+                <?php if (!empty($all_groups)) : ?>
+                    <?php foreach ($all_groups as $group) : ?>
+                        <label>
+                            <input type="checkbox" name="cardholder_groups[]" value="<?php echo esc_attr($group->group_id); ?>" <?php checked(in_array($group->group_id, $cardholder_groups) || (!$is_edit_mode && $group->is_default)); ?>>
+                            <?php echo esc_html($group->group_name); ?>
+                        </label>
+                    <?php endforeach; ?>
+                <?php else :  ?>
+                    <p class="description"><?php _e('No groups available.', 'fsbhoa-ac'); ?></p>
+                <?php endif; // This was the missing part that caused the error ?>
             </div>
         </div>
     </div>

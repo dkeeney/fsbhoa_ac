@@ -586,6 +586,18 @@ jQuery(function($) {
 
     App.init();
 
+    // --- Validation to ensure at least one group is selected on save ---
+    $('#fsbhoa-cardholder-form').on('submit', function(e) {
+        // Find how many group checkboxes are currently checked.
+        const checkedGroups = $(this).find('input[name="cardholder_groups[]"]:checked').length;
+
+        if (checkedGroups === 0) {
+            // If no groups are checked, prevent the form from submitting.
+            e.preventDefault();
+            // Show an alert to the user.
+            alert('A cardholder must be assigned to at least one permission group. Please select a group before saving.');
+        }
+    });
 });
 
 

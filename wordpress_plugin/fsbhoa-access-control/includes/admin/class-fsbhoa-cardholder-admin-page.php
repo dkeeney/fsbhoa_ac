@@ -47,7 +47,6 @@ class Fsbhoa_Cardholder_Admin_Page {
 
         $cardholder_groups = [];
         $all_groups = $this->get_assignable_groups();
-        $default_groups = $this->get_default_groups();
 
         if ($feedback !== false) {
             // RECOVERING FROM ERROR
@@ -120,7 +119,7 @@ class Fsbhoa_Cardholder_Admin_Page {
                 <?php
                 // We no longer use a table, just call the render functions for our sections
                 require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-profile-section.php';
-                fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_groups, $default_groups,  $is_edit_mode );
+                fsbhoa_render_profile_section( $form_data, $all_groups, $cardholder_groups,  $is_edit_mode );
 
                 require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-address-section.php';
                 fsbhoa_render_address_section( $form_data );
@@ -150,7 +149,7 @@ class Fsbhoa_Cardholder_Admin_Page {
      */
     public function get_assignable_groups() {
         global $wpdb;
-        $groups = $wpdb->get_results("SELECT group_id, group_name, is_default  FROM ac_groups WHERE is_enabled = 1 AND parent_group_id IS NULL ORDER BY group_name ASC");
+        $groups = $wpdb->get_results("SELECT group_id, group_name, is_default  FROM ac_groups WHERE is_enabled = 1 ORDER BY group_name ASC");
         if ($wpdb->last_error) {
             // Handle or log the error appropriately
             return [];
@@ -176,19 +175,4 @@ class Fsbhoa_Cardholder_Admin_Page {
         return wp_list_pluck($results, 'group_id');
     }
 
-    /**
-     * Fetches all enabled, default groups.
-     *
-     * @global wpdb $wpdb
-     * @return array List of default group objects.
-     */
-    public function get_default_groups() {
-        global $wpdb;
-        $groups = $wpdb->get_results("SELECT group_id, group_name, is_default  FROM ac_groups WHERE is_enabled = 1 AND is_default = 1 ORDER BY group_name ASC");
-        if ($wpdb->last_error) {
-            // Handle or log the error appropriately
-            return [];
-        }
-        return $groups;
-    }
 }

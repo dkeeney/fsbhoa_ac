@@ -20,10 +20,16 @@ body.page-slug-permissions .entry-title {
 .permissions-header h2 { margin: 0 2em 0 0; }
 
 /* Styles for icon-only action buttons in tables */
-.actions-column {
+/* Style for the permission EDIT page: keeps icons side-by-side */
+.permission-row-actions {
     display: flex;
-    align-items: center !important; /* Force vertical centering */
+    align-items: center;
     gap: 8px;
+}
+
+/* Style for the MAIN group LIST view: uses standard table alignment */
+.fsbhoa-actions-column {
+    vertical-align: middle;
 }
 .actions-column .button-link-delete { background: none; border: none; padding: 0 5px; cursor: pointer; box-shadow: none; color: #2271b1; }
 .actions-column .button-link-delete:hover .dashicons { color: #135e96; }
