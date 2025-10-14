@@ -78,6 +78,17 @@ function connect() {
             hasConnectedBefore = true;
             resetKiosk();
         }
+        // After connecting, check if we were loaded with a cardholder ID.
+        const urlParams = new URLSearchParams(window.location.search);
+        const cardholderId = urlParams.get('cardholder_id');
+        
+        if (cardholderId) {
+            logToScreen(`Direct load requested for cardholder ID: ${cardholderId}`);
+            socket.send(JSON.stringify({
+                event: 'startSessionById',
+                payload: { id: cardholderId }
+            }));
+        }
     });
 
     socket.addEventListener('message', (event) => {
@@ -314,8 +325,6 @@ function resetKiosk() {
         startFocusCapture();  // we are reading via the Browser's card reader
 }
 
-// Initial connection attempt
-connect();
 
 function handleCardInput(event) {
     // Always clear any previous timer when new input arrives.
@@ -387,7 +396,9 @@ function setInitialLogState() {
     }
 }
 
-// ---  NEW LONG-PRESS EVENT LISTENERS ---
+
+
+// ---  LONG-PRESS EVENT LISTENERS ---
 logoImage.addEventListener('mousedown', startPressTimer);
 logoImage.addEventListener('touchstart', startPressTimer);
 
@@ -403,3 +414,8 @@ function cancelPressTimer(e) {
     // If they lift their finger before 2 seconds, cancel the timer.
     clearTimeout(longPressTimer);
 }
+
+
+// Initial connection attempt
+connect();
+

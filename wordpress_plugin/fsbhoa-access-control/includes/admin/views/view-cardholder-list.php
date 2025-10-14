@@ -95,7 +95,7 @@ function fsbhoa_render_cardholder_list_view() {
                             $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_cardholder', 'cardholder_id' => absint($cardholder['id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
                             $print_page_url = get_permalink(get_page_by_path('print-photo-id'));
                             $print_url = add_query_arg(array('action' => 'print_card', 'cardholder_id' => absint($cardholder['id'])), $print_page_url);
-
+                            $kiosk_link = sprintf('<a href="#" class="fsbhoa-action-icon fsbhoa-kiosk-signin-link" data-id="%d" title="%s"><span class="dashicons dashicons-external"></span></a>', absint($cardholder['id']), esc_attr__('Sign-in at Kiosk', 'fsbhoa-ac'));
                             ?>
                             <a href="<?php echo esc_url($edit_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Edit Cardholder', 'fsbhoa-ac'); ?>">
                                 <span class="dashicons dashicons-edit"></span>
@@ -103,9 +103,9 @@ function fsbhoa_render_cardholder_list_view() {
                             <a href="<?php echo esc_url($print_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Print ID Card', 'fsbhoa-ac'); ?>">
                                <span class="dashicons dashicons-printer"></span>
                             </a>
+                            <?php echo $kiosk_link;?>
                             <a href="<?php echo esc_url($delete_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Archive Cardholder', 'fsbhoa-ac'); ?>" onclick="return confirm('Are you sure you want to archive this cardholder?');">
         <span class="dashicons dashicons-archive"></span>
-                            </a>
                             </a>
                         </td>
 

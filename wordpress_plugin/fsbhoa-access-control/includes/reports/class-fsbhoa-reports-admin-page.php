@@ -52,13 +52,16 @@ class Fsbhoa_Reports_Admin_Page {
                            </select>
                         </div>
                         <div class="filter-group">
-                            <a href="#" id="fsbhoa-export-button" class="button button-primary"><?php esc_html_e( 'Export', 'fsbhoa-ac' ); ?></a>
+                           <div class="filter-group">
+                                <button id="fsbhoa-export-button" class="button button-primary"><?php esc_html_e( 'Export to CSV', 'fsbhoa-ac' ); ?></button>
+                            </div>
                         </div>
                     </div>
 
                     <table id="fsbhoa-access-log-table" class="display" style="width:100%">
                         <thead>
                             <tr>
+                                <th class="no-sort select-checkbox" style="width: 10px;"></th>
                                 <th><?php esc_html_e( 'Date & Time', 'fsbhoa-ac' ); ?></th>
                                 <th class="no-sort photo-column"><?php esc_html_e( 'Photo', 'fsbhoa-ac' ); ?></th>
                                 <th><?php esc_html_e( 'Cardholder', 'fsbhoa-ac' ); ?></th>

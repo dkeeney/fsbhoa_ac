@@ -74,6 +74,7 @@ jQuery(function($) {
                 propertySearchInput: $('#fsbhoa_property_search_input'),
                 propertyIdHiddenInput: $('#fsbhoa_property_id_hidden'),
                 selectedPropertyDisplay: $('#fsbhoa_selected_property_display'),
+                propertyListCache: [],
 
             };
         },
@@ -164,7 +165,7 @@ jQuery(function($) {
             });
             // *** END: CODE FOR EXPORT BUTTON ***
 
-            // *** START: CODE FOR PRINT REPORT BUTTON ***
+            // ***  CODE FOR PRINT REPORT BUTTON ***
             $('#fsbhoa-print-report-button').on('click', (e) => {
                 e.preventDefault();
                 
@@ -212,7 +213,19 @@ jQuery(function($) {
                 form.submit();
                 form.remove();
             });
-            // *** END:  CODE FOR PRINT REPORT BUTTON ***
+
+            // Handler for the Kiosk Sign-in icon in the table rows
+            this.vars.cardholderTable.on('click', '.fsbhoa-kiosk-signin-link', function(e) {
+                e.preventDefault();
+                const cardholderId = $(this).data('id');
+                
+                if (cardholderId > 0 && typeof fsbhoa_ajax_settings !== 'undefined' && fsbhoa_ajax_settings.kiosk_url) {
+                    const kioskUrl = `${fsbhoa_ajax_settings.kiosk_url}/?cardholder_id=${cardholderId}`;
+                    window.open(kioskUrl, '_blank');
+                } else {
+                    alert('Error: Kiosk URL not configured or cardholder ID is missing.');
+                }
+            });
         },
 
 
@@ -240,7 +253,8 @@ jQuery(function($) {
 
         initPropertyAutocomplete: function() {
             if (this.vars.propertySearchInput.length) {
-                this.vars.propertySearchInput.autocomplete({
+                const self = this;
+                self.vars.propertySearchInput.autocomplete({
                     source: (request, response) => {
                         $.ajax({
                             url: fsbhoa_ajax_settings.ajax_url,
@@ -252,8 +266,11 @@ jQuery(function($) {
                             },
                             success: (data) => {
                                 if (data.success) {
+                                    // Populate the cache with the full list of results
+                                    self.vars.propertyListCache = data.data; 
                                     response(data.data.length ? data.data : [{ label: 'No results found', value: '' }]);
                                 } else {
+                                    self.vars.propertyListCache = [];
                                     response([]);
                                 }
                             }
@@ -263,10 +280,37 @@ jQuery(function($) {
                     select: (event, ui) => {
                         event.preventDefault();
                         if (ui.item && ui.item.id) {
-                            this.vars.propertySearchInput.val(ui.item.label);
-                            this.vars.propertyIdHiddenInput.val(ui.item.id);
+                            self.vars.propertySearchInput.val(ui.item.label);
+                            self.vars.propertyIdHiddenInput.val(ui.item.id);
                         }
                         return false;
+                    }
+                });
+                // This is the smart change handler that looks to see if the item typed is
+                // one of the items in the list and if so, select it.
+                self.vars.propertySearchInput.on('change', function() {
+                    const enteredText = $(this).val().trim();
+                    let foundMatch = false;
+
+                    if (enteredText === '') {
+                        self.vars.propertyIdHiddenInput.val('');
+                        return; // User cleared the field
+                    }
+                    
+                    // Search the cache for an exact (case-insensitive) match
+                    for (let i = 0; i < self.vars.propertyListCache.length; i++) {
+                        if (self.vars.propertyListCache[i].label.toLowerCase() === enteredText.toLowerCase()) {
+                            self.vars.propertyIdHiddenInput.val(self.vars.propertyListCache[i].id);
+                            // Also update the input box to the official casing, in case they typed in lowercase
+                            $(this).val(self.vars.propertyListCache[i].label);
+                            foundMatch = true;
+                            break;
+                        }
+                    }
+
+                    // If no exact match was found after checking the whole list, clear the ID.
+                    if (!foundMatch) {
+                        self.vars.propertyIdHiddenInput.val('');
                     }
                 });
             }
@@ -288,6 +332,7 @@ jQuery(function($) {
             formContainer.on('click', '#fsbhoa-export-photo-btn', () => this.handleExportPhotoClick());
             formContainer.on('click', '#print-id-card-button', () => this.handlePrintIdClick());
             formContainer.on('change', '#resident_type', () => this.handleResidentTypeChange());
+            this.vars.cardholderForm.on('submit', (e) => this.handleFormValidation(e));
         },
 
 
@@ -581,7 +626,37 @@ jQuery(function($) {
                 this.vars.statusDisplaySpan.text('Disabled');
                 this.vars.toggleLabelSpan.text('(Click to Activate)');
             }
-        }
+        },
+
+        handleFormValidation: function(e) {
+            const addressText = this.vars.propertySearchInput.val();
+            const addressId = this.vars.propertyIdHiddenInput.val();
+            const checkedGroups = this.vars.cardholderForm.find('input[name="cardholder_groups[]"]:checked').length;
+
+            // Validation 1: Check for an unselected address
+            if (addressText !== '' && (addressId === '' || addressId === '0')) {
+                e.preventDefault(); // Stop the form from submitting
+                alert('The address you entered is not valid. Please select a valid property from the dropdown list.');
+                this.vars.propertySearchInput.focus();
+                return; // Stop further checks
+            }
+
+            //  Validation 2: to require a property address
+            if (addressId === '' || addressId === '0') {
+                e.preventDefault(); // Stop the form from submitting
+                alert('A valid Property Address is required. Please select an address from the list.');
+                this.vars.propertySearchInput.focus();
+                return; // Stop further checks
+            }
+
+
+            // Validation 3: Check for no selected groups
+            if (checkedGroups === 0) {
+                e.preventDefault(); // Stop the form from submitting
+                alert('A cardholder must be assigned to at least one permission group. Please select a group before saving.');
+                return; // Stop further checks
+            }
+        },
     };
 
     App.init();

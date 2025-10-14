@@ -104,13 +104,15 @@ class Fsbhoa_Cardholder_List_Table extends WP_List_Table {
     }
 
     public function column_actions($item) {
+        error_log('DEBUG: column_actions() was called for cardholder ID ' . $item['id']);
         $page_slug = isset($_REQUEST['page']) ? sanitize_text_field(wp_unslash($_REQUEST['page'])) : ''; 
         $edit_url = sprintf('?page=%s&action=%s&cardholder_id=%s', $page_slug, 'edit_cardholder', absint($item['id']));
         $edit_link = sprintf('<a href="%s" title="%s"><span class="dashicons dashicons-edit"></span><span class="screen-reader-text">%s</span></a>', esc_url($edit_url), esc_attr__('Edit Cardholder', 'fsbhoa-ac'), esc_html__('Edit', 'fsbhoa-ac'));
         $delete_nonce = wp_create_nonce('fsbhoa_delete_cardholder_nonce_' . $item['id']);
         $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_cardholder', 'cardholder_id' => absint($item['id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
         $delete_link = sprintf('<a href="%s" title="%s" onclick="return confirm(\'%s\');" style="color:#a00;"><span class="dashicons dashicons-trash"></span><span class="screen-reader-text">%s</span></a>', esc_url($delete_url), esc_attr__('Delete Cardholder', 'fsbhoa-ac'), esc_js(__('Are you sure?', 'fsbhoa-ac')), esc_html__('Delete', 'fsbhoa-ac'));
-        return $edit_link . '&nbsp;&nbsp;' . $delete_link;
+        $kiosk_link = sprintf('<a href="#" class="fsbhoa-action-icon fsbhoa-kiosk-signin-link" data-id="%d" title="%s"><span class="dashicons dashicons-login"></span></a>', absint($item['id']), esc_attr__('Sign-in at Kiosk', 'fsbhoa-ac'));
+        return $edit_link . $kiosk_link . $delete_link;
     }
 
     function get_columns() {

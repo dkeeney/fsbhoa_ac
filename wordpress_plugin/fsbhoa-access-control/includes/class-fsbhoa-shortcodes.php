@@ -111,11 +111,17 @@ class Fsbhoa_Shortcodes {
             $app_script_handle = 'fsbhoa-cardholder-admin-script';
             wp_enqueue_script($app_script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-cardholder-admin.js', array('jquery', 'jquery-ui-autocomplete', 'datatables-script', 'fsbhoa-photo-croppie', 'canvg-script'), FSBHOA_AC_PLUGIN_VERSION, true);
 
+            // Get Kiosk connection details from options
+            $kiosk_port = get_option('fsbhoa_kiosk_port', 8080);
+            $kiosk_host = get_option('fsbhoa_ac_wp_host', 'access.fsbhoa.com');
+            $kiosk_protocol = get_option('fsbhoa_ac_tls_cert_path') ? 'https' : 'http';
+
             $ajax_settings = array(
                 'ajax_url' => admin_url('admin-ajax.php'),
                 'property_search_nonce' => wp_create_nonce('fsbhoa_property_search_nonce'),
                 'cardholder_search_nonce' => wp_create_nonce('fsbhoa_cardholder_search_nonce'),
                 'export_nonce' => wp_create_nonce('fsbhoa_export_nonce'),
+                'kiosk_url' => sprintf('%s://%s:%d', $kiosk_protocol, $kiosk_host, $kiosk_port),
                 'print_report_nonce' => wp_create_nonce('fsbhoa_print_report_nonce')
             );
             wp_localize_script($app_script_handle, 'fsbhoa_ajax_settings', $ajax_settings);
@@ -207,18 +213,22 @@ class Fsbhoa_Shortcodes {
             // Needs DataTables for the report list
             wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
             wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
-            
+
+            // Enqueue the DataTables Select extension
+            wp_enqueue_style('datatables-select-css', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/select.dataTables.css', ['datatables-style']);
+            wp_enqueue_script('datatables-select', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.select.js', ['jquery', 'datatables-script'], '2.0.2', true);
+
             // Needs the Datepicker widget from jQuery UI
             wp_enqueue_script('jquery-ui-datepicker');
 
             // Its own specific styles and scripts
             $script_handle = 'fsbhoa-reports-admin';
             wp_enqueue_style('fsbhoa-reports-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-reports-styles.css', array('fsbhoa-shared-styles'), FSBHOA_AC_PLUGIN_VERSION);
-            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-reports-admin.js', array('jquery', 'datatables-script', 'jquery-ui-datepicker'), FSBHOA_AC_PLUGIN_VERSION, true);
-            
+            wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-reports-admin.js', array('jquery', 'datatables-script', 'jquery-ui-datepicker', 'datatables-select'), FSBHOA_AC_PLUGIN_VERSION, true);
+
             // Localize data for the reports script
             wp_localize_script($script_handle, 'fsbhoa_reports_vars', array(
-                'rest_nonce' => wp_create_nonce( 'wp_rest' ), 
+                'rest_nonce' => wp_create_nonce( 'wp_rest' ),
                 'export_nonce' => wp_create_nonce( 'fsbhoa_export_nonce' )
             ));
         }

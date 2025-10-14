@@ -36,7 +36,7 @@
     min-width: 120px;
 }
 
-/*  style for short date fields */
+/* style for short date fields */
 .fsbhoa-filter-container .fsbhoa-short-date {
     width: 160px; /* Widen the field */
     min-width: 160px;
@@ -113,3 +113,25 @@ th.type-column, td.type-column {
     border: 1px solid #ccd0d4;
     border-radius: 4px;
 }
+
+/* --- NEW: Styles for DataTables Select Checkbox --- */
+table.dataTable td.select-checkbox::before, 
+table.dataTable th.select-checkbox::before {
+    content: ' ';
+    margin-top: -6px;
+    margin-left: -6px;
+    height: 12px;
+    width: 12px;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+    display: block; /* Added for better layout control */
+    position: relative; /* Added for better layout control */
+}
+table.dataTable tr.selected td.select-checkbox::before {
+    content: '✓';
+    font-weight: bold;
+    text-align: center;
+    color: #0073aa;
+    border-color: #0073aa;
+}
+

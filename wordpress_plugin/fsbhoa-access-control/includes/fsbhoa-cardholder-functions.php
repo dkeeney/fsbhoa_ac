@@ -59,30 +59,3 @@ function fsbhoa_archive_and_delete_cardholder( $cardholder_id ) {
     return true;
 }
 
-
-/**
- * Generates a consistent event description from an event code.
- */
-function fsbhoa_get_event_description($event_type, $door, $granted) {
-    switch ($event_type) {
-        case 0: return 'None';
-        case 1: return 'Card swipe';
-        case 2: return 'Door open';
-        case 3: return 'Door close';
-        case 4: return 'Button press';
-        case 5:
-            return 'Access Denied: Card Not Found';
-        case 6:
-            return 'Access Denied: Outside Allowed Hours';
-        case 7:
-            return 'Access Denied: Gate is Locked';
-        case 8:
-            return 'Access Allowed: Gate is Unlocked';
-        case 15:
-            return 'Access Denied: Has no permissions on this Gate';
-        
-        // MODIFIED: Make the default more helpful for debugging
-        default:
-            return 'Unknown Event (Code: ' . $event_type . ')';
-    }
-}

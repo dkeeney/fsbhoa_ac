@@ -59,6 +59,15 @@ function fsbhoa_render_address_section( $form_data ) {
 
     $sanitized_data['resident_type'] = isset($post_data['resident_type']) ? sanitize_text_field(wp_unslash($post_data['resident_type'])) : '';
     $sanitized_data['property_id']   = isset($post_data['property_id']) && !empty($post_data['property_id']) ? absint($post_data['property_id']) : null;
+
+    // Check if address text was entered without selecting a valid ID from the autocomplete.
+    $property_address_display = isset($post_data['property_address_display']) ? trim(wp_unslash($post_data['property_address_display'])) : '';
+    if ( !empty($property_address_display) && empty($sanitized_data['property_id']) ) {
+        $errors['property_id'] = 'The address is not valid. Please select a property from the dropdown list or clear the field.';
+    }
+    if (empty($sanitized_data['property_id'])) {
+        $errors['property_id'] = 'A valid Property Address is required.';
+    }
     
     if ( empty($sanitized_data['resident_type']) || !in_array( $sanitized_data['resident_type'], $allowed_resident_types ) ) {
         $errors['resident_type'] = 'A valid Resident Type is required.';

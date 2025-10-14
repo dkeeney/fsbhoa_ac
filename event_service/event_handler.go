@@ -28,25 +28,36 @@ func (m *EventMonitor) OnEvent(status *types.Status) {
 	// Create a descriptive message based on the event type and reason code.
         var eventMessage string
         switch event.Reason {
-            case 1: // Generic Swipe Event
-                if event.Granted {
-                    eventMessage = "Access Granted"
-                } else {
-                    // This is a generic denial; a more specific reason (like 6 or 11) usually follows,
-                    // so we can choose to ignore this initial event or label it generically.
-                    eventMessage = "Access Denied" 
-                }
-            case 5:
-                eventMessage = "Card Not Found"
-            case 6:
-                eventMessage = "Outside Allowed Hours"
-            case 11:
-                eventMessage = "Card Disabled"
-            case 13:
-                eventMessage = "Card Expired"
-            case 101:
-                eventMessage = "Forced Entry"
-            default:
+        // Access Granted
+        case 5:
+            eventMessage = "Access Granted"
+
+        // Access Denied Reasons
+        case 6:
+            eventMessage = "Access Denied: No Permissions" // Card found, but not for this door
+        case 8:
+            eventMessage = "Access Denied: Outside Allowed Hours"
+        case 9:
+            eventMessage = "Access Denied: Card Expired"
+        case 11:
+            eventMessage = "Access Denied: Card Disabled"
+        case 12:
+            eventMessage = "Access Denied: Card Stolen/Lost"
+        case 15:
+            eventMessage = "Access Denied"
+        
+        // Other Events
+        case 1: // Generic swipe event, usually followed by a more specific reason
+            if event.Granted {
+                eventMessage = "Card Swipe"
+            } else {
+                eventMessage = "Card Not Found" // If card isn't in controller memory
+            }
+        case 101:
+            eventMessage = "Door Forced Open"
+        case 103:
+            eventMessage = "Door Ajar"
+        default:
                 eventMessage = fmt.Sprintf("Unknown Event (Code: %d)", event.Reason)
         }
 

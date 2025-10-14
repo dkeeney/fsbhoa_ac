@@ -78,7 +78,7 @@ class Fsbhoa_Schedules_Admin_Page {
             ?>
             <div class="fsbhoa-section-header">
                 <h2>Permission Group Schedules</h2>
-                <a href="<?php echo esc_url($add_group_url); ?>" class="button button-primary">Add Group Rule</a>
+                <a href="<?php echo esc_url($add_group_url); ?>" class="button button-primary">Add New Group</a>
             </div>
             <?php
             require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-groups-list.php';

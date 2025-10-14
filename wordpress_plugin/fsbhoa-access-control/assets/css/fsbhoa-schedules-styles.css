@@ -7,13 +7,20 @@
 .schedule-header-controls {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end; /* This pushes the content to the right */
-    gap: 15px;
+    justify-content: space-between; /* This is the key */
+    align-items: flex-end;
+    gap: 20px;
     padding: 1em;
     background-color: #f6f7f7;
     border: 1px solid #c3c4c7;
     border-radius: 4px;
     margin-bottom: 2em;
+}
+
+.schedule-header-controls .schedule-header-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 15px;
 }
 .schedule-header-controls .form-field-group { display: flex; flex-direction: column; justify-content: flex-end; margin: 0; }
 .schedule-header-controls .form-field-group label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }

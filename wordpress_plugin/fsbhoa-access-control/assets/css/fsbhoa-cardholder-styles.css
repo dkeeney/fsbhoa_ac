@@ -7,7 +7,7 @@
 .fsbhoa-control-group { display: flex; align-items: center; gap: 0.5em; }
 
 #fsbhoa-cardholder-table th { background-color: #f1f1f1; }
-.fsbhoa-actions-column { width: 100px; text-align: center; }
+.fsbhoa-actions-column { width: 120px; text-align: center; }
 .fsbhoa-action-icon { text-decoration: none; color: #555; }
 .fsbhoa-action-icon:hover { color: #0073aa; }
 .fsbhoa-status-column, .fsbhoa-type-column { width: 1%; white-space: nowrap; }

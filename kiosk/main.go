@@ -225,12 +225,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// Send initial kiosk config to the newly connected client.
 	ws.WriteJSON(SocketMessage{Event: "kioskConfig", Payload: kioskConfig})
 
-	// NEW: Variables to manage the wallet scan debouncing for this specific connection.
+	// Variables to manage the wallet scan debouncing for this specific connection.
 	var walletScanTimer *time.Timer
 	var scannedRFIDs []string
 	var rfidMutex sync.Mutex // Protects access to the scannedRFIDs slice
 
-	// NEW: This is the function that will be called when the wallet scan timer fires.
+	// This is the function that will be called when the wallet scan timer fires.
 	processWalletScan := func() {
 		rfidMutex.Lock()
 		// De-duplicate the collected RFIDs
@@ -320,6 +320,25 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+                case "startSessionById":
+                    if payload, ok := msg.Payload.(map[string]interface{}); ok {
+                    	if id, okID := payload["id"].(string); okID {
+                        	go func() {
+                            	vResponse, err := validateCardholderByID(id)
+                            	if err == nil {
+                                	rfid, _ := vResponse.Cardholder.(map[string]interface{})["rfid"].(string)
+                                	finalPayload := map[string]interface{}{
+                                    	"isValid":    vResponse.IsValid,
+                                    	"message":    vResponse.Message,
+                                    	"cardholder": vResponse.Cardholder,
+                                    	"rfid":       rfid,
+                                	}
+                                	broadcast(SocketMessage{Event: "cardSwiped", Payload: finalPayload})
+                            	}
+                        	}()
+                    	}
+                    }
+
 		case "manualSwipe":
 			if payload, ok := msg.Payload.(map[string]interface{}); ok {
 				if rfid, okR := payload["rfid"].(string); okR {
@@ -339,6 +358,39 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// This helper function validates a cardholder by their primary ID against WordPress.
+// Used when signing in via a WordPress originated request.
+func validateCardholderByID(id string) (ValidationResponse, error) {
+    var vResponse ValidationResponse
+    validationURL := fmt.Sprintf("%s/wp-json/fsbhoa/v1/kiosk/cardholder/%s", config.WordPressAPIBaseURL, id)
+    req, err := http.NewRequest("GET", validationURL, nil)
+    if err != nil {
+        log.Printf("Error creating validation request for ID %s: %v", id, err)
+        return vResponse, err
+    }
+
+    req.Header.Set("X-API-KEY", config.APIKey)
+    httpClient := &http.Client{Timeout: 5 * time.Second}
+    resp, err := httpClient.Do(req)
+    if err != nil {
+        log.Printf("Network error validating ID %s: %v", id, err)
+        return vResponse, err
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        bodyBytes, _ := io.ReadAll(resp.Body)
+        log.Printf("Non-200 status for ID %s: %s - %s", id, resp.Status, string(bodyBytes))
+        return vResponse, fmt.Errorf("bad status: %s", resp.Status)
+    }
+
+    if err := json.NewDecoder(resp.Body).Decode(&vResponse); err != nil {
+        log.Printf("Error decoding validation response for ID %s: %v", id, err)
+        return vResponse, err
+    }
+
+    return vResponse, nil
+}
 
 
 

@@ -53,7 +53,7 @@ class Fsbhoa_Schedule_Groups_Actions {
         $schedule_id = isset($_POST['schedule_id']) ? absint($_POST['schedule_id']) : 1;
 
         $other_default_groups_count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}ac_groups WHERE is_default = 1 AND group_id != %d", $group_id
+            "SELECT COUNT(*) FROM ac_groups WHERE is_default = 1 AND group_id != %d", $group_id
         ));
         $other_default_groups_count += isset($_POST['is_default']);
         if ($other_default_groups_count == 0) {

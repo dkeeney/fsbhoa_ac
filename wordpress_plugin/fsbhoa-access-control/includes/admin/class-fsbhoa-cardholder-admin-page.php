@@ -150,10 +150,14 @@ class Fsbhoa_Cardholder_Admin_Page {
     public function get_assignable_groups() {
         global $wpdb;
         $groups = $wpdb->get_results("SELECT group_id, group_name, is_default  FROM ac_groups WHERE is_enabled = 1 ORDER BY group_name ASC");
+//error_log("GROUP ASSIGN DEBUG: 1. Running query: " . $query);
         if ($wpdb->last_error) {
             // Handle or log the error appropriately
+            error_log("GROUP ASSIGN DEBUG: 2. DATABASE ERROR: " . $wpdb->last_error);
             return [];
         }
+//error_log("GROUP ASSIGN DEBUG: 3. Query returned " . count($groups) . " rows.");
+//error_log("GROUP ASSIGN DEBUG: 4. Full result: " . var_export($groups, true));
         return $groups;
     }
 
