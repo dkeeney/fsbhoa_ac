@@ -323,6 +323,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
                 case "startSessionById":
                     if payload, ok := msg.Payload.(map[string]interface{}); ok {
                     	if id, okID := payload["id"].(string); okID {
+                                log.Printf("KIOSK DEBUG: 'startSessionById' event received. Triggering validation for ID %s.", id)
                         	go func() {
                             	vResponse, err := validateCardholderByID(id)
                             	if err == nil {
@@ -407,6 +408,7 @@ func main() {
         http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { handleConnections(w, r) })
 
         if config.SSLCertPath != "" && config.SSLKeyPath != "" {
+            log.Printf("STARTUP CHECK: Attempting to start HTTPS server with Cert='%s', Key='%s'", config.SSLCertPath, config.SSLKeyPath)
             log.Printf("INFO: Starting kiosk HTTPS server on port %s", config.Port)
             err := http.ListenAndServeTLS(config.Port, config.SSLCertPath, config.SSLKeyPath, nil)
             if err != nil { log.Fatalf("FATAL: Secure server error: %v", err) }

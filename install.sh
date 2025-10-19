@@ -185,4 +185,9 @@ echo ""
 echo "Refer to INSTALL.md for detailed instructions."
 
 
-
+#NOTE: to prevent the USB card reader from being put to sleep,
+#      edit: sudo nano /etc/default/grub
+#      Find the lines like this: GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+#      change to: GRUB_CMDLINE_LINUX_DEFAULT="quiet splash usbcore.autosuspend=-1"
+#      sudo update-grub	
+#      sudo reboot
