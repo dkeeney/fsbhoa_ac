@@ -15,6 +15,11 @@ function fsbhoa_perform_delta_sync() {
     set_time_limit(300);
     set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => 'Starting delta sync...'], MINUTE_IN_SECONDS * 10);
 
+    // Get the active schedule
+    $active_schedule_id = fsbhoa_get_active_schedule_id();
+    $active_schedule_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ac_schedules WHERE schedule_id = %d", $active_schedule_id)) ?: 'Default';
+    error_log("DELTA SYNC: Determined active schedule is: '" . $active_schedule_name . "' (ID: " . $active_schedule_id . ")");
+
     $change_types = $wpdb->get_col("SELECT DISTINCT change_type FROM ac_pending_changes");
 
     $cardholders_to_sync = [];
@@ -55,9 +60,9 @@ function fsbhoa_perform_delta_sync() {
     }
 
     // --- Execute the sync with the correctly identified changes ---
-    $permission_data = fsbhoa_get_all_permission_data();
+    $permission_data = fsbhoa_get_all_permission_data($active_schedule_id);
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers");
-    fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $cardholders_to_delete, $task_sync_needed, $is_dry_run, false);
+    fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $cardholders_to_delete, $task_sync_needed, $is_dry_run, false, $active_schedule_id);
 }
 
 
@@ -102,16 +107,34 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
     }
 
 
+    // 1. Get ALL active cardholders to build a complete map.
+    $all_active_cardholders = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status = 'active'");
+    $full_permission_set = [];
+    foreach ($all_active_cardholders as $cardholder) {
+        $full_permission_set[$cardholder->id] = fsbhoa_calculate_cardholder_permissions($cardholder->id, $permission_data);
+    }
+    // 2. Build the complete map of time profiles needed for everyone.
+    $chains_by_door = fsbhoa_build_profile_chains($full_permission_set);
+
     
+    // 3. Get the specific permissions for *only* the cardholders we are syncing today.
     $all_cardholders_permissions = [];
     foreach ($cardholders_to_sync as $cardholder) {
-        $all_cardholders_permissions[$cardholder->id] = fsbhoa_calculate_cardholder_permissions($cardholder->id, $permission_data);
+        // We can re-use the data we already calculated
+        if (isset($full_permission_set[$cardholder->id])) {
+            $all_cardholders_permissions[$cardholder->id] = $full_permission_set[$cardholder->id];
+        } else {
+            // Or calculate it if they weren't in the active list (e.g., status just changed)
+            $all_cardholders_permissions[$cardholder->id] = fsbhoa_calculate_cardholder_permissions($cardholder->id, $permission_data);
+        }
     }
-    $chains_by_door = fsbhoa_build_profile_chains($all_cardholders_permissions);
     
+    // 4. Create a list of card-to-controller data for the delta sync
     $db_cards_to_sync = [];
     foreach ($cardholders_to_sync as $cardholder) {
-        if (!empty($cardholder->rfid_id)) { $db_cards_to_sync[$cardholder->rfid_id] = $cardholder; }
+        if (!empty($cardholder->rfid_id)) { 
+           $db_cards_to_sync[$cardholder->rfid_id] = $cardholder; 
+        }
     }
 
     foreach ($controllers as $controller) {
@@ -140,7 +163,9 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
 
         if (!$is_dry_run) { shell_exec(sprintf('uhppote-cli set-time %s 2>&1', $device_id)); }
 
-        $profile_map = fsbhoa_sync_time_profiles($device_id, $chains_by_door, $is_dry_run);
+        // We now have the complete $chains_by_door map, but we only
+        // upload/wipe profiles if $is_rebuild is true.
+        $profile_map = fsbhoa_upload_time_profiles($device_id, $chains_by_door, $is_dry_run, $is_rebuild);
 
         if ($is_rebuild) {
             if (!$is_dry_run) { shell_exec(sprintf('uhppote-cli delete-cards %s 2>&1', $device_id)); }

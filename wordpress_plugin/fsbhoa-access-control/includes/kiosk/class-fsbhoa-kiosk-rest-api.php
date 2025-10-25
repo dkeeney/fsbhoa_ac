@@ -110,7 +110,7 @@ class Fsbhoa_Kiosk_REST_API {
 
                 // Use the standard $wpdb object with the CONCAT workaround
                 $query = $wpdb->prepare(
-                    "SELECT 1 FROM ac_access_log WHERE cardholder_id = %d AND event_timestamp >= %s AND controller_identifier = 'kiosk' AND event_description LIKE CONCAT(%s, '%%') LIMIT 1",
+                    "SELECT 1 FROM ac_access_log WHERE cardholder_id = %d AND event_timestamp >= %s AND controller_identifier = 'kiosk' AND event_description LIKE CONCAT(%s, '%%') AND access_granted = 1 LIMIT 1",
                     $cardholder_id,
                     $time_ago,
                     $amenity_search

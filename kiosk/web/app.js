@@ -308,6 +308,13 @@ logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeStr
 }
 
 function resetKiosk() {
+        // If this session was started from WordPress direct login icon, just close the tab.
+        if (isDirectLoad) {
+            // We set the flag to false first as a safeguard
+            isDirectLoad = false;
+            window.close();
+            return; // Stop the function here
+        }
         clearTimeout(idleTimeout);
         clearTimeout(resetKioskTimer);
         splashScreen.style.display = 'none';

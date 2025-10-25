@@ -162,13 +162,18 @@ function fsbhoa_build_profile_chains($all_cardholders_permissions) {
 /**
  * Uploads all necessary time profiles to a controller, creating linked chains.
  */
-function fsbhoa_sync_time_profiles($device_id, $chains_by_door, $is_dry_run = false) {
+function fsbhoa_upload_time_profiles($device_id, $chains_by_door, $is_dry_run = false, $is_rebuild = false) {
     $profile_map = []; // Final map: [door_id => entry_profile_id]
     $schedule_to_profile_id = []; // Cache: [full_signature => profile_id]
     $profile_id_counter = 2;
 
-    if (!$is_dry_run) { shell_exec(sprintf('uhppote-cli clear-time-profiles %s 2>&1', $device_id)); } 
-    else { error_log("DRY RUN: Would execute: uhppote-cli clear-time-profiles " . $device_id); }
+    if ($is_rebuild) {
+        if (!$is_dry_run) { 
+            shell_exec(sprintf('uhppote-cli clear-time-profiles %s 2>&1', $device_id)); 
+        } else { 
+            error_log("DRY RUN: Would execute: uhppote-cli clear-time-profiles " . $device_id); 
+        }
+    }
 
     // First pass: Pre-assign a unique profile ID to every single unique daily schedule across all doors.
     foreach ($chains_by_door as $door_id => $schedules) {
@@ -201,11 +206,18 @@ function fsbhoa_sync_time_profiles($device_id, $chains_by_door, $is_dry_run = fa
             $entry_profile_id = $current_profile_id; // The last one we process is the entry point.
 
             if (!in_array($current_profile_id, $uploaded_profiles)) {
-                $weekdays = implode(',', array_map('ucfirst', $days));
-                $command = sprintf("uhppote-cli set-time-profile %s %d %s %s '%s' %d", $device_id, $current_profile_id, '2020-01-01:2099-12-31', $weekdays, $signature, $linked_profile_id);
+                // We ONLY upload profiles during a full rebuild.
+                if ($is_rebuild) {
+                    $weekdays = implode(',', array_map('ucfirst', $days));
+                    $command = sprintf("uhppote-cli set-time-profile %s %d %s %s '%s' %d", $device_id, $current_profile_id, '2020-01-01:2099-12-31', $weekdays, $signature, $linked_profile_id);
 
-                if ($is_dry_run) { error_log("DRY RUN: Would execute: " . $command); } 
-                else { shell_exec($command . " 2>&1"); }
+                    if ($is_dry_run) { 
+                        error_log("DRY RUN: Would execute: " . $command); 
+                    } else { 
+                        error_log("SYNC PROFILE: Executing: " . $command); 
+			shell_exec($command . " 2>&1"); 
+                    }
+                }
                 $uploaded_profiles[] = $current_profile_id;
             }
             // The profile we just created becomes the one the *next* one in the chain will link to.
