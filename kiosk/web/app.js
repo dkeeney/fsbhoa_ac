@@ -26,6 +26,7 @@ let socket = null;
 let audioCtx;
 let hasConnectedBefore = false; // Flag to track initial connection
 let longPressTimer;
+let isDirectLoad = false;
 
 // logging function
 function logToScreen(message) {
@@ -83,11 +84,14 @@ function connect() {
         const cardholderId = urlParams.get('cardholder_id');
         
         if (cardholderId) {
+            isDirectLoad = true; // Set flag if loaded directly
             logToScreen(`Direct load requested for cardholder ID: ${cardholderId}`);
             socket.send(JSON.stringify({
                 event: 'startSessionById',
                 payload: { id: cardholderId }
             }));
+        } else {
+            isDirectLoad = false;  // Ensure flag is false otherwise
         }
     });
 

@@ -324,19 +324,41 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
                     if payload, ok := msg.Payload.(map[string]interface{}); ok {
                     	if id, okID := payload["id"].(string); okID {
                                 log.Printf("KIOSK DEBUG: 'startSessionById' event received. Triggering validation for ID %s.", id)
-                        	go func() {
-                            	vResponse, err := validateCardholderByID(id)
-                            	if err == nil {
-                                	rfid, _ := vResponse.Cardholder.(map[string]interface{})["rfid"].(string)
-                                	finalPayload := map[string]interface{}{
-                                    	"isValid":    vResponse.IsValid,
-                                    	"message":    vResponse.Message,
-                                    	"cardholder": vResponse.Cardholder,
-                                    	"rfid":       rfid,
-                                	}
-                                	broadcast(SocketMessage{Event: "cardSwiped", Payload: finalPayload})
-                            	}
-                        	}()
+                            go func() {
+                                var finalMessage SocketMessage
+                                vResponse, err := validateCardholderByID(id)
+                                if err == nil {
+                                    rfid, _ := vResponse.Cardholder.(map[string]interface{})["rfid"].(string)
+                                    finalPayload := map[string]interface{}{
+                                        "isValid":    vResponse.IsValid,
+                                        "message":    vResponse.Message,
+                                        "cardholder": vResponse.Cardholder,
+                                        "rfid":       rfid,
+                                    }
+                                    // Send only to the originating client 'ws'
+                                    finalMessage = SocketMessage{Event: "cardSwiped", Payload: finalPayload}
+                                    clientsMutex.Lock()
+                                    if err := ws.WriteJSON(finalMessage); err != nil {
+                                         log.Printf("Error sending startSessionById result to client: %v", err)
+                                    }
+                                    clientsMutex.Unlock()
+                                } else {
+                                    log.Printf("Error validating cardholder by ID %s: %v", id, err)
+
+                                    // Construct a failure payload similar to a failed swipe
+                                    errorPayload := map[string]interface{}{
+                                        "isValid": false,
+                                        // Use the message from the PHP response if available, otherwise use a generic message
+                                        "message": "Error validating cardholder. Please try swiping.",
+                                    }
+                                    // It's possible vResponse has the error message even if err is not nil
+                                    if vResponse.Message != "" {
+                                        errorPayload["message"] = vResponse.Message
+                                    }
+
+                                    finalMessage = SocketMessage{Event: "cardSwiped", Payload: errorPayload}
+                                }
+                            }()
                     	}
                     }
 

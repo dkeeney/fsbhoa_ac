@@ -95,7 +95,21 @@ function fsbhoa_render_cardholder_list_view() {
                             $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_cardholder', 'cardholder_id' => absint($cardholder['id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
                             $print_page_url = get_permalink(get_page_by_path('print-photo-id'));
                             $print_url = add_query_arg(array('action' => 'print_card', 'cardholder_id' => absint($cardholder['id'])), $print_page_url);
-                            $kiosk_link = sprintf('<a href="#" class="fsbhoa-action-icon fsbhoa-kiosk-signin-link" data-id="%d" title="%s"><span class="dashicons dashicons-external"></span></a>', absint($cardholder['id']), esc_attr__('Sign-in at Kiosk', 'fsbhoa-ac'));
+                            if ( ! empty( $cardholder['rfid_id'] ) && $cardholder['card_status'] === 'active' ) {
+                                // If active and RFID exists, generate the clickable link HTML
+                                $kiosk_link = sprintf(
+                                    '<a href="#" class="fsbhoa-action-icon fsbhoa-kiosk-signin-link" data-id="%d" title="%s"><span class="dashicons dashicons-external"></span></a>',
+                                    absint($cardholder['id']),
+                                    esc_attr__('Sign-in at Kiosk', 'fsbhoa-ac')
+                                );
+                            } else {
+                                // If inactive or no RFID, generate the disabled/grayed-out span HTML
+                                $kiosk_disabled_reason = empty( $cardholder['rfid_id'] ) ? __('Card not assigned', 'fsbhoa-ac') : __('Card not active', 'fsbhoa-ac');
+                                $kiosk_link = sprintf( // Assign to the same variable
+                                    '<span class="dashicons dashicons-external fsbhoa-action-disabled" title="%s"></span>',
+                                    esc_attr__('Kiosk Sign-in', 'fsbhoa-ac') . ' (' . esc_html($kiosk_disabled_reason) . ')'
+                                );
+                            }
                             ?>
                             <a href="<?php echo esc_url($edit_url); ?>" class="fsbhoa-action-icon" title="<?php esc_attr_e('Edit Cardholder', 'fsbhoa-ac'); ?>">
                                 <span class="dashicons dashicons-edit"></span>

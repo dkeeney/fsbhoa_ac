@@ -1,10 +1,12 @@
 <?php
-// FILE: fsbhoa-permission-functions.php - DEFINITIVE LINKED PROFILE VERSION
+// FILE: fsbhoa-permission-functions.php
+// REFACTORED VERSION with Global Profile Dictionary logic
 
 if (!defined('WPINC')) { die; }
 
 /**
  * Fetches all necessary group and permission data from the database.
+ * This function remains unchanged.
  */
 function fsbhoa_get_all_permission_data($schedule_id = 1) {
     global $wpdb;
@@ -22,267 +24,305 @@ function fsbhoa_get_all_permission_data($schedule_id = 1) {
     $all_memberships = $wpdb->get_results($memberships_query);
     if ($wpdb->last_error) { return false; }
 
+    // Map all permissions by their group_id
     $permissions_by_group = [];
     foreach ($all_permissions as $perm) { $permissions_by_group[$perm->group_id][] = $perm; }
 
+    // Map all group memberships by cardholder_id
     $groups_by_cardholder = [];
     foreach ($all_memberships as $member) { $groups_by_cardholder[$member->cardholder_id][] = $member->group_id; }
 
     return [
         'groups'                 => $all_groups,
         'permissions_by_group'   => $permissions_by_group,
-        'groups_by_cardholder'   => $groups_by_cardholder,
+        'groups_by_cardholder' => $groups_by_cardholder,
     ];
 }
 
 /**
- * The main permission calculation engine for a single cardholder.
+ * [NEW] Inverts the cardholder-to-group map.
+ * This gives us two maps:
+ * 1. A unique 'signature' for each cardholder's group set.
+ * 2. A map of all cardholders that belong to each unique signature.
+ *
+ * @param array $groups_by_cardholder Map of [cardholder_id => [group_id_1, group_id_2]]
+ * @return array [ 'cardholder_to_sig' => [cardholder_id => 'sig'], 'sig_to_groups' => ['sig' => [group_ids]] ]
  */
-function fsbhoa_calculate_cardholder_permissions($cardholder_id, $permission_data) {
-    global $wpdb;
-    $base_group_ids = $permission_data['groups_by_cardholder'][$cardholder_id] ?? [];
-    if (empty($base_group_ids)) { return null; }
+function fsbhoa_invert_cardholder_groups($groups_by_cardholder) {
+    $cardholder_to_sig = [];
+    $sig_to_groups = [];
 
-    foreach ($base_group_ids as $group_id) {
-        if (isset($permission_data['groups'][$group_id])) {
-            $group = $permission_data['groups'][$group_id];
-            if (!empty($group->has_all_access) && $group->has_all_access) {
-                return ['all_access' => true];
-            }
-        }
-    }
-
-    $rules_to_union = [];
-    foreach ($base_group_ids as $group_id) {
-        $final_perms_for_group = fsbhoa_get_final_permissions_for_group($group_id, $permission_data);
-        if (!empty($final_perms_for_group)) {
-             $rules_to_union = array_merge($rules_to_union, $final_perms_for_group);
-        }
-    }
-    if (empty($rules_to_union)) { return null; }
-
-    $perms_by_door = [];
-    foreach ($rules_to_union as $perm) { $perms_by_door[$perm->door_id][] = $perm; }
-
-    $final_permissions = [];
-    foreach ($perms_by_door as $door_id => $perms_for_door) {
-        $merged_perm = new stdClass();
-        $merged_perm->door_id = $door_id;
-        $days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-        foreach ($days as $day) { $merged_perm->{'on_' . $day} = false; }
+    foreach ($groups_by_cardholder as $cardholder_id => $group_ids) {
+        if (empty($group_ids)) continue;
         
-        $windows_by_day = [];
-        foreach ($perms_for_door as $p) {
-            foreach ($days as $day) {
-                if ($p->{'on_' . $day}) {
-                    $merged_perm->{'on_' . $day} = true;
-                    $windows_by_day[$day][] = substr($p->start_time, 0, 5) . '-' . substr($p->end_time, 0, 5);
+        // Sort the group IDs to create a stable, unique signature
+        sort($group_ids);
+        $signature = implode(',', $group_ids);
+
+        $cardholder_to_sig[$cardholder_id] = $signature;
+        if (!isset($sig_to_groups[$signature])) {
+            $sig_to_groups[$signature] = $group_ids;
+        }
+    }
+
+    return [
+        'cardholder_to_sig' => $cardholder_to_sig,
+        'sig_to_groups'     => $sig_to_groups,
+    ];
+}
+
+/**
+ * [NEW] Calculates the *raw*, unmerged permission rules for each unique group set.
+ * This resolves the rule specificity (door > controller > all)
+ *
+ * @param array $sig_to_groups Map from fsbhoa_invert_cardholder_groups
+ * @param array $permission_data The global permission data
+ * @param array $all_door_data A map of [door_id => door_object] from the DB
+ * @return array [ 'sig' => [ 'door_id' => [raw_perm_rule_1, ...], 'all_access' => bool ] ]
+ */
+function fsbhoa_calculate_raw_permissions_for_sets($sig_to_groups, $permission_data, $all_door_data) {
+    $raw_perm_sets = [];
+    $all_door_ids = array_keys($all_door_data);
+    $doors_by_controller = [];
+    foreach ($all_door_data as $door) {
+        if ($door->controller_record_id) {
+            $doors_by_controller[$door->controller_record_id][] = $door->door_record_id;
+        }
+    }
+
+    foreach ($sig_to_groups as $sig => $group_ids) {
+        $has_all_access = false;
+        $rules_for_set = []; // [ door_id => [ rule_with_specificity, ... ] ]
+
+        foreach ($group_ids as $group_id) {
+            // Check for 'All Access' group
+            if (isset($permission_data['groups'][$group_id])) {
+                $group = $permission_data['groups'][$group_id];
+                if (!empty($group->has_all_access) && $group->has_all_access) {
+                    $has_all_access = true;
+                    break; // This set has 'all access', no need to calculate rules
+                }
+            }
+
+            // Get raw permission rules for this group
+            $rules_for_this_group = $permission_data['permissions_by_group'][$group_id] ?? [];
+
+            foreach ($rules_for_this_group as $rule) {
+                $specificity = 1;
+                $doors_to_add = [];
+
+                if ($rule->controller_id === null && $rule->door_id === null) {
+                    // Specificity 1: Applies to ALL doors
+                    $specificity = 1; $doors_to_add = $all_door_ids;
+                } elseif ($rule->controller_id !== null && $rule->door_id === null) {
+                    // Specificity 2: Applies to all doors on a controller
+                    $specificity = 2; $doors_to_add = $doors_by_controller[$rule->controller_id] ?? [];
+                } elseif ($rule->door_id !== null) {
+                    // Specificity 3: Applies to a single door
+                    $specificity = 3; $doors_to_add[] = $rule->door_id;
+                }
+
+                foreach ($doors_to_add as $door_id) {
+                    $permission_copy = clone $rule;
+                    $permission_copy->specificity = $specificity;
+                    $rules_for_set[$door_id][] = $permission_copy;
                 }
             }
         }
-        
-        $final_day_schedules = [];
-        foreach($windows_by_day as $day => $windows) {
-            $merged = fsbhoa_merge_time_windows($windows);
-            $final_day_schedules[$day] = $merged;
-        }
-        $merged_perm->schedules = $final_day_schedules;
-        $final_permissions[] = $merged_perm;
-    }
-    return $final_permissions;
-}
 
-/**
- * The "Unit of Work" function. Calculates the final permissions for a SINGLE group.
- */
-function fsbhoa_get_final_permissions_for_group($group_id, $permission_data) {
-    global $wpdb;
-    $rules_for_hierarchy = $permission_data['permissions_by_group'][$group_id] ?? [];
-    if (empty($rules_for_hierarchy)) { return []; }
-    
-    $expanded_perms_by_door = [];
-    foreach ($rules_for_hierarchy as $rule) {
-        $doors_to_add = [];
-        $specificity = 1;
-        if ($rule->controller_id === null && $rule->door_id === null) {
-            $specificity = 1; $doors_to_add = $wpdb->get_col("SELECT door_record_id FROM ac_doors");
-        } elseif ($rule->controller_id !== null && $rule->door_id === null) {
-            $specificity = 2; $doors_to_add = $wpdb->get_col($wpdb->prepare("SELECT door_record_id FROM ac_doors WHERE controller_record_id = %d", $rule->controller_id));
-        } elseif ($rule->door_id !== null) {
-            $specificity = 3; $doors_to_add[] = $rule->door_id;
+        if ($has_all_access) {
+            $raw_perm_sets[$sig] = ['all_access' => true, 'perms' => []];
+            continue;
         }
-        foreach ($doors_to_add as $door_id) {
-            $permission_copy = clone $rule;
-            $permission_copy->door_id = $door_id;
-            $permission_copy->specificity = $specificity;
-            $expanded_perms_by_door[$door_id][] = $permission_copy;
-        }
-    }
-    
-    $final_permissions = [];
-    foreach ($expanded_perms_by_door as $door_id => $perms_for_door) {
-        $max_specificity = 0;
-        foreach ($perms_for_door as $p) { $max_specificity = max($max_specificity, $p->specificity); }
-        foreach ($perms_for_door as $p) {
-            if ($p->specificity === $max_specificity) { $final_permissions[] = $p; }
-        }
-    }
-    return $final_permissions;
-}
 
-/**
- * Builds a map of all unique schedule chains needed for the sync.
- */
-function fsbhoa_build_profile_chains($all_cardholders_permissions) {
-    $chains_by_door = [];
-    foreach ($all_cardholders_permissions as $cardholder_perms) {
-        if ($cardholder_perms && !isset($cardholder_perms['all_access'])) {
-            foreach ($cardholder_perms as $perm) {
-                if (!empty($perm->schedules)) {
-                    $schedules_by_signature = [];
-                    foreach((array)$perm->schedules as $day => $segments) {
-                        $signature = implode(',', $segments);
-                        $schedules_by_signature[$signature][] = $day;
-                    }
+        // Filter rules by specificity (highest number wins)
+        $final_rules_for_set = [];
+        foreach ($rules_for_set as $door_id => $rules) {
+            $max_specificity = 0;
+            foreach ($rules as $r) { $max_specificity = max($max_specificity, $r->specificity); }
 
-                    if (!isset($chains_by_door[$perm->door_id])) {
-                        $chains_by_door[$perm->door_id] = [];
-                    }
-
-                    foreach($schedules_by_signature as $sig => $days) {
-                         $chains_by_door[$perm->door_id][$sig] = array_unique(array_merge($chains_by_door[$perm->door_id][$sig] ?? [], $days));
-                    }
+            foreach ($rules as $r) {
+                if ($r->specificity === $max_specificity) {
+                    $final_rules_for_set[$door_id][] = $r;
                 }
             }
         }
+        $raw_perm_sets[$sig] = ['all_access' => false, 'perms' => $final_rules_for_set];
     }
-    return $chains_by_door;
+    return $raw_perm_sets;
 }
 
+
 /**
- * Uploads all necessary time profiles to a controller, creating linked chains.
+ * [NEW] The master function to build profile maps for a *single* controller.
+ * Takes all raw permission sets and a list of doors for *this* controller,
+ * and builds the optimized profile maps.
+ *
+ * @param array $raw_perm_sets The map from fsbhoa_calculate_raw_permissions_for_sets
+ * @param array $door_ids_for_this_controller An array of door_ids [1, 2, 5, ...]
+ * @return array Three maps: 'dictionary', 'links', 'entry_points'
  */
-function fsbhoa_upload_time_profiles($device_id, $chains_by_door, $is_dry_run = false, $is_rebuild = false) {
-    $profile_map = []; // Final map: [door_id => entry_profile_id]
-    $schedule_to_profile_id = []; // Cache: [full_signature => profile_id]
-    $profile_id_counter = 2;
+function fsbhoa_build_global_profile_maps($raw_perm_sets, $door_ids_for_this_controller) {
+    $profile_dictionary = []; // [profile_signature => profile_id]
+    $profile_chain_links = []; // [profile_id => next_profile_id]
+    $set_entry_points = []; // [group_set_sig => [door_id => entry_profile_id]]
+    $profile_id_counter = 2; // Profiles 2-254
 
-    if ($is_rebuild) {
-        if (!$is_dry_run) { 
-            shell_exec(sprintf('uhppote-cli clear-time-profiles %s 2>&1', $device_id)); 
-        } else { 
-            error_log("DRY RUN: Would execute: uhppote-cli clear-time-profiles " . $device_id); 
+    foreach ($raw_perm_sets as $sig => $perm_set) {
+        if ($perm_set['all_access']) {
+            continue; // 'all_access' is handled separately
         }
-    }
 
-    // First pass: Pre-assign a unique profile ID to every single unique daily schedule across all doors.
-    foreach ($chains_by_door as $door_id => $schedules) {
-        foreach ($schedules as $signature => $days) {
-            sort($days);
-            $full_signature = implode(':', $days) . '|' . $signature;
-            if (!isset($schedule_to_profile_id[$full_signature])) {
-                if ($profile_id_counter > 254) { return []; }
-                $schedule_to_profile_id[$full_signature] = $profile_id_counter++;
+        foreach ($perm_set['perms'] as $door_id => $rules) {
+            // IMPORTANT: Only process rules for doors on the current controller
+            if (!in_array($door_id, $door_ids_for_this_controller)) {
+                continue;
             }
-        }
-    }
 
-    // Second pass: Upload the profiles for each door, creating linked chains.
-    $uploaded_profiles = []; 
-    foreach ($chains_by_door as $door_id => $schedules) {
-        $schedule_keys = array_keys($schedules);
-        $entry_profile_id = 0;
-        $linked_profile_id = 0; // The end of any chain links to 0 (none).
+            // 1. Group rules by day-of-week combination
+            $rules_by_days = [];
+            foreach ($rules as $rule) {
+                $days = [];
+                if ($rule->on_sun) $days[] = 'Sun';
+                if ($rule->on_mon) $days[] = 'Mon';
+                if ($rule->on_tue) $days[] = 'Tue';
+                if ($rule->on_wed) $days[] = 'Wed';
+                if ($rule->on_thu) $days[] = 'Thu';
+                if ($rule->on_fri) $days[] = 'Fri';
+                if ($rule->on_sat) $days[] = 'Sat';
+                if (empty($days)) continue;
+                
+                $day_sig = implode(',', $days);
+                $rules_by_days[$day_sig][] = substr($rule->start_time, 0, 5) . '-' . substr($rule->end_time, 0, 5);
+            }
 
-        // Build the chain in REVERSE order of the schedules array.
-        for ($i = count($schedule_keys) - 1; $i >= 0; $i--) {
-            $signature = $schedule_keys[$i];
-            $days = $schedules[$signature];
-            sort($days);
-            $full_signature = implode(':', $days) . '|' . $signature;
-            $current_profile_id = $schedule_to_profile_id[$full_signature] ?? 0;
-            if (!$current_profile_id) continue;
-            
-            $entry_profile_id = $current_profile_id; // The last one we process is the entry point.
+            if (empty($rules_by_days)) {
+                continue; // No valid rules for this door/set
+            }
 
-            if (!in_array($current_profile_id, $uploaded_profiles)) {
-                // We ONLY upload profiles during a full rebuild.
-                if ($is_rebuild) {
-                    $weekdays = implode(',', array_map('ucfirst', $days));
-                    $command = sprintf("uhppote-cli set-time-profile %s %d %s %s '%s' %d", $device_id, $current_profile_id, '2020-01-01:2099-12-31', $weekdays, $signature, $linked_profile_id);
+            // 2. Build the chain for this (set, door)
+            $linked_profile_id = 0; // Start at the end of the chain
 
-                    if ($is_dry_run) { 
-                        error_log("DRY RUN: Would execute: " . $command); 
-                    } else { 
-                        error_log("SYNC PROFILE: Executing: " . $command); 
-			shell_exec($command . " 2>&1"); 
+            // We iterate the day groups to build the chain.
+            // The order doesn't strictly matter as long as it's consistent,
+            // but we build it backwards (last chunk first).
+            foreach ($rules_by_days as $day_sig => $windows) {
+                
+                // 3. Merge and Chunk the time windows
+                $merged_windows = fsbhoa_merge_time_windows($windows);
+                $window_chunks = array_chunk($merged_windows, 3); // Max 3 spans per profile
+
+                // 4. Build chain backwards for each chunk
+                for ($i = count($window_chunks) - 1; $i >= 0; $i--) {
+                    $chunk = $window_chunks[$i];
+                    $span_sig = implode(',', $chunk);
+                    $profile_signature = $day_sig . '|' . $span_sig;
+
+                    // 5. Check if this profile is already in our global dictionary
+                    if (isset($profile_dictionary[$profile_signature])) {
+                        $current_profile_id = $profile_dictionary[$profile_signature];
+                    } else {
+                        // It's a new profile. Assign it an ID.
+                        if ($profile_id_counter > 254) {
+                            error_log("FATAL SYNC ERROR: Controller ran out of time profiles (max 253). Stopping profile generation.");
+                            break 3; // Break out of all loops for this controller
+                        }
+                        $current_profile_id = $profile_id_counter++;
+                        $profile_dictionary[$profile_signature] = $current_profile_id;
                     }
+
+                    // 6. Set this profile's *link* to the *previous* one we processed
+                    // (which is the *next* one in the chain)
+                    if (!isset($profile_chain_links[$current_profile_id])) {
+                         $profile_chain_links[$current_profile_id] = $linked_profile_id;
+                    }
+                   
+                    // 7. This profile becomes the link for the *next* chunk
+                    $linked_profile_id = $current_profile_id;
                 }
-                $uploaded_profiles[] = $current_profile_id;
             }
-            // The profile we just created becomes the one the *next* one in the chain will link to.
-            $linked_profile_id = $current_profile_id;
+
+            // 8. The last ID we processed is the *entry point* for this chain
+            if ($linked_profile_id > 0) {
+                $set_entry_points[$sig][$door_id] = $linked_profile_id;
+            }
         }
-        $profile_map[$door_id] = $entry_profile_id;
     }
-    return $profile_map;
+
+    return [
+        'dictionary'   => $profile_dictionary,
+        'links'        => $profile_chain_links,
+        'entry_points' => $set_entry_points
+    ];
 }
 
-/**
- * Builds the final permission string for a single cardholder.
- */
-function fsbhoa_build_card_permissions_string($cardholder, $cardholder_permissions, $profile_map) {
-    if ($cardholder->card_status === 'disabled') { return ''; }
-    if (!$cardholder_permissions) { return ''; }
-    if (isset($cardholder_permissions['all_access'])) { return "1:Y,2:Y,3:Y,4:Y"; }
 
-    global $wpdb;
-    $door_perms = []; 
-    foreach ($cardholder_permissions as $perm) {
-        $door_obj = $wpdb->get_row($wpdb->prepare("SELECT door_number_on_controller FROM ac_doors WHERE door_record_id = %d", $perm->door_id));
-        if ($door_obj && isset($profile_map[$perm->door_id])) {
-            $door_perms[$door_obj->door_number_on_controller] = $profile_map[$perm->door_id];
-        }
+/**
+ * [NEW] Formats the final permission string for the 'put-card' command.
+ *
+ * @param array $door_num_to_profile_map Map of [door_number => profile_id]
+ * @param bool $has_all_access If true, returns 'all access' string
+ * @return string
+ */
+function fsbhoa_format_permission_string($door_num_to_profile_map, $has_all_access) {
+    if ($has_all_access) {
+        return "1:Y,2:Y,3:Y,4:Y";
     }
-    ksort($door_perms);
+
+    if (empty($door_num_to_profile_map)) {
+        return ""; // No permissions
+    }
+
+    ksort($door_num_to_profile_map); // Sort by door number (1, 2, 3, 4)
     $final_perms = [];
-    foreach ($door_perms as $door_num => $profile_id) { $final_perms[] = $door_num . ':' . $profile_id; }
+    foreach ($door_num_to_profile_map as $door_num => $profile_id) {
+        $final_perms[] = $door_num . ':' . $profile_id;
+    }
+    
     return implode(',', $final_perms);
 }
 
+
 /**
  * Helper function to merge overlapping time windows.
+ * This function remains unchanged.
  */
 function fsbhoa_merge_time_windows($windows) {
-    if (empty($windows) || count($windows) < 2) { return $windows ?? []; }
+    if (empty($windows)) { return []; }
+    
     $timestamps = [];
     foreach ($windows as $window) {
-        if(empty($window)) continue;
+        if(empty($window) || strpos($window, '-') === false) continue;
         list($start, $end) = explode('-', $window);
         $timestamps[] = [strtotime($start), strtotime($end)];
     }
     if (empty($timestamps)) { return []; }
+
+    // Sort by start time
     usort($timestamps, function($a, $b) { return $a[0] <=> $b[0]; });
-    $merged = [$timestamps[0]];
-    for ($i = 1; $i < count($timestamps); $i++) {
-        $last_merged = &$merged[count($merged) - 1];
-        if ($timestamps[$i][0] <= $last_merged[1]) {
-            $last_merged[1] = max($last_merged[1], $timestamps[$i][1]);
-        } else {
-            $merged[] = $timestamps[$i];
+
+    $merged = [];
+    if (!empty($timestamps)) {
+        $merged[] = $timestamps[0];
+        for ($i = 1; $i < count($timestamps); $i++) {
+            $last_merged = &$merged[count($merged) - 1];
+            // Check for overlap or contiguous
+            if ($timestamps[$i][0] <= $last_merged[1]) {
+                $last_merged[1] = max($last_merged[1], $timestamps[$i][1]);
+            } else {
+                $merged[] = $timestamps[$i];
+            }
         }
     }
+
     $result = [];
     foreach ($merged as $ts) { $result[] = date('H:i', $ts[0]) . '-' . date('H:i', $ts[1]); }
     return $result;
 }
 
-
-
 /**
  * Determines the currently active schedule ID.
- * Looks for a holiday schedule for the current date, otherwise returns 1 for Default.
- * @return int The active schedule ID.
+ * This function remains unchanged.
  */
 function fsbhoa_get_active_schedule_id() {
     global $wpdb;

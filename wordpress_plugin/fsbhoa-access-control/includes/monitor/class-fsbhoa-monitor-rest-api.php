@@ -13,7 +13,7 @@ class Fsbhoa_Monitor_REST_API {
     private $namespace = 'fsbhoa/v1';
 
     public function register_routes() {
-        // NEW: Endpoint for the monitor_service to fetch a single, enriched event by its log ID.
+        // Endpoint for the monitor_service to fetch a single, enriched event by its log ID.
         register_rest_route( $this->namespace, '/monitor/event', array(
             'methods'             => 'GET',
             'callback'            => array( $this, 'get_event_by_id_callback' ),
@@ -120,13 +120,24 @@ class Fsbhoa_Monitor_REST_API {
                         $time_ago_unix = current_time('timestamp') - ($minutes * MINUTE_IN_SECONDS);
                         $time_ago = date('Y-m-d H:i:s', $time_ago_unix);
 
-                        $recent_swipe = $wpdb->get_var($wpdb->prepare(
-                            "SELECT 1 FROM ac_access_log WHERE cardholder_id = %d AND event_timestamp >= %s AND controller_identifier = %s AND door_number = %d LIMIT 1",
+                        $sql = "SELECT 1 FROM ac_access_log WHERE cardholder_id = %d AND event_timestamp >= %s AND controller_identifier = %s AND door_number = %d";
+                        $params_sql = [
                             $cardholder->id,
                             $time_ago,
                             $log_data['controller_identifier'],
                             $log_data['door_number']
-                        ));
+                        ];
+
+                        if ($log_data['access_granted'] === null) {
+                            $sql .= " AND access_granted IS NULL";
+                        } else {
+                            $sql .= " AND access_granted = %d";
+                            $params_sql[] = $log_data['access_granted'];
+                        }
+
+                        $sql .= " LIMIT 1";
+
+                        $recent_swipe = $wpdb->get_var($wpdb->prepare($sql, $params_sql));
 
                         if ($recent_swipe) {
                             error_log("[RATE LIMIT DEBUG] FOUND recent swipe. Ignoring this one.");
@@ -153,7 +164,7 @@ class Fsbhoa_Monitor_REST_API {
     }
 
     /**
-     * NEW: Callback for the monitor_service to fetch a single enriched event.
+     * Callback for the monitor_service to fetch a single enriched event.
      */
     public function get_event_by_id_callback( WP_REST_Request $request ) {
         global $wpdb;
@@ -204,7 +215,7 @@ class Fsbhoa_Monitor_REST_API {
     }
     
     /**
-     * RESTORED: Callback to get recent events to populate the monitor on load.
+     *  Callback to get recent events to populate the monitor on load.
      */
     public function get_recent_activity_callback( WP_REST_Request $request ) {
         global $wpdb;
@@ -265,7 +276,7 @@ class Fsbhoa_Monitor_REST_API {
     }
 
     /**
-     * RESTORED: Callback to manually set the control state of a single door.
+     *  Callback to manually set the control state of a single door.
      */
     public function set_door_state_callback( WP_REST_Request $request ) {
         global $wpdb;
@@ -293,7 +304,7 @@ class Fsbhoa_Monitor_REST_API {
         $output = shell_exec($command . " 2>&1");
 
         if (strpos($output, 'ERROR') === false) {
-            // RESTORED: Nudge the original event_service on port 8083.
+            //  Nudge the original event_service on port 8083.
             wp_remote_post('https://127.0.0.1:8083/trigger-poll', [
                 'timeout'   => 2,
                 'sslverify' => false

@@ -163,5 +163,9 @@ tr.fsbhoa-manual-record:hover td {
 
 
 
-
+/* --- Style for Disabled Action Icons --- */
+.fsbhoa-action-disabled {
+  color: #a0a5aa !important; /* WordPress default disabled text color */
+  cursor: default; /* Show default cursor, not the hand/pointer */
+}
 
