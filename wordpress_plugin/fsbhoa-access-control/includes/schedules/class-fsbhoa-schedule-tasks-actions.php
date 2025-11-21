@@ -5,6 +5,7 @@ class Fsbhoa_Schedule_Tasks_Actions {
 
     public function __construct() {
         add_action('admin_post_fsbhoa_save_schedule_task', [$this, 'handle_form_submission']);
+        add_action('admin_post_fsbhoa_delete_schedule_task', [$this, 'handle_delete_task']);
     }
 
     public function handle_form_submission() {
@@ -35,7 +36,6 @@ class Fsbhoa_Schedule_Tasks_Actions {
             'schedule_id'   => $schedule_id,
             'controller_id' => $controller_id, 'door_number' => $door_number,
             'task_type'     => absint($_POST['task_type']), 'start_time' => sanitize_text_field($_POST['start_time']),
-            'valid_from'    => sanitize_text_field($_POST['valid_from']), 'valid_to' => sanitize_text_field($_POST['valid_to']),
             'on_mon' => isset($_POST['on_mon']) ? 1 : 0, 'on_tue' => isset($_POST['on_tue']) ? 1 : 0,
             'on_wed' => isset($_POST['on_wed']) ? 1 : 0, 'on_thu' => isset($_POST['on_thu']) ? 1 : 0,
             'on_fri' => isset($_POST['on_fri']) ? 1 : 0, 'on_sat' => isset($_POST['on_sat']) ? 1 : 0,
@@ -50,16 +50,54 @@ class Fsbhoa_Schedule_Tasks_Actions {
         }
 
         if (false === $result) { wp_die('Database operation failed: ' . $wpdb->last_error); }
+        $schedules_page_url = get_permalink(get_page_by_path('schedules')); // <<< DEFINED HERE
 
         // Only trigger an immediate sync if the change was made to the currently active schedule.
         $active_schedule_id = fsbhoa_get_active_schedule_id();
         if ($schedule_id === $active_schedule_id) {
             fsbhoa_log_pending_change('tasks');
         }
-        
-        $schedules_page_url = get_permalink(get_page_by_path('schedules'));
-        $redirect_url = add_query_arg('schedule_id', $schedule_id, $schedules_page_url);
+
+        // Handle Deletion Redirect (since this logic is used for saves AND deletions)
+        if (isset($_GET['action']) && $_GET['action'] === 'fsbhoa_delete_schedule_task') {
+            $redirect_url = add_query_arg(['schedule_id' => $schedule_id, 'message' => 'task_deleted'], $schedules_page_url);
+        } else {
+            $redirect_url = add_query_arg(['schedule_id' => $schedule_id, 'message' => 'task_updated'], $schedules_page_url);
+        }
         wp_safe_redirect($redirect_url);
         exit;
+    }
+
+
+    public function handle_delete_task() {
+        global $wpdb;
+        $task_id = isset($_GET['task_id']) ? absint($_GET['task_id']) : 0;
+        $schedule_id = isset($_GET['schedule_id']) ? absint($_GET['schedule_id']) : 1;
+
+        if ($task_id === 0) { wp_die('Invalid Task ID.'); }
+
+        // Security check
+        check_admin_referer('fsbhoa_delete_task_nonce_' . $task_id);
+        if (!current_user_can('manage_options')) { wp_die('Permission Denied.'); }
+
+        // Delete the task
+        $result = $wpdb->delete('ac_task_list', ['id' => $task_id], ['%d']);
+
+        if ($result !== false) {
+            // Log the change, as deleting a task affects the currently active schedule
+            $active_schedule_id = fsbhoa_get_active_schedule_id();
+            if ($schedule_id === $active_schedule_id) {
+                fsbhoa_log_pending_change('tasks');
+            }
+        } else {
+             wp_die('Database error deleting task: ' . $wpdb->last_error);
+        }
+
+        // Redirect back to the list page and the correct schedule tab
+        $schedules_page_url = get_permalink(get_page_by_path('schedules'));
+        $redirect_url = add_query_arg('schedule_id', $schedule_id, $schedules_page_url);
+
+        wp_safe_redirect($redirect_url);
+        exit; // Crucial to prevent blank page
     }
 }

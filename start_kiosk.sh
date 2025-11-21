@@ -59,7 +59,7 @@ while true; do
     # --- SERVICE IS DOWN ---
     if pgrep -f "$BROWSER_PROCESS_STRING" > /dev/null; then
       echo "Kiosk service is DOWN. Closing Firefox..."
-      pkill -f "$BROWROWSER_PROCESS_STRING"
+      pkill -f "$BROWSER_PROCESS_STRING"
     fi
   fi
 

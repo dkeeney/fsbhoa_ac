@@ -7,11 +7,14 @@ if ( ! defined( 'WPINC' ) ) { die; }
  * It uses the $is_edit_mode and $schedule_id variables from that class.
  */
 global $wpdb;
+// ---  Fetch schedule object to get the name ---
+$schedule_obj = $wpdb->get_row($wpdb->prepare("SELECT name FROM ac_schedules WHERE schedule_id = %d", $schedule_id));
+
 
 // --- Data Fetching Logic ---
 $form_data = [
     'id' => 0, 'controller_id' => null, 'door_number' => null, 'task_type' => 1,
-    'start_time' => '00:00', 'valid_from' => date('Y-m-d'), 'valid_to' => '2099-12-31',
+    'start_time' => '00:00', 
     'on_mon' => 0, 'on_tue' => 0, 'on_wed' => 0, 'on_thu' => 0, 'on_fri' => 0, 'on_sat' => 0, 'on_sun' => 0,
     'notes' => '', 'adapt_to_selected' => 'all-0',
     'schedule_id' => $schedule_id
@@ -37,10 +40,12 @@ $controllers = $wpdb->get_results("SELECT controller_record_id, friendly_name FR
 $doors = $wpdb->get_results("SELECT door_record_id, friendly_name FROM ac_doors ORDER BY friendly_name", ARRAY_A);
 
 $page_title = $is_edit_mode ? 'Edit Schedule Task' : 'Add New Schedule Task';
+if ($schedule_obj) {
+    $page_title .= ' - ' . esc_html($schedule_obj->name);
+}
 $submit_button_text = $is_edit_mode ? 'Update Task' : 'Add Task';
 $nonce_action = $is_edit_mode ? 'fsbhoa_update_task_' . $form_data['id'] : 'fsbhoa_add_task';
 $schedules_page_url = get_permalink(get_page_by_path('schedules'));
-// CORRECTED: This now points back to the correct holiday tab
 $cancel_url = add_query_arg('schedule_id', $form_data['schedule_id'], $schedules_page_url);
 ?>
 <div class="fsbhoa-frontend-wrap is-wide-view">
@@ -88,14 +93,6 @@ $cancel_url = add_query_arg('schedule_id', $form_data['schedule_id'], $schedules
                 <div class="form-field">
                     <label for="start_time">Activation Time</label>
                     <input type="time" name="start_time" id="start_time" value="<?php echo esc_attr($form_data['start_time']); ?>" required>
-                </div>
-                <div class="form-field">
-                    <label for="valid_from">Activation Date</label>
-                    <input type="date" name="valid_from" id="valid_from" value="<?php echo esc_attr($form_data['valid_from']); ?>" required>
-                </div>
-                <div class="form-field">
-                    <label for="valid_to">Deactivation Date</label>
-                    <input type="date" name="valid_to" id="valid_to" value="<?php echo esc_attr($form_data['valid_to']); ?>" required>
                 </div>
             </div>
             <div class="form-row">

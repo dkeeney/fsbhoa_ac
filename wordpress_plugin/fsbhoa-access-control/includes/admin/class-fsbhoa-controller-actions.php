@@ -430,11 +430,6 @@ class Fsbhoa_Controller_Actions {
     public function ajax_trigger_nightly_rebuild() {
         check_ajax_referer('fsbhoa_rebuild_nonce', 'nonce');
 
-        // Prevent duplicates if a rebuild is already scheduled.
-        if (wp_next_scheduled('fsbhoa_run_nightly_rebuild')) {
-            wp_send_json_error('A rebuild is already in progress or scheduled.');
-            return;
-        }
 
         // Set the initial transient so the sync banner appears immediately on page reload.
         set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => 'Full rebuild scheduled...'], MINUTE_IN_SECONDS * 10);

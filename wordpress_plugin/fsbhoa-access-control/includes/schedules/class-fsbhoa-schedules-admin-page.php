@@ -92,11 +92,11 @@ class Fsbhoa_Schedules_Admin_Page {
             require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-tasks-list.php';
             fsbhoa_render_schedule_tasks_list(1);
 
-        } else {
+} else {
             // --- Renders the Holiday Tab Content ---
             global $wpdb;
             $schedule_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_schedules WHERE schedule_id = %d", $this->active_schedule_id));
-            
+
             if ($schedule_data) {
                 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-header-controls.php';
                 fsbhoa_render_schedule_header_controls($schedule_data, $this->schedules, null); // Pass null for group_data for now
@@ -106,10 +106,19 @@ class Fsbhoa_Schedules_Admin_Page {
                 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-groups-list.php';
                 fsbhoa_render_schedule_groups_list($this->active_schedule_id);
 
-                // We'll add an "Add Task" button here in a later step
-                echo '<h2 style="margin-top: 40px;">Automated Task Schedules for ' . esc_html($schedule_data->name) . '</h2>';
+                ?>
+                <div class="fsbhoa-section-header" style="margin-top: 40px;">
+                    <h2><?php echo 'Automated Task Schedules for ' . esc_html($schedule_data->name); ?></h2>
+                    <?php
+                    $add_task_url = add_query_arg(['action' => 'add_task_schedule', 'schedule_id' => $this->active_schedule_id], $schedules_page_url);
+                    ?>
+                    <a href="<?php echo esc_url($add_task_url); ?>" class="button button-primary">Add New Task</a>
+                </div>
+                <?php 
+
                 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-tasks-list.php';
                 fsbhoa_render_schedule_tasks_list($this->active_schedule_id);
+                
             } else {
                 echo '<div class="notice notice-error"><p>Error: Could not find schedule data.</p></div>';
             }

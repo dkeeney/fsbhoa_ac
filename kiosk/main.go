@@ -48,6 +48,7 @@ type SignInPayload struct {
         Guests  int    `json:"guests"`
 }
 
+
 type ValidationResponse struct {
 	IsValid    bool        `json:"isValid"`
 	Message    string      `json:"message"`

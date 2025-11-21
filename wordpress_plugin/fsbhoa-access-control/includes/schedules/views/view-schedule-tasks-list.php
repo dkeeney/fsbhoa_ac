@@ -13,7 +13,7 @@ function fsbhoa_render_schedule_tasks_list( $schedule_id ) {
         $schedule_id
     ), ARRAY_A);
 
-    $tasks_page_url = get_permalink(get_page_by_path('task-list'));
+    $schedules_page_url = get_permalink(get_page_by_path('schedules'));
     ?>
     <div class="table-wrapper" style="overflow-x: auto;">
         <table id="fsbhoa-schedule-task-table-<?php echo esc_attr($schedule_id); ?>" class="display" style="width:100%">
@@ -33,13 +33,12 @@ function fsbhoa_render_schedule_tasks_list( $schedule_id ) {
                     <tr>
                         <td class="fsbhoa-actions-column actions-column">
                             <?php
-                                // UPDATED: Add all three action icons
-                                $edit_url = add_query_arg(['action' => 'edit', 'task_id' => absint($task['id'])], $tasks_page_url);
+                                // Add all three action icons
+                                $edit_url = add_query_arg(['action' => 'edit_task_schedule', 'task_id' => absint($task['id']), 'schedule_id' => $schedule_id], $schedules_page_url);
                                 $toggle_nonce = wp_create_nonce('fsbhoa_toggle_task_status_' . $task['id']);
                                 $toggle_url = add_query_arg(['action' => 'fsbhoa_toggle_task_status', 'task_id' => absint($task['id']), '_wpnonce' => $toggle_nonce], admin_url('admin-post.php'));
                                 $delete_nonce = wp_create_nonce('fsbhoa_delete_task_nonce_' . $task['id']);
-                                $delete_url = add_query_arg(['action' => 'fsbhoa_delete_task', 'task_id' => absint($task['id']), '_wpnonce' => $delete_nonce], admin_url('admin-post.php'));
-                                
+                                $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_schedule_task', 'task_id' => absint($task['id']), 'schedule_id' => $schedule_id, '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
                                 $is_enabled = (bool) $task['enabled'];
                                 $toggle_icon = $is_enabled ? 'dashicons-yes-alt' : 'dashicons-no-alt';
                                 $toggle_title = $is_enabled ? 'Enabled. Click to disable.' : 'Disabled. Click to enable.';

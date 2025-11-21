@@ -11,6 +11,7 @@ class Fsbhoa_Schedule_Groups_Page {
      * It decides whether to show the form for adding/editing a permission rule.
      */
     public function render_page() {
+        global $wpdb;
         // Get the schedule ID from the URL, defaulting to 1 (Default Schedule)
         $schedule_id = isset($_GET['schedule_id']) ? absint($_GET['schedule_id']) : 1;
         $group_id = isset($_GET['group_id']) ? absint($_GET['group_id']) : 0;
@@ -19,6 +20,10 @@ class Fsbhoa_Schedule_Groups_Page {
         echo '<div class="fsbhoa-frontend-wrap">';
 
         $page_title = $group_id ? __('Edit Permissions Group Schedule', 'fsbhoa-ac') : __('Add New Permissions Group Schedule', 'fsbhoa-ac');
+        $schedule_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ac_schedules WHERE schedule_id = %d", $schedule_id));
+        if ($schedule_name) {
+            $page_title .= ' - ' . esc_html($schedule_name);
+        }
         echo '<h1>' . esc_html($page_title) . '</h1>';
         
         // The form HTML is in a separate view file.

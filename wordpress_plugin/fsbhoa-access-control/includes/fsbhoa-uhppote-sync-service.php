@@ -8,7 +8,7 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
 add_action('fsbhoa_run_background_sync', 'fsbhoa_perform_delta_sync');
 add_action('fsbhoa_run_nightly_rebuild', 'fsbhoa_perform_nightly_rebuild_sync');
 
-// fsbhoa_perform_delta_sync() remains unchanged
+// fsbhoa_perform_delta_sync()
 function fsbhoa_perform_delta_sync() {
     global $wpdb;
     $is_dry_run = (get_option('fsbhoa_ac_sync_dry_run') === 'on');
@@ -157,7 +157,7 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
         if (!$is_dry_run) { shell_exec(sprintf('uhppote-cli set-time %s 2>&1', $device_id)); }
 
         // ---
-        // [NEW] 3. Build and Upload Time Profiles for *this* controller
+        //  3. Build and Upload Time Profiles for *this* controller
         // ---
 
         // Get a list of all door_record_ids managed by this controller
@@ -318,9 +318,17 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
         // 6. Sync Tasks 
         // ---
         if ($task_sync_needed || $is_rebuild) {
-            $tasks = $wpdb->get_results($wpdb->prepare("SELECT * FROM ac_task_list WHERE enabled = 1 AND schedule_id = %d", $active_schedule_id));
+            $tasks = $wpdb->get_results($wpdb->prepare(
+                 "SELECT t.*, s.start_date, s.end_date, s.is_default 
+                  FROM ac_task_list t
+                  JOIN ac_schedules s ON t.schedule_id = s.schedule_id
+                  WHERE t.enabled = 1 AND t.schedule_id = %d",
+                 $active_schedule_id
+            ));
+            $clear_task_list_command = sprintf('uhppote-cli clear-task-list %s 2>&1', $device_id);
             if (!$is_dry_run) {
-                $output_clear_tasks = shell_exec(sprintf('uhppote-cli clear-task-list %s 2>&1', $device_id));
+                error_log($clear_task_list_command);
+                $output_clear_tasks = shell_exec($clear_task_list_command);
                  if (strpos($output_clear_tasks, 'false') !== false || strpos($output_clear_tasks, 'ERROR') !== false) {
                      error_log("SYNC WARNING (CLEAR TASKS) for $friendly_name: $output_clear_tasks");
                  }
@@ -331,6 +339,8 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
             foreach ($tasks as $task) {
                 // Only sync tasks for this controller OR global tasks (controller_id is NULL)
                 if ($task->controller_id === null || $task->controller_id == $controller_id) {
+                    $valid_from = ($task->is_default) ? '2025-01-01' : $task->start_date;
+                    $valid_to   = ($task->is_default) ? '2099-12-31' : $task->end_date;
                     $weekdays = rtrim(($task->on_sun ? 'Sun,' : '') . ($task->on_mon ? 'Mon,' : '') . ($task->on_tue ? 'Tue,' : '') . ($task->on_wed ? 'Wed,' : '') . ($task->on_thu ? 'Thu,' : '') . ($task->on_fri ? 'Fri,' : '') . ($task->on_sat ? 'Sat,' : ''), ',');
                     if (empty($weekdays)) $weekdays = '...'; // uhppote-cli syntax for 'none'
 
@@ -344,12 +354,20 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
                     }
                     
                     foreach ($doors_to_set as $door) {
-                        $add_task_command = sprintf('uhppote-cli add-task %s %s %d %s:%s %s %s 0', $device_id, $task_description, $door, $task->valid_from, $task->valid_to, $weekdays, substr($task->start_time, 0, 5));
+                        $add_task_command = sprintf('uhppote-cli add-task %s %s %d %s:%s %s %s 0', 
+                            $device_id, 
+                            $task_description, 
+                            $door, 
+                            $valid_from, 
+                            $valid_to, 
+                            $weekdays, 
+                            substr($task->start_time, 0, 5));
                         if ($is_dry_run) { 
                             error_log("DRY RUN (TASK): Would execute: " . $add_task_command);
                         } else {
                             $success = false;
                             $output = '';
+                            error_log($add_task_command);
                             for ($i = 0; $i < $retry_attempts; $i++) {
                                 $output = shell_exec($add_task_command . " 2>&1");
                                 if (strpos($output, 'false') === false && strpos($output, 'ERROR') === false) {
@@ -360,14 +378,16 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
                             }
                             if (!$success) {
                                 $global_sync_failed = true;
-                                error_log("SYNC FAILED (ADD TASK) for $friendly_name after $retry_attempts attempts: $output");
+                                error_log("SYNC FAILED (ADD TASK) for $friendly_name after $retry_attempts attempts:" . PHP_EOL . $add_task_command . PHP_EOL . $output);
                             }
                         }
                     }
                 }
             }
+            $refresh_task_list_command = sprintf('uhppote-cli refresh-task-list %s 2>&1', $device_id);
             if (!$is_dry_run) {
-                $output_refresh_tasks = shell_exec(sprintf('uhppote-cli refresh-task-list %s 2>&1', $device_id));
+                error_log($refresh_task_list_command);
+                $output_refresh_tasks = shell_exec($refresh_task_list_command);
                  if (strpos($output_refresh_tasks, 'false') !== false || strpos($output_refresh_tasks, 'ERROR') !== false) {
                      $global_sync_failed = true; // This one is critical
                      error_log("SYNC FAILED (REFRESH TASKS) for $friendly_name: $output_refresh_tasks");
@@ -400,4 +420,40 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
         set_transient('fsbhoa_sync_status', ['status' => 'complete', 'message' => $final_message], MINUTE_IN_SECONDS * 5);
         error_log("Sync Complete.");
     }
+}
+
+
+/**
+ * New action hook for the daily 3AM time sync
+ */
+add_action('fsbhoa_run_daily_time_sync', 'fsbhoa_perform_daily_time_sync');
+
+/**
+ * New function that *only* sets the time on all controllers.
+ * This is a lightweight job to run after DST changes.
+ */
+function fsbhoa_perform_daily_time_sync() {
+    error_log("DAILY TIME SYNC: Process started.");
+    global $wpdb;
+    $controllers = $wpdb->get_results("SELECT uhppoted_device_id, friendly_name FROM ac_controllers");
+
+    if (empty($controllers)) {
+        error_log("DAILY TIME SYNC: No controllers found.");
+        return;
+    }
+
+    foreach ($controllers as $controller) {
+        // Check if controller is online
+        $status_command = sprintf('uhppote-cli --timeout 2s get-status %s', $controller->uhppoted_device_id);
+        $status_output = shell_exec($status_command . " 2>&1");
+
+        if (strpos($status_output, 'ERROR') === false && !empty(trim($status_output))) {
+            // Controller is online, set the time
+            error_log("DAILY TIME SYNC: Setting time on " . $controller->friendly_name);
+            shell_exec(sprintf('uhppote-cli set-time %s 2>&1', $controller->uhppoted_device_id));
+        } else {
+            error_log("DAILY TIME SYNC: Controller " . $controller->friendly_name . " is offline. Skipping.");
+        }
+    }
+    error_log("DAILY TIME SYNC: Complete.");
 }

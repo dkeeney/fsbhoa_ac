@@ -112,9 +112,6 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-discovery-results
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-discovery.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
 
-// For Task List Management
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-task-actions.php';
 
 // For Live Monitor
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-api.php';
@@ -204,10 +201,6 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_Gate_Actions();
     }
 
-    // Instantiate Task Actions handler
-    if (class_exists('Fsbhoa_Task_Actions')) {
-        new Fsbhoa_Task_Actions();
-    }
 
     // Instantiate System Actions handler for AJAX calls
     if ( class_exists('Fsbhoa_System_Actions') ) {
@@ -385,5 +378,32 @@ function fsbhoa_remove_theme_padding_script() {
 add_action('wp_footer', 'fsbhoa_remove_theme_padding_script');
 add_action('admin_footer', 'fsbhoa_remove_theme_padding_script');
 
+/**
+ * Schedules the nightly rebuild and daily time sync events.
+ *  Set a crontab with the following:
+ *
+ *    5 0 * * * wget -q -O - "https://access.fsbhoa.com/wp-cron.php?doing_wp_cron" > /dev/null 2>&1
+ *    5 3 * * * wget -q -O - "https://access.fsbhoa.com/wp-cron.php?doing_wp_cron" > /dev/null 2>&1
+ */
+function fsbhoa_schedule_cron_jobs() {
 
+    // --- 1. Nightly Rebuild (for 12:00 AM) ---
+    $rebuild_hook = 'fsbhoa_run_nightly_rebuild';
+    if ( ! wp_next_scheduled( $rebuild_hook ) ) {
+        // Schedule for midnight
+        $start_time = strtotime('tomorrow midnight', current_time('timestamp'));
+        wp_schedule_event( $start_time, 'daily', $rebuild_hook );
+        error_log('FSBHOA Sync: Nightly REBUILD event has been successfully scheduled.');
+    }
+
+    // --- 2. Daily Time Sync (for 3:00 AM, after DST change) ---
+    $time_sync_hook = 'fsbhoa_run_daily_time_sync';
+    if ( ! wp_next_scheduled( $time_sync_hook ) ) {
+        // Schedule for 3:00 AM
+        $start_time = strtotime('tomorrow 3:00am', current_time('timestamp'));
+        wp_schedule_event( $start_time, 'daily', $time_sync_hook );
+        error_log('FSBHOA Sync: Daily TIME SYNC event has been successfully scheduled for 3AM.');
+    }
+}
+add_action( 'init', 'fsbhoa_schedule_cron_jobs' );
 ?>

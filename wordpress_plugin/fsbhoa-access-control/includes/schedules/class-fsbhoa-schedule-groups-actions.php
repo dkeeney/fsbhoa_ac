@@ -51,30 +51,38 @@ class Fsbhoa_Schedule_Groups_Actions {
         global $wpdb;
         $group_id = isset($_POST['group_id']) ? absint($_POST['group_id']) : 0;
         $schedule_id = isset($_POST['schedule_id']) ? absint($_POST['schedule_id']) : 1;
+        $is_default_schedule = ($schedule_id == 1);
+        if ($is_default_schedule) {
 
-        $other_default_groups_count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM ac_groups WHERE is_default = 1 AND group_id != %d", $group_id
-        ));
-        $other_default_groups_count += isset($_POST['is_default']);
-        if ($other_default_groups_count == 0) {
-            wp_die('Error: The system must have at least one "Default Group". Please check the "Default Group" box before saving.', 'Error', ['back_link' => true]);
+            $other_default_groups_count = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM ac_groups WHERE is_default = 1 AND group_id != %d", $group_id
+            ));
+            $other_default_groups_count += isset($_POST['is_default']);
+            if ($other_default_groups_count == 0) {
+                wp_die('Error: The system must have at least one "Default Group". Please check the "Default Group" box before saving.', 'Error', ['back_link' => true]);
+            }
+
+            $group_data = [
+                'group_name'        => sanitize_text_field($_POST['group_name']),
+                'group_description' => sanitize_textarea_field($_POST['group_description']),
+                'has_all_access'    => isset($_POST['has_all_access']) ? 1 : 0,
+                'is_default'        => isset($_POST['is_default']) ? 1 : 0,
+            ];
+    
+            if ($group_id > 0) {
+                $result = $wpdb->update("ac_groups", $group_data, ['group_id' => $group_id]);
+            } else {
+                $group_data['is_enabled'] = 1;
+                $result = $wpdb->insert("ac_groups", $group_data);
+                if ($result) { $group_id = $wpdb->insert_id; }
+            }
+            if ($result === false) { wp_die('DB Error saving group details: ' . $wpdb->last_error); }
+            } else {
+            // If not the default schedule, just ensure the group_id is valid
+            if ($group_id === 0) {
+                wp_die('Error: Cannot create a new group from a holiday schedule. Please add the group from the "Default" schedule first.', 'Error', ['back_link' => true]);
+            }
         }
-
-        $group_data = [
-            'group_name'        => sanitize_text_field($_POST['group_name']),
-            'group_description' => sanitize_textarea_field($_POST['group_description']),
-            'has_all_access'    => isset($_POST['has_all_access']) ? 1 : 0,
-            'is_default'        => isset($_POST['is_default']) ? 1 : 0,
-        ];
-
-        if ($group_id > 0) {
-            $result = $wpdb->update("ac_groups", $group_data, ['group_id' => $group_id]);
-        } else {
-            $group_data['is_enabled'] = 1;
-            $result = $wpdb->insert("ac_groups", $group_data);
-            if ($result) { $group_id = $wpdb->insert_id; }
-        }
-        if ($result === false) { wp_die('DB Error saving group details: ' . $wpdb->last_error); }
 
         $permissions_data = isset($_POST['permissions']) ? (array) $_POST['permissions'] : [];
         $this->save_group_permissions($group_id, $permissions_data, $schedule_id);
