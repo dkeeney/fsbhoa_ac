@@ -5,7 +5,7 @@ if ( ! defined( 'WPINC' ) ) { die; }
  * Renders the add/edit form for a single controller and its associated gates.
  * This version uses a more compact, single-row layout for gates.
  */
-function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] ) {
+function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [], $amenities = [] ) {
     $page_title = $is_edit_mode ? 'Edit Controller & Gates' : 'Add New Controller';
     $submit_button_text = $is_edit_mode ? 'Update Controller & Gates' : 'Add Controller';
     $form_post_hook_action = $is_edit_mode ? 'fsbhoa_update_controller' : 'fsbhoa_add_controller';
@@ -77,6 +77,9 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] 
                         <div class="form-field gate-name-field">
                             <strong>Gate Name</strong>
                         </div>
+                        <div class="form-field gate-role-field">
+                            <strong>Role/Amenity</strong>
+                        </div>
                         <div class="form-field gate-notes-field">
                             <strong>Notes</strong>
                         </div>
@@ -97,6 +100,43 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] 
                                 <label for="gate_name_<?php echo $i; ?>">Gate Name</label>
                                 <input type="text" id="gate_name_<?php echo $i; ?>" name="gates[<?php echo $i; ?>][friendly_name]" value="<?php echo esc_attr($door_name); ?>" placeholder="(Unused)">
                             </div>
+                            <div class="form-field gate-role-field">
+                                <label for="gate_amenity_role_<?php echo $i; ?>">Amenity Role</label>
+
+                                <?php 
+                                // Get all active amenities from the database
+                                global $wpdb;
+                                $amenities = $wpdb->get_results("SELECT id, name FROM ac_amenities WHERE is_active = 1 ORDER BY display_order ASC", ARRAY_A);
+                                
+                                // Define the hardcoded system roles that are NOT amenities
+                                $system_roles = [
+                                     ''                       => '— Not Set —',
+                                     'NO_AMENITY'             => 'No Amenity',
+                                     'AFTER_HOURS_ACCESS'     => 'After Hours Entry',
+                                     'UNUSED'                 => 'Unused Gate Slot',
+                                ];
+
+                                // Combine system roles and dynamic amenities into one associative array
+                                $combined_roles = $system_roles;
+
+                                // Add dynamic amenities with a unique prefix (AMENITY_ID_) to distinguish them from system roles
+                                foreach ($amenities as $amenity) {
+                                    // We use the unique amenity ID prefixed by 'AMENITY_' as the dropdown value
+                                    $combined_roles['AMENITY_' . $amenity['id']] = 'Amenity: ' . esc_html($amenity['name']);
+                                }
+
+
+                                $current_role = $door_data['amenity_role'] ?? '';
+                                ?>
+                                <select name="gates[<?php echo $i; ?>][amenity_role]" id="gate_amenity_role_<?php echo $i; ?>">
+                                    <?php foreach ($combined_roles as $value => $label) : ?>
+                                        <option value="<?php echo esc_attr($value); ?>" <?php selected($current_role, $value); ?>>
+                                            <?php echo esc_html($label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
                             <div class="form-field gate-notes-field">
                                 <label for="gate_notes_<?php echo $i; ?>">Notes</label>
                                 <input type="text" id="gate_notes_<?php echo $i; ?>" name="gates[<?php echo $i; ?>][notes]" value="<?php echo esc_attr($door_notes); ?>">
@@ -141,10 +181,13 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] 
             flex-shrink: 0;
         }
         .gate-name-field {
-            flex: 1 1 40%; /* Grow and shrink, base size 40% */
+            flex: 1 1 20%; /* Grow and shrink, base size 30% */
+        }
+        .gate-role-field {
+            flex: 1 1 30%; /* Give the amenity dropdown some space */
         }
         .gate-notes-field {
-            flex: 1 1 60%; /* Grow and shrink, base size 60% */
+            flex: 1 1 50%; /* Grow and shrink, base size 60% */
         }
         .gate-form-row .form-field label {
             display: none; /* Hide labels as the fields are now self-explanatory */
@@ -159,9 +202,36 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [] 
             margin-bottom: 5px;
             padding-bottom: 5px;
             border-bottom: 1px solid #ccc;
+            align-items: center;
+        }
+
+        .gate-header-row .form-field {
+            /* Reset padding/margin that might be inherited from generic WordPress form-field styles */
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Ensure the text itself is aligned correctly */
+        .gate-header-row .gate-name-field strong,
+        .gate-header-row .gate-role-field strong,
+        .gate-header-row .gate-notes-field strong {
+            display: block; /* Treat the <strong> tag as a block for correct positioning */
+            line-height: 1.5; /* Optional: Adjust line height if the text is still too tight */
         }
         .gate-header-row .form-field {
             flex-direction: row; /* Override default column direction for header text */
+        }
+        .gate-header-row .gate-name-field { 
+            flex: 1 1 20%; 
+            text-align: left; /* ADD THIS */
+        }
+        .gate-header-row .gate-role-field { 
+            flex: 1 1 30%; 
+            text-align: left; /* ADD THIS */
+        }
+        .gate-header-row .gate-notes-field { 
+            flex: 1 1 50%; 
+            text-align: left; /* ADD THIS */
         }
     </style>
     <?php

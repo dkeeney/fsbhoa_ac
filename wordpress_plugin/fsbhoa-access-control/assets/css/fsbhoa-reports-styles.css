@@ -135,3 +135,11 @@ table.dataTable tr.selected td.select-checkbox::before {
     border-color: #0073aa;
 }
 
+
+
+.chart-note {
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 10px;
+    font-style: italic;
+}

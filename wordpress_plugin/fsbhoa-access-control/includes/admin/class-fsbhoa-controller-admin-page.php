@@ -35,6 +35,7 @@ class Fsbhoa_Controller_Admin_Page {
 
 
     private function render_form_page($action) {
+                global $wpdb;
 		$form_data = [
 			'controller_record_id' => 0,
 			'friendly_name' => '',
@@ -53,13 +54,14 @@ class Fsbhoa_Controller_Admin_Page {
 		$transient_key = 'fsbhoa_controller_feedback_' . ($is_edit_mode ? 'edit_' . $item_id : 'add');
 		$feedback = get_transient($transient_key);
 
+                // --- Fetch all active amenities for the dropdown ---
+            	$amenities = $wpdb->get_results("SELECT id, name FROM ac_amenities WHERE is_active = 1 ORDER BY display_order ASC", ARRAY_A);
+
 		if ($feedback !== false) {
 			$form_data = array_merge($form_data, $feedback['data']);
 			$errors = $feedback['errors'];
 			delete_transient($transient_key);
 		} elseif ($is_edit_mode) {
-			// --- No errors, so fetch fresh data from the DB for editing ---
-			global $wpdb;
 			// Fetch the main controller record
 			$controller_result = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_controllers WHERE controller_record_id = %d", $item_id), ARRAY_A);
 
@@ -69,7 +71,7 @@ class Fsbhoa_Controller_Admin_Page {
 				// Now, fetch all associated doors for this controller
 				$door_results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ac_doors WHERE controller_record_id = %d ORDER BY door_number_on_controller ASC", $item_id), ARRAY_A);
 
-                // --- Restored DB Error Check ---
+                		// --- Restored DB Error Check ---
 				if ($wpdb->last_error) {
 					wp_die('Database error fetching associated gates. DB Error: ' . esc_html($wpdb->last_error), 'Database Error', ['back_link' => true]);
 				}
@@ -89,7 +91,7 @@ class Fsbhoa_Controller_Admin_Page {
 
 		// Now, call the view and pass it the combined data
 		require_once plugin_dir_path(__FILE__) . 'views/view-controller-form.php';
-		fsbhoa_render_controller_form($form_data, $is_edit_mode, $errors);
+		fsbhoa_render_controller_form($form_data, $is_edit_mode, $errors, $amenities);
     }
 
 }

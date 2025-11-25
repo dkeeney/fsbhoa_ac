@@ -34,9 +34,8 @@ class Fsbhoa_Controller_Actions {
 			'door_count'           => isset($_POST['door_count']) ? absint($_POST['door_count']) : 4,
 			'is_static_ip'         => $reverting_to_dhcp ? 0 : 1, // It's static unless we are reverting to DHCP
 			'notes'                => sanitize_textarea_field($_POST['notes']),
-		];
-
-		// --- Main Validation for Controller ---
+                       
+                ];
 		if (empty($controller_data['friendly_name'])) { $errors[] = 'Controller Name is required.'; }
 		if (empty($controller_data['uhppoted_device_id'])) { $errors[] = 'Controller Device ID is required.'; }
 
@@ -71,6 +70,7 @@ class Fsbhoa_Controller_Actions {
 						'door_number_on_controller' => absint($slot_number),
 						'friendly_name' => $friendly_name,
 						'notes' => $notes,
+                                                'amenity_role' => sanitize_text_field($gate_data['amenity_role']),
 					];
 					if ($door_record_id > 0) {
 						// Update existing gate

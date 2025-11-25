@@ -387,13 +387,13 @@ add_action('admin_footer', 'fsbhoa_remove_theme_padding_script');
  */
 function fsbhoa_schedule_cron_jobs() {
 
-    // --- 1. Nightly Rebuild (for 12:00 AM) ---
+    // --- 1. Nightly Rebuild (for 12:06 AM) ---
     $rebuild_hook = 'fsbhoa_run_nightly_rebuild';
     if ( ! wp_next_scheduled( $rebuild_hook ) ) {
-        // Schedule for midnight
-        $start_time = strtotime('tomorrow midnight', current_time('timestamp'));
+        // Schedule for 6 minutes past midnight (00:06:00), which is JUST AFTER the server cron runs at 00:05.
+        $start_time = strtotime('tomorrow 00:06am', current_time('timestamp'));
         wp_schedule_event( $start_time, 'daily', $rebuild_hook );
-        error_log('FSBHOA Sync: Nightly REBUILD event has been successfully scheduled.');
+        error_log('FSBHOA Sync: Nightly REBUILD event has been successfully scheduled for 00:06.');
     }
 
     // --- 2. Daily Time Sync (for 3:00 AM, after DST change) ---

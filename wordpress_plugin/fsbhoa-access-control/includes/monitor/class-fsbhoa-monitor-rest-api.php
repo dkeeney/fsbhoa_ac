@@ -101,8 +101,10 @@ class Fsbhoa_Monitor_REST_API {
 		'event_type_code'       => absint($params['Reason']),
                 'event_description'     => isset($params['EventMessage']) ? sanitize_text_field($params['EventMessage']) : 'Unknown Event',
 		'access_granted'        => isset($params['Granted']) ? ($params['Granted'] ? 1 : 0) : null,
+                'amenity_name'          => NULL,
 	];
 
+        // --- RATE LIMIT CHECK ---
         if ( !empty($log_data['rfid_id']) && $log_data['rfid_id'] !== '00000000' ) {
             // Fetch the whole cardholder record to get the ID and resident_type
             $cardholder = $wpdb->get_row($wpdb->prepare("SELECT id, resident_type FROM ac_cardholders WHERE rfid_id = %s", $log_data['rfid_id']));
@@ -147,6 +149,75 @@ class Fsbhoa_Monitor_REST_API {
                 }
             }
         }
+
+        // --- AMENITY TRACKING LOGIC ---
+        if ($log_data['access_granted'] == 1 && (isset($is_resident) && $is_resident)) {
+            $current_role_or_id = $this->get_gate_classification($log_data['controller_identifier'], $log_data['door_number']);
+            $ten_minutes_ago = date('Y-m-d H:i:s', current_time('timestamp') - (10 * MINUTE_IN_SECONDS));
+            
+            $courts_amenity_name = get_option('fsbhoa_ac_default_court_amenity_name', 'Courts');
+
+            $is_inner_amenity_gate = is_numeric($current_role_or_id) && absint($current_role_or_id) > 0;
+            $is_west_gate = $current_role_or_id === 'AFTER_HOURS_ACCESS';
+
+            // A. West Gate Access: Provisional Courts Amenity
+            if ($is_west_gate && !empty($courts_amenity_name)) {
+                
+                // Assign the amenity name to the westgate record. 
+                // If later an inner gate is encountered, it will clear this entry.
+                $log_data['amenity_name'] = $courts_amenity_name;
+                
+                // Set the description for clear monitoring
+                $log_data['event_description'] = 'After hours access to Amenity: ' . esc_html($courts_amenity_name);
+
+            // B. Inner Amenity Gate Access (Confirmed Amenity)
+            } elseif ($is_inner_amenity_gate) {
+                
+                // Get the confirmed amenity name from the DB
+                $confirmed_amenity_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ac_amenities WHERE id = %d", $current_role_or_id));
+
+                // --- Fetch the Friendly Name of the current (inner) gate ---
+                $gate_info = $wpdb->get_row($wpdb->prepare("
+                    SELECT d.friendly_name 
+                    FROM ac_doors d 
+                    JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
+                    WHERE c.uhppoted_device_id = %s AND d.door_number_on_controller = %d
+                ", $log_data['controller_identifier'], $log_data['door_number']));
+                
+                $inner_gate_name = $gate_info ? $gate_info->friendly_name : 'Unknown Inner Gate';
+
+                if ($confirmed_amenity_name) {
+                    // Assign the CONFIRMED amenity NAME
+                    $log_data['amenity_name'] = $confirmed_amenity_name;
+                    $log_data['event_description'] = 'Amenity: ' . esc_html($confirmed_amenity_name);
+                }
+
+                // --- Look back and clear the provisional entry ---
+                $preceding_log = $wpdb->get_row($wpdb->prepare("
+                    SELECT log_id
+                    FROM ac_access_log
+                    WHERE cardholder_id = %d 
+                      AND event_timestamp >= %s
+                      AND amenity_name = %s 
+                      AND access_granted = 1
+                    ORDER BY event_timestamp DESC 
+                    LIMIT 1
+                ", $log_data['cardholder_id'], $ten_minutes_ago, $courts_amenity_name));
+
+                if ($preceding_log) {
+                    // Update the West Gate log record by setting its AMENITY_NAME to NULL (Clearing action)
+                    $wpdb->update(
+                        'ac_access_log', 
+                        ['amenity_name' => NULL, 'event_description' => $wpdb->prepare('After hours access to %s', $inner_gate_name)], 
+                        ['log_id' => $preceding_log->log_id], 
+                        ['%s', '%s'], 
+                        ['%d']
+                    );
+                    error_log('[AMENITY TRACKING] Cleared West Gate Provisional entry for log ID ' . $preceding_log->log_id);
+                }
+            }
+        }
+        // --- END AMENITY TRACKING LOGIC ---
 
         // Use insert_id to get the new record ID.
         $wpdb->insert('ac_access_log', $log_data);
@@ -337,6 +408,51 @@ class Fsbhoa_Monitor_REST_API {
         } else {
             error_log('MONITOR-NOTIFY-SUCCESS: Successfully sent notification to monitor_service for event_id: ' . $log_id);
         }
+    }
+
+    /**
+     * Private helper to retrieve the role/classification of a gate from the database.
+     * Returns: amenity ID (int) or the system role string ('AFTER_HOURS_ACCESS', 'NO_AMENITY', etc.).
+     */
+    private function get_gate_classification($controller_id, $door_number) {
+        global $wpdb;
+
+        // Fetch the amenity_role string from the ac_doors table
+        $role_string = $wpdb->get_var($wpdb->prepare("
+            SELECT d.amenity_role
+            FROM ac_doors d
+            JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
+            WHERE c.uhppoted_device_id = %s AND d.door_number_on_controller = %d
+        ", $controller_id, $door_number));
+
+        if (empty($role_string)) {
+            return null;
+        }
+        
+        // If it starts with 'AMENITY_', strip the prefix and return the ID (int)
+        if (strpos($role_string, 'AMENITY_') === 0) {
+            return absint(str_replace('AMENITY_', '', $role_string));
+        }
+
+        // Otherwise, return the system role string (e.g., 'AFTER_HOURS_ACCESS')
+        return strtoupper($role_string);
+    }
+
+
+    /**
+     * Private helper to check if a cardholder is a member of a specific group.
+     * Assumes $cardholder_id is already validated.
+     */
+    private function is_cardholder_in_group($cardholder_id, $group_name) {
+        global $wpdb;
+        $query = $wpdb->prepare("
+            SELECT COUNT(chg.cardholder_id)
+            FROM ac_cardholder_groups chg
+            JOIN ac_groups g ON chg.group_id = g.group_id
+            WHERE chg.cardholder_id = %d AND g.group_name = %s
+        ", $cardholder_id, $group_name);
+
+        return $wpdb->get_var($query) > 0;
     }
 }
 

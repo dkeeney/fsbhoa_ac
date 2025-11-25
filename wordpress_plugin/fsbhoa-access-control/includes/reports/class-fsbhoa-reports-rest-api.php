@@ -66,7 +66,7 @@ class Fsbhoa_Reports_REST_API {
         $columns = [ 'l.event_timestamp', 'l.event_timestamp', "CONCAT(ch.first_name, ' ', ch.last_name)", 'ch.resident_type', 'p.street_address', 'd.friendly_name', 'l.access_granted', 'l.event_description' ];
         $order_by_col = $columns[$order_col_index] ?? $columns[0];
 
-        $data_query = " SELECT l.log_id, ch.photo, l.event_timestamp, CONCAT(ch.first_name, ' ', ch.last_name) as cardholder, ch.resident_type, p.street_address as property, d.friendly_name as gate_name, l.access_granted, l.event_description {$base_query} {$where_sql} ORDER BY {$order_by_col} {$order_dir} LIMIT %d OFFSET %d ";
+        $data_query = " SELECT l.log_id, l.controller_identifier, ch.photo, l.event_timestamp, CONCAT(ch.first_name, ' ', ch.last_name) as cardholder, ch.resident_type, p.street_address as property, d.friendly_name as gate_name, l.access_granted, l.event_description {$base_query} {$where_sql} ORDER BY {$order_by_col} {$order_dir} LIMIT %d OFFSET %d ";
         $results = $wpdb->get_results( $wpdb->prepare( $data_query, $length, $start ), ARRAY_A );
         if ( $wpdb->last_error ) { return new WP_Error( 'db_error', 'Database error fetching report data.', array( 'status' => 500, 'db_error' => $wpdb->last_error ) ); }
         
@@ -79,7 +79,12 @@ class Fsbhoa_Reports_REST_API {
             $resident_type = $row['resident_type'];
             if ( $resident_type === 'Resident Owner' ) { $row['resident_type'] = 'O'; } elseif ( !empty($resident_type) ) { $row['resident_type'] = strtoupper(substr($resident_type, 0, 1)); } else { $row['resident_type'] = ''; }
             $row['cardholder'] = $row['cardholder'] ? esc_html($row['cardholder']) : '<em>Event/No Card</em>';
-            $row['gate_name'] = $row['gate_name'] ? esc_html($row['gate_name']) : '<em>Unknown Gate</em>';
+            if ($row['controller_identifier'] === 'kiosk') {
+                $row['gate_name'] = 'Kiosk';
+            } else {
+                $row['gate_name'] = $row['gate_name'] ? esc_html($row['gate_name']) : '<em>Unknown Gate</em>';
+            }
+            $row['property'] = $row['property'] ? esc_html($row['property']) : '';
             $row['property'] = $row['property'] ? esc_html($row['property']) : '';
             $data[] = $row;
         }
@@ -100,7 +105,7 @@ public function get_usage_analytics_callback( WP_REST_Request $request ) {
             'amenityUsage' => [],
         ];
 
-        // --- Gate Usage Query (Correct) ---
+        // --- Gate Usage Query  ---
         $gate_results = $wpdb->get_results( $wpdb->prepare(
             "SELECT COALESCE(d.friendly_name, 'Unknown Gate') as friendly_name, COUNT(l.log_id) as count
             FROM ac_access_log l
@@ -116,9 +121,9 @@ public function get_usage_analytics_callback( WP_REST_Request $request ) {
             $response_data['gateUsage'] = $gate_results;
         }
 
-        // --- Hourly Usage Query (FIXED) ---
+        // --- Hourly Usage Query  ---
         $hourly_results = $wpdb->get_results( $wpdb->prepare(
-            "SELECT HOUR(l.event_timestamp) as hour, COUNT(l.log_id) as count
+            "SELECT HOUR(l.event_timestamp) as hour, SUM(l.guest_count + 1) as count
             FROM ac_access_log l
             WHERE (l.event_description LIKE 'Card swipe%%' OR l.event_description LIKE 'Amenity: %%') AND YEAR(l.event_timestamp) = %d AND MONTH(l.event_timestamp) = %d
             GROUP BY HOUR(l.event_timestamp)",
@@ -131,17 +136,32 @@ public function get_usage_analytics_callback( WP_REST_Request $request ) {
             }
         }
         
-        // --- Amenity Usage Query (Correct) ---
-        $amenity_results = $wpdb->get_results( $wpdb->prepare(
-            "SELECT event_description, COUNT(log_id) as count
-            FROM ac_access_log
-            WHERE event_description LIKE 'Amenity: %%' AND YEAR(event_timestamp) = %d AND MONTH(event_timestamp) = %d
-            GROUP BY event_description
-            ORDER BY count DESC",
-            $year,
-            $month
-        ));
+        // --- Amenity Usage Query  ---
+        $amenity_query = $wpdb->prepare("
+            SELECT
+                al.amenity_name AS amenity_name_clean,
+                -- Calculate the total number of people: 1 (cardholder) + guest_count
+                SUM(1 + al.guest_count) AS count
+            FROM
+                ac_access_log al
+            WHERE
+                -- 1. Filters only for entries that have a confirmed amenity name (NULL means cleared/canceled)
+                al.amenity_name IS NOT NULL
+                -- 2. Only count granted access events (our log logic runs on granted access only, but good practice)
+                AND al.access_granted = 1
+                -- 3. Filter by the specific month and year requested by the front-end
+                AND YEAR(al.event_timestamp) = %d 
+                AND MONTH(al.event_timestamp) = %d
+            GROUP BY
+                al.amenity_name
+            ORDER BY
+                count DESC
+        ", $year, $month);
+
+        $amenity_results = $wpdb->get_results( $amenity_query, ARRAY_A );
+
         if ( ! $wpdb->last_error ) {
+            // NOTE: The PHP now returns 'amenity_name_clean' and 'count' which matches the JS map.
             $response_data['amenityUsage'] = $amenity_results;
         }
 

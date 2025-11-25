@@ -174,6 +174,7 @@ class Fsbhoa_Kiosk_REST_API {
             'event_type_code'       => 100, // Kiosk Sign-in Success
             'event_description'     => $event_description_for_db, // Use the description created earlier
             'access_granted'        => 1,
+            'guest_count'           => $guests,
         ];
 
         $wpdb->insert('ac_access_log', $log_data);

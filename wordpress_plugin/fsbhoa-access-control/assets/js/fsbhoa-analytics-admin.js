@@ -113,9 +113,7 @@ jQuery(document).ready(function($) {
         if (!ctx) return;
 
         // Clean up labels by removing the "Amenity: " prefix
-        const labels = amenityData.map(item => item.event_description.replace('Amenity: ', ''));
-        
-        // --- FIX: Convert the count string to a number using parseInt() ---
+        const labels = amenityData.map(item => item.amenity_name_clean.replace('Amenity: ', ''));
         const data = amenityData.map(item => parseInt(item.count, 10));
 
         if (amenityUsageChart) {
@@ -145,6 +143,7 @@ jQuery(document).ready(function($) {
                 }
             }
         });
+        $('#amenity-usage-chart-container').append('<p class="chart-note">* \'Courts\' amenity is access to all courts outside Lodge hours.</p>');
     }
 
     // --- Event Handlers ---
