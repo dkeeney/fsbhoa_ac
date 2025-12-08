@@ -198,6 +198,19 @@ class Fsbhoa_Ac_Settings_Page {
         // Section: Amenity Tracking
         add_settings_section('fsbhoa_ac_amenity_tracking_section', 'Amenity Tracking Settings', null, $general_page_slug);
         add_settings_field(
+            'fsbhoa_ac_amenity_clear_minutes_field',
+            'Amenity Clearing Window (Minutes)',
+            array($this, 'render_field_callback'),
+            $general_page_slug,
+            'fsbhoa_ac_amenity_tracking_section',
+            [
+                'id'      => 'fsbhoa_ac_amenity_clear_minutes',
+                'type'    => 'number',
+                'default' => 10,
+                'desc'    => 'The time window (in minutes) to look back for a previous entry (Kiosk/Entry Gate) to be cleared by an INNER_GATE swipe. Set to 0 to disable clearing logic.'
+            ]
+        );
+        add_settings_field(
             'fsbhoa_ac_default_court_amenity_name_field', 
             'After Hours Court Default Name',
             array($this, 'render_field_callback'), 
@@ -221,6 +234,7 @@ class Fsbhoa_Ac_Settings_Page {
         register_setting($general_option_group, 'fsbhoa_ac_tls_key_path', 'sanitize_text_field');
         register_setting($general_option_group, 'fsbhoa_ac_api_key', 'sanitize_text_field');
         register_setting($general_option_group, 'fsbhoa_ac_rate_limit_minutes', 'absint');
+        register_setting($general_option_group, 'fsbhoa_ac_amenity_clear_minutes', 'absint');
         register_setting($general_option_group, 'fsbhoa_ac_default_court_amenity_name', 'sanitize_text_field');
 
         // ====================================================================

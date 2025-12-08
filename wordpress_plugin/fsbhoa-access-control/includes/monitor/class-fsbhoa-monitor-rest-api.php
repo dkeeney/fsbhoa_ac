@@ -86,33 +86,61 @@ class Fsbhoa_Monitor_REST_API {
     public function log_event_callback( WP_REST_Request $request ) {
         global $wpdb;
         $params = $request->get_json_params();
+        // Get West Gate hardware details once
 
         error_log('[RAW EVENT DATA] ' . print_r($params, true));
 
         if ( !isset($params['SerialNumber']) || !isset($params['Door']) ) {
             return new WP_Error( 'bad_request', 'Missing required event parameters.', array( 'status' => 400 ) );
         }
+        $raw_card_number = absint($params['CardNumber'] ?? 0);
 
 	$log_data = [
 		'event_timestamp'       => $params['Timestamp'] ?? current_time('mysql'),
 		'controller_identifier' => strval($params['SerialNumber']),
 		'door_number'           => absint($params['Door']),
-		'rfid_id'               => isset($params['CardNumber']) ? sprintf('%08d', absint($params['CardNumber'])) : null,
+                'rfid_id' => ($raw_card_number === 0) ? 
+                     NULL : // If the number is 0 (the 'no card' indicator), set to NULL.
+                     sprintf('%08d', $raw_card_number), // Otherwise, pad the number with leading zeros to 8 characters.
 		'event_type_code'       => absint($params['Reason']),
                 'event_description'     => isset($params['EventMessage']) ? sanitize_text_field($params['EventMessage']) : 'Unknown Event',
 		'access_granted'        => isset($params['Granted']) ? ($params['Granted'] ? 1 : 0) : null,
                 'amenity_name'          => NULL,
 	];
+        $this->lookup_cardholder( $log_data );
+
+/***********
+        $is_resident = false;
 
         // --- RATE LIMIT CHECK ---
+        // Concept:
+        //    We are trying to avoid recording multiple swipes that a user might perform
+        //    all at about the same time.  It is just redundant. So ignore.
+        //    1) If there is no RFID (not a valid cardholder) then just skip the check.
+        //    2) If this is a system user, it means we are running a regression test, then
+        //    also skip the check.
+        //    3) If no rate limit time is specified, then skip the check.
+        //    4) If the current swipe is the 
+        //         A. the same cardholder 
+        //         B. within this rate limit time 
+        //         C. at the same gate
+        //         D. and the same access granted status
+        //       Then ignore this swipe entirely.
+       
         if ( !empty($log_data['rfid_id']) && $log_data['rfid_id'] !== '00000000' ) {
             // Fetch the whole cardholder record to get the ID and resident_type
-            $cardholder = $wpdb->get_row($wpdb->prepare("SELECT id, resident_type FROM ac_cardholders WHERE rfid_id = %s", $log_data['rfid_id']));
+            $cardholder = $wpdb->get_row($wpdb->prepare(
+                  "SELECT id, resident_type FROM ac_cardholders WHERE rfid_id = %s", 
+	  	  $log_data['rfid_id']));
             
             if ($cardholder) {
                 $log_data['cardholder_id'] = $cardholder->id;
+            }
+        }
+        if ($cardholder != NULL) {
 
                 // Only run the rate-limit check if the user is NOT a 'System' user.
+                // The regression test needs to see the entry so cannot be rate-limited.
                 if ($cardholder->resident_type !== 'System') {
                     
                     $minutes = get_option('fsbhoa_ac_rate_limit_minutes', 10);
@@ -140,6 +168,12 @@ class Fsbhoa_Monitor_REST_API {
                         $sql .= " LIMIT 1";
 
                         $recent_swipe = $wpdb->get_var($wpdb->prepare($sql, $params_sql));
+$minutes = get_option('fsbhoa_ac_rate_limit_minutes', 10);
+
+                    if ($minutes > 0) {
+                        // Use WordPress's time functions to ensure the correct timezone.
+                        $time_ago_unix = current_time('timestamp') - ($minutes * MINUTE_IN_SECONDS);
+                        $time_ago = date('Y-m-d H:i:s', $time_ago_unix);
 
                         if ($recent_swipe) {
                             error_log("[RATE LIMIT DEBUG] FOUND recent swipe. Ignoring this one.");
@@ -150,75 +184,154 @@ class Fsbhoa_Monitor_REST_API {
             }
         }
 
+/****************
         // --- AMENITY TRACKING LOGIC ---
-        if ($log_data['access_granted'] == 1 && (isset($is_resident) && $is_resident)) {
-            $current_role_or_id = $this->get_gate_classification($log_data['controller_identifier'], $log_data['door_number']);
-            $ten_minutes_ago = date('Y-m-d H:i:s', current_time('timestamp') - (10 * MINUTE_IN_SECONDS));
+        //   The concept:
+        //     There are multiple routes that a cardholder may take to get to an amenity.
+        //     We are trying to guess as to which amenity they arrived at.
+        //     1) Entered the Lodge during business hours and login at the kiosk.
+        //        The kiosk swipe will collect the cardholder's intended amenity.
+        //        1a) then proceed to the amenity (no inner gates).
+        //            The kiosk record holds the amenity.
+        //        1b) then proceed to an inner gate who's role was the same as recorded amenity.
+        //            We already know the amenity but to avoid double counting
+        //            we move the amenity (and guest count) from the kiosk record 
+        //            to the inner doors record.
+        //        1c) then proceed to an inner gate who's role was NOT the same as recorded amenity.
+        //            We assume this cardholder is visiting more than one amenity so
+        //            we leave the recorded amenity on the kiosk record and 
+        //            record another record with the gate's role as the amenity.
+        //     2) Enter the After Hours gate.  We don't collect the amenity so we guess
+        //        the amenity could be "Courts".
+        //        2a) then proceeded to the amenity (no inner gates).
+        //            The After Hours gate reocrd holds the guessed amenity (Courts).
+        //        2b) Then proceeded to an inner gate.
+        //            The role of the inner gate is a better guess so we assign the
+        //            inner gates role as the amenity and clear the after hours gate's 
+        //            amenity to avoid double counting.
+        //     3) Enter one of the perimeter gates.
+        //        Record the event with role as the amenity.
+        //
+        //  The net result: Only case 1b and 2b need extra processing.
+        //
+
+        // We use MINUTE_IN_SECONDS (defined in wp-includes)
+        $ten_minutes_ago = date('Y-m-d H:i:s', current_time('timestamp') - (10 * MINUTE_IN_SECONDS));
+        $default_amenity_name = get_option('fsbhoa_ac_default_court_amenity_name', 'Courts');
+        $current_role = $this->get_gate_classification($log_data['controller_identifier'], $log_data['door_number']);
+        $is_inner_amenity_gate = is_numeric($current_role) && absint($current_role) > 0;
+
+        if ($current_role === "AFTER_HOURS_ACCESS") {
+            // This is the after hours gate.  
+            // case 2a:  We would not get an inner gate access in this case so we use
+            //           the guessed amenity assigned to the after hours gate.
+            $log_data['guest_count'] = 0;
+            $log_data['amenity_name'] = $default_amenity_name;
+            $log_data['event_description'] = 'Amenity: ' . $default_amenity_name;
             
-            $courts_amenity_name = get_option('fsbhoa_ac_default_court_amenity_name', 'Courts');
 
-            $is_inner_amenity_gate = is_numeric($current_role_or_id) && absint($current_role_or_id) > 0;
-            $is_west_gate = $current_role_or_id === 'AFTER_HOURS_ACCESS';
+        } else if ($log_data['access_granted'] == 1 && $is_inner_amenity_gate) {
+    
+            // --- SCENARIO 1:  Entered the Kiosk during business hours followed by inner gate.
+            // case 1a:  Note that Kiosk entry record is recorded in the kiosk logic
+            //           so we would not see case 1a here.
 
-            // A. West Gate Access: Provisional Courts Amenity
-            if ($is_west_gate && !empty($courts_amenity_name)) {
-                
-                // Assign the amenity name to the westgate record. 
-                // If later an inner gate is encountered, it will clear this entry.
-                $log_data['amenity_name'] = $courts_amenity_name;
-                
-                // Set the description for clear monitoring
-                $log_data['event_description'] = 'After hours access to Amenity: ' . esc_html($courts_amenity_name);
-
-            // B. Inner Amenity Gate Access (Confirmed Amenity)
-            } elseif ($is_inner_amenity_gate) {
-                
-                // Get the confirmed amenity name from the DB
-                $confirmed_amenity_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ac_amenities WHERE id = %d", $current_role_or_id));
-
-                // --- Fetch the Friendly Name of the current (inner) gate ---
-                $gate_info = $wpdb->get_row($wpdb->prepare("
-                    SELECT d.friendly_name 
-                    FROM ac_doors d 
-                    JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
-                    WHERE c.uhppoted_device_id = %s AND d.door_number_on_controller = %d
-                ", $log_data['controller_identifier'], $log_data['door_number']));
-                
-                $inner_gate_name = $gate_info ? $gate_info->friendly_name : 'Unknown Inner Gate';
-
-                if ($confirmed_amenity_name) {
-                    // Assign the CONFIRMED amenity NAME
-                    $log_data['amenity_name'] = $confirmed_amenity_name;
-                    $log_data['event_description'] = 'Amenity: ' . esc_html($confirmed_amenity_name);
-                }
-
-                // --- Look back and clear the provisional entry ---
-                $preceding_log = $wpdb->get_row($wpdb->prepare("
-                    SELECT log_id
+            // See if this is case 1b.  Is there a kiosk entry?
+            $kiosk_check_query = $wpdb->prepare("
+                    SELECT log_id, amenity_name, guest_count
                     FROM ac_access_log
                     WHERE cardholder_id = %d 
                       AND event_timestamp >= %s
+                      AND controller_identifier = 'kiosk'
                       AND amenity_name = %s 
                       AND access_granted = 1
                     ORDER BY event_timestamp DESC 
                     LIMIT 1
-                ", $log_data['cardholder_id'], $ten_minutes_ago, $courts_amenity_name));
+                ", $log_data['cardholder_id'], 
+                   $ten_minutes_ago, 
+                   $log_data['amenity_name']); 
+            $recent_kiosk_entry = $wpdb->get_row($kiosk_check_query);
+    
+            if ($recent_kiosk_entry) {
+                // case 1b: Kiosk gate followed by inner gate.
+                //          We have a Kiosk Entry by this cardholder within 
+                //          last 10 min with this amenity. 
+                //          In this case, move the guest count and amenity to inner gate record 
+                //          to avoid double counting, clear kiosk amenity field. 
+                $log_data['guest_count'] = $recent_kiosk_entry->guest_count;
+                $log_data['amenity_name'] = $current_role;
+                $log_data['event_description'] = 'Amenity: '. $log_data['amenity_name'];
 
-                if ($preceding_log) {
-                    // Update the West Gate log record by setting its AMENITY_NAME to NULL (Clearing action)
-                    $wpdb->update(
-                        'ac_access_log', 
-                        ['amenity_name' => NULL, 'event_description' => $wpdb->prepare('After hours access to %s', $inner_gate_name)], 
-                        ['log_id' => $preceding_log->log_id], 
-                        ['%s', '%s'], 
-                        ['%d']
-                    );
-                    error_log('[AMENITY TRACKING] Cleared West Gate Provisional entry for log ID ' . $preceding_log->log_id);
+                // Clear Kiosk Amenity and counts (but preserve Kiosk log entry)
+                $wpdb->update(
+                   'ac_access_log',
+                   ['amenity_name' => NULL, 'guest_count' => 0, 'event_description' => 'Kiosk sign-in followed by ' . $inner_gate_name],
+                   ['log_id' => $recent_kiosk_entry->log_id],
+                   ['%s', '%d', '%s'],
+                   ['%d']
+                );
+
+                // case 1c:  This is where the inner gate's role is not the same as was recorded 
+                //           at the kiosk.  In this case, keep the kiosk count and record a 
+                //           new event for the inner gate with its role as it's amenity.
+
+        
+            } else {
+                // --- SCENARIO 2:    After Hours Entry followed by inner gate.
+                //
+                // See if this is case 2b.
+                $afterhours_check_query = $wpdb->prepare("
+                        SELECT log_id
+                        FROM ac_access_log
+                        WHERE cardholder_id = %d 
+                          AND event_timestamp >= %s
+                          AND access_granted = 1
+                        ORDER BY event_timestamp DESC 
+                        LIMIT 1
+                    ", $log_data['cardholder_id'], $ten_minutes_ago);
+                $afterhours_entry = $wpdb->get_row($afterhours_check_query);
+                if ($afterhours_entry) {
+                    // case 2b:
+                    //    If this cardholder entered the afterhours gate less than 10 minutes ago
+                    //    and now enters an inner gate.
+                    //    So, clear the afterhours gate's  amenity field and change its 
+                    //    descripton to prevent double counting.
+            
+                    // Assign Amenity Name to Current Log (0 guests assumed for non-kiosk swipe)
+                    $confirmed_amenity_name = $wpdb->get_var($wpdb->prepare(
+                          "SELECT name FROM ac_amenities WHERE id = %d", absint($current_role)));
+                    if ($confirmed_amenity_name) {
+                        $log_data['amenity_name'] = $confirmed_amenity_name;
+                        $log_data['guest_count'] = 0;
+                        $log_data['event_description'] = $wpdb->prepare(
+                             'Amenity: %s', $confirmed_amenity_name);
+                
+                        // clear West Gate Amenity (Preserve gate log entry)
+                        $wpdb->update(
+                                'ac_access_log',
+                                ['amenity_name' => NULL, 
+                                 'event_description' => 'After hours access to ' . $inner_gate_name],
+                                ['log_id' => $afterhours_entry->log_id],
+                                ['%s', '%s'],
+                                ['%d']
+                        );
+                    } else {
+            
+                        // SCENARIO 3: a perimeter gate. Use the role as amenity
+                        //             OR this could be an inner gate but cardholder
+                        //             did not record an entry at kiosk.
+                        $log_data['guest_count'] = 0;
+                        $log_data['amenity_name'] = $current_role;
+                        $log_data['event_description'] = 
+                    }
                 }
             }
         }
-        // --- END AMENITY TRACKING LOGIC ---
 
+        // --- END AMENITY TRACKING LOGIC ---
+********************************/
+
+        // Save the access log record for this gate.
         // Use insert_id to get the new record ID.
         $wpdb->insert('ac_access_log', $log_data);
         $log_id = $wpdb->insert_id;
@@ -435,7 +548,7 @@ class Fsbhoa_Monitor_REST_API {
         }
 
         // Otherwise, return the system role string (e.g., 'AFTER_HOURS_ACCESS')
-        return strtoupper($role_string);
+        return $role_string;
     }
 
 
@@ -453,6 +566,46 @@ class Fsbhoa_Monitor_REST_API {
         ", $cardholder_id, $group_name);
 
         return $wpdb->get_var($query) > 0;
+    }
+
+
+    /**
+     * Looks up the cardholder and door information based on the raw event data.
+     * Populates cardholder_id, resident_type, and door info in the log array.
+     * @param array &$log_data The standardized log data array (passed by reference).
+     */
+    private function lookup_cardholder( &$log_data ) {
+        global $wpdb;
+
+        $rfid = $log_data['rfid_id'];
+    
+        // 1. Check for no RFID read (Controller returned 0, parsed as NULL in the API handler)
+        if ( empty( $rfid ) ) {
+            $log_data['cardholder_id'] = 0;
+//            $log_data['resident_type'] = 'None';
+            $log_data['access_granted'] = $log_data['access_granted'] ?? 0; // Default to denied
+            $log_data['event_description'] = $log_data['event_description'] ?? 'No Card Read';
+            return; // Cannot proceed without an RFID
+        }
+
+        // 2. Lookup Cardholder using the rfid_id
+        // NOTE: This assumes rfid_id is the primary lookup key, or you use the new ac_rfid_tags lookup
+        $cardholder = $wpdb->get_row( $wpdb->prepare( "
+            SELECT id, resident_type
+            FROM ac_cardholders
+            WHERE rfid_id = %s", $rfid ) 
+        );
+    
+        if ( $cardholder ) {
+            $log_data['cardholder_id'] = absint( $cardholder->id );
+  //          $log_data['resident_type'] = $cardholder->resident_type;
+        } else {
+            // Card is not found in the system
+            $log_data['cardholder_id'] = 0;
+ //           $log_data['resident_type'] = 'None';
+            $log_data['access_granted'] = 0; // Ensure access is denied if card is unknown
+            $log_data['event_description'] = 'Card not found';
+        }
     }
 }
 

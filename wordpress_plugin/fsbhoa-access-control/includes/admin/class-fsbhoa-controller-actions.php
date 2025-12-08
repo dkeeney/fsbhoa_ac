@@ -64,13 +64,17 @@ class Fsbhoa_Controller_Actions {
 				$notes = sanitize_textarea_field($gate_data['notes']);
 
 				if (!empty($friendly_name)) {
+                                    // Process the amenity list: convert array of IDs (from multi-select) to comma-separated string
+                                    $amenity_id_array = isset($gate_data['amenity_id']) ? (array) $gate_data['amenity_id'] : [];
+                                    $amenity_id_string = implode(',', array_map('absint', $amenity_id_array));
 					// This is an INSERT or UPDATE
-					$data_to_save = [
+			    		$data_to_save = [
 						'controller_record_id' => $item_id,
 						'door_number_on_controller' => absint($slot_number),
 						'friendly_name' => $friendly_name,
 						'notes' => $notes,
-                                                'amenity_role' => sanitize_text_field($gate_data['amenity_role']),
+                                                'door_role' => sanitize_text_field($gate_data['door_role']), 
+                                                'amenity_id' => $amenity_id_string,
 					];
 					if ($door_record_id > 0) {
 						// Update existing gate

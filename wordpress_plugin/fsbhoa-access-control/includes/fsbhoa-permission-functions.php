@@ -327,7 +327,12 @@ function fsbhoa_merge_time_windows($windows) {
 function fsbhoa_get_active_schedule_id() {
     global $wpdb;
     $active_id = $wpdb->get_var(
-        "SELECT schedule_id FROM ac_schedules WHERE is_default = 0 AND NOW() BETWEEN start_date AND DATE_ADD(end_date, INTERVAL 1 DAY) ORDER BY start_date DESC LIMIT 1"
+          "SELECT schedule_id FROM ac_schedules 
+           WHERE is_default = 0 
+           AND NOW() >= start_date 
+           AND NOW() < DATE_ADD(end_date, INTERVAL 1 DAY) 
+           ORDER BY start_date DESC 
+           LIMIT 1"
     );
     return $active_id ? absint($active_id) : 1;
 }

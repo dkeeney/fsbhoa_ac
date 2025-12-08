@@ -1,8 +1,10 @@
 <?php
 // FILE: fsbhoa-uhppote-sync-service.php
+// REFACTORED VERSION with Global Profile Dictionary logic
 
 if (!defined('WPINC')) { die; }
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
+
 
 add_action('fsbhoa_run_background_sync', 'fsbhoa_perform_delta_sync');
 add_action('fsbhoa_run_nightly_rebuild', 'fsbhoa_perform_nightly_rebuild_sync');
@@ -68,9 +70,9 @@ function fsbhoa_perform_delta_sync() {
 }
 
 
-// fsbhoa_perform_nightly_rebuild_sync()
+// fsbhoa_perform_nightly_rebuild_sync() remains unchanged
 function fsbhoa_perform_nightly_rebuild_sync() {
-    error_log('[' . current_time('Y-m-d H:i:s T') . "] NIGHTLY REBUILD: Process started.");
+    error_log("NIGHTLY REBUILD: Process started.");
     set_time_limit(600);
     global $wpdb;
 
@@ -418,6 +420,25 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
            if (FSBHOA_DEBUG_MODE) {
                error_log(sprintf( "SYNC STATS for '%s': Processed %d cards to sync. Sent %d delete commands. Sent %d put commands.", $friendly_name, count($db_cards_to_sync), $deletes_sent, $puts_sent ));
            }
+/*********************
+           // --- CHECK RESULT OF ATTEMPT ---
+           if ($controller_sync_succeeded) {
+               // Success on this attempt. Break the retry loop and move to the next controller.
+               error_log("SYNC SUCCESS: Controller '$friendly_name' synced on attempt $attempt.");
+               break; 
+           } 
+        
+           // If we failed and this is NOT the last attempt, pause and retry.
+           if ($attempt < $max_controller_attempts) {
+               error_log("SYNC FAILURE: Controller '$friendly_name' failed attempt $attempt. Waiting $controller_retry_delay seconds before retry...");
+               sleep($controller_retry_delay);
+           } else {
+               // Failure on the final attempt. Set global flag and exit retry loop.
+               $global_sync_failed = true;
+               error_log("SYNC CRITICAL: Controller '$friendly_name' failed final attempt. Skipping to next controller.");
+           }
+       } // --- END RETRY LOOP ---
+*********************************************/
     } // End controller loop
 
     // ---

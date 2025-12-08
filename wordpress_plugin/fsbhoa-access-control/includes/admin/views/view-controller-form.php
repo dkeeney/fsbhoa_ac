@@ -78,8 +78,11 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                             <strong>Gate Name</strong>
                         </div>
                         <div class="form-field gate-role-field">
-                            <strong>Role/Amenity</strong>
-                        </div>
+                            <strong>Door Role</strong>
+                        </div>
+                        <div class="form-field gate-amenity-list-field">
+                            <strong>Amenity Association(s)</strong>
+                        </div>
                         <div class="form-field gate-notes-field">
                             <strong>Notes</strong>
                         </div>
@@ -89,6 +92,9 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                         $door_record_id = $door_data['door_record_id'] ?? '';
                         $door_name = $door_data['friendly_name'] ?? '';
                         $door_notes = $door_data['notes'] ?? '';
+                        $current_door_role = $door_data['door_role'] ?? '';
+                        $current_amenity_id_string = $door_data['amenity_id'] ?? '';
+                        $selected_amenity_ids = array_map('trim', explode(',', $current_amenity_id_string));
                     ?>
                         <div class="gate-form-row">
                             <input type="hidden" name="gates[<?php echo $i; ?>][door_record_id]" value="<?php echo esc_attr($door_record_id); ?>">
@@ -100,38 +106,23 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                                 <label for="gate_name_<?php echo $i; ?>">Gate Name</label>
                                 <input type="text" id="gate_name_<?php echo $i; ?>" name="gates[<?php echo $i; ?>][friendly_name]" value="<?php echo esc_attr($door_name); ?>" placeholder="(Unused)">
                             </div>
+                            
                             <div class="form-field gate-role-field">
-                                <label for="gate_amenity_role_<?php echo $i; ?>">Amenity Role</label>
+                                <label for="gate_door_role_<?php echo $i; ?>">Door Role</label>
+                                <select name="gates[<?php echo $i; ?>][door_role]" id="gate_door_role_<?php echo $i; ?>" class="door-role-select">
+                                    <option value="" <?php selected($current_door_role, ''); ?>>— Not Set —</option>
+                                    <option value="PERIMETER" <?php selected($current_door_role, 'PERIMETER'); ?>>Perimeter Gate</option>
+                                    <option value="ENTRY_GATE" <?php selected($current_door_role, 'ENTRY_GATE'); ?>>Entry Gate</option>
+                                    <option value="INNER_GATE" <?php selected($current_door_role, 'INNER_GATE'); ?>>Inner Amenity Gate</option>
+                                </select>
+                            </div>
 
-                                <?php 
-                                // Get all active amenities from the database
-                                global $wpdb;
-                                $amenities = $wpdb->get_results("SELECT id, name FROM ac_amenities WHERE is_active = 1 ORDER BY display_order ASC", ARRAY_A);
-                                
-                                // Define the hardcoded system roles that are NOT amenities
-                                $system_roles = [
-                                     ''                       => '— Not Set —',
-                                     'NO_AMENITY'             => 'No Amenity',
-                                     'AFTER_HOURS_ACCESS'     => 'After Hours Entry',
-                                     'UNUSED'                 => 'Unused Gate Slot',
-                                ];
-
-                                // Combine system roles and dynamic amenities into one associative array
-                                $combined_roles = $system_roles;
-
-                                // Add dynamic amenities with a unique prefix (AMENITY_ID_) to distinguish them from system roles
-                                foreach ($amenities as $amenity) {
-                                    // We use the unique amenity ID prefixed by 'AMENITY_' as the dropdown value
-                                    $combined_roles['AMENITY_' . $amenity['id']] = 'Amenity: ' . esc_html($amenity['name']);
-                                }
-
-
-                                $current_role = $door_data['amenity_role'] ?? '';
-                                ?>
-                                <select name="gates[<?php echo $i; ?>][amenity_role]" id="gate_amenity_role_<?php echo $i; ?>">
-                                    <?php foreach ($combined_roles as $value => $label) : ?>
-                                        <option value="<?php echo esc_attr($value); ?>" <?php selected($current_role, $value); ?>>
-                                            <?php echo esc_html($label); ?>
+                            <div class="form-field gate-amenity-list-field">
+                                <label for="gate_amenity_id_<?php echo $i; ?>">Amenity Association(s)</label>
+                                <select multiple name="gates[<?php echo $i; ?>][amenity_id][]" id="gate_amenity_id_<?php echo $i; ?>" style="height: 100px;">
+                                    <?php foreach ($amenities as $amenity) : ?>
+                                        <option value="<?php echo esc_attr($amenity['id']); ?>" <?php selected(in_array($amenity['id'], $selected_amenity_ids), true); ?>>
+                                            <?php echo esc_html($amenity['name']); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>

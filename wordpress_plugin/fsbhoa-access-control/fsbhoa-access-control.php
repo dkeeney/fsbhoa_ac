@@ -29,6 +29,9 @@ if ( ! defined( 'FSBHOA_AC_PLUGIN_VERSION' ) ) {
     define( 'FSBHOA_AC_PLUGIN_VERSION', '0.1.6' ); // Keep this in sync
 }
 
+//$current_tz = ini_get('date.timezone');
+////error_log('[' . current_time('Y-m-d H:i:s T') . "] PHP is currently using Timezone: " . $current_tz);
+
 // Activation / Deactivation Hooks
 function fsbhoa_ac_activate() {
     // Activation code can go here later
@@ -64,7 +67,9 @@ function fsbhoa_force_login_redirect() {
 }
 add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
 
-/**
+
+
+/*******************************************************
  * Load core plugin classes 
  */
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
@@ -380,29 +385,57 @@ add_action('admin_footer', 'fsbhoa_remove_theme_padding_script');
 
 /**
  * Schedules the nightly rebuild and daily time sync events.
+ * Corrected to use UTC time adjusted by the site's GMT offset.
  *  Set a crontab with the following:
  *
- *    5 0 * * * wget -q -O - "https://access.fsbhoa.com/wp-cron.php?doing_wp_cron" > /dev/null 2>&1
- *    5 3 * * * wget -q -O - "https://access.fsbhoa.com/wp-cron.php?doing_wp_cron" > /dev/null 2>&1
+ *  CRON_TZ=America/Los_Angeles
+ *    10 0 * * * wget -q -O - "https://access.fsbhoa.com/wp-cron.php?doing_wp_cron" > /dev/null 2>&1
+ *    10 3 * * * wget -q -O - "https://access.fsbhoa.com/wp-cron.php?doing_wp_cron" > /dev/null 2>&1
+ *
  */
 function fsbhoa_schedule_cron_jobs() {
 
-    // --- 1. Nightly Rebuild (for 12:06 AM) ---
+    // --- 1. Nightly Rebuild (for 12:00 AM Local Time) ---
     $rebuild_hook = 'fsbhoa_run_nightly_rebuild';
     if ( ! wp_next_scheduled( $rebuild_hook ) ) {
-        // Schedule for 6 minutes past midnight (00:06:00), which is JUST AFTER the server cron runs at 00:05.
-        $start_time = strtotime('tomorrow 00:06am', current_time('timestamp'));
-        wp_schedule_event( $start_time, 'daily', $rebuild_hook );
-        error_log('FSBHOA Sync: Nightly REBUILD event has been successfully scheduled for 00:06.');
+
+        // 1. Define the desired next local time (00:00 AM tomorrow).
+        // This string relies on the site's local timezone.
+        $local_start_string = 'tomorrow 00:00am';
+    
+        // 2. Calculate the local timestamp for the target time.
+        // strtotime will calculate the timestamp in the site's local timezone (PST/PDT).
+        $local_target_timestamp = strtotime($local_start_string);
+    
+        // 3. Convert that local time into the final required UTC timestamp.
+        // This is the safest way to get the UTC time for the database.
+        $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
+
+        // 4. Ensure the time is not in the past.
+        // If the time is already past (e.g., ran just after midnight), push it 1 day forward.
+        if ( $start_time_utc < time() ) {
+            $local_target_timestamp = strtotime('tomorrow 00:00am + 1 day');
+            $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
+        }
+    
+        wp_schedule_event( $start_time_utc, 'daily', $rebuild_hook );
+        error_log('[' . current_time('Y-m-d H:i:s T') . "] FSBHOA Sync: Nightly REBUILD scheduled for: " . date('Y-m-d H:i:s T', $start_time_utc));
     }
 
-    // --- 2. Daily Time Sync (for 3:00 AM, after DST change) ---
+    // --- 2. Daily Time Sync (for 3:05 AM Local Time) ---
     $time_sync_hook = 'fsbhoa_run_daily_time_sync';
     if ( ! wp_next_scheduled( $time_sync_hook ) ) {
-        // Schedule for 3:00 AM
-        $start_time = strtotime('tomorrow 3:00am', current_time('timestamp'));
-        wp_schedule_event( $start_time, 'daily', $time_sync_hook );
-        error_log('FSBHOA Sync: Daily TIME SYNC event has been successfully scheduled for 3AM.');
+        $local_start_string = 'tomorrow 3:05am';
+        $local_target_timestamp = strtotime($local_start_string);
+        $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
+
+        if ( $start_time_utc < time() ) {
+            $local_target_timestamp = strtotime('tomorrow 3:05am + 1 day');
+            $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
+        }
+
+        wp_schedule_event( $start_time_utc, 'daily', $time_sync_hook );
+        error_log('[' . current_time('Y-m-d H:i:s T') . "] FSBHOA Sync: Daily TIME SYNC scheduled for: " . date('Y-m-d H:i:s T', $start_time_utc));
     }
 }
 add_action( 'init', 'fsbhoa_schedule_cron_jobs' );

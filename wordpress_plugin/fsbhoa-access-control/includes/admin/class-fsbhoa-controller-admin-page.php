@@ -69,7 +69,11 @@ class Fsbhoa_Controller_Admin_Page {
 				$form_data = array_merge($form_data, $controller_result);
 
 				// Now, fetch all associated doors for this controller
-				$door_results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ac_doors WHERE controller_record_id = %d ORDER BY door_number_on_controller ASC", $item_id), ARRAY_A);
+				$door_results = $wpdb->get_results($wpdb->prepare(
+                                   "SELECT *, door_role, amenity_id FROM ac_doors 
+                                    WHERE controller_record_id = %d 
+                                    ORDER BY door_number_on_controller ASC", 
+                                $item_id), ARRAY_A);
 
                 		// --- Restored DB Error Check ---
 				if ($wpdb->last_error) {

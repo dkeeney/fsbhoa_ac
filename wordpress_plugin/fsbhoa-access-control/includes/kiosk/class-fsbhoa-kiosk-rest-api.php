@@ -128,7 +128,8 @@ class Fsbhoa_Kiosk_REST_API {
                     $old_guests = isset($matches[1]) ? absint($matches[1]) : 0;
 
                     if ($guests !== $old_guests) {
-                        // Guest count is different. UPDATE the old log entry.
+                        // Guest count is different. 
+                        //   UPDATE the old log entry rather than creating a new entry.
                         error_log("[RATE LIMIT DEBUG] Guest count mismatch (New: $guests, Old: $old_guests). Updating log_id: " . $recent_swipe_data->log_id);
                         error_log("[RATE LIMIT DEBUG] New description string is: '" . $event_description_for_db . "'"); // Log the string we WILL use
 
@@ -136,7 +137,9 @@ class Fsbhoa_Kiosk_REST_API {
                             'ac_access_log',
                             [
                                 'event_description' => $event_description_for_db, // Use the string defined above
-                                'event_timestamp' => current_time('mysql')      // Update the timestamp
+                                'event_timestamp' => current_time('mysql'),     // Update the timestamp
+                                'guest_count' => $guest,
+                                'amenity_name' => $amenity_name,
                             ],
                             ['log_id' => $recent_swipe_data->log_id], // Where log_id matches
                             ['%s', '%s'], // Format for data (%s = string)
@@ -175,6 +178,7 @@ class Fsbhoa_Kiosk_REST_API {
             'event_description'     => $event_description_for_db, // Use the description created earlier
             'access_granted'        => 1,
             'guest_count'           => $guests,
+            'amenity_name'          => $amenity_name,
         ];
 
         $wpdb->insert('ac_access_log', $log_data);
