@@ -41,6 +41,32 @@ class Fsbhoa_Analytics_Admin_Page {
                         </select>
                     </div>
                 </div>
+                <div class="fsbhoa-summary-container" style="margin-bottom: 20px; background: #fff; padding: 15px; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+                    <h3 style="margin-top:0;">Attendance Summary (People)</h3>
+                    <style>
+                            #attendance-summary-table td, 
+                            #attendance-summary-table th {
+                                padding: 4px 10px !important; /* Reduces vertical padding */
+                                line-height: 1.2 !important;  /* Tightens text */
+                                font-size: 13px;
+                            }
+                            /* Optional: limit width if you want it side-by-side with something else */
+                            .fsbhoa-summary-container { max-width: 100%; } 
+                    </style>
+                    <table class="wp-list-table widefat fixed striped table-view-list" id="attendance-summary-table">
+                        <thead>
+                            <tr>
+                                <th style="font-weight:bold;">Amenity</th>
+                                <th style="font-weight:bold;" id="header-today">Today</th>
+                                <th style="font-weight:bold;" id="header-yesterday">Yesterday</th>
+                                <th style="font-weight:bold;" id="header-month">Month Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="4">Loading data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
                 <div class="fsbhoa-charts-container">
                             <div class="chart-wrapper" id="amenity-usage-chart-container">
                                 <h3>Usage by Amenity</h3>

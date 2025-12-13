@@ -27,6 +27,14 @@ class Fsbhoa_Reports_REST_API {
                 return current_user_can( 'manage_options' );
             },
         ) );
+
+        register_rest_route( $this->namespace, '/reports/daily-summary', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'get_daily_summary_callback' ),
+            'permission_callback' => function () {
+                return current_user_can( 'manage_options' );
+            },
+        ) );
     }
 
     public function get_access_log_callback( WP_REST_Request $request ) {
@@ -105,14 +113,27 @@ public function get_usage_analytics_callback( WP_REST_Request $request ) {
             'amenityUsage' => [],
         ];
 
-        // --- Gate Usage Query  ---
+        // --- Gate Usage Query ---
+        // 1. Removed "Card swipe%" filter to include "Amenity:" and "Access:" events.
+        // 2. Added CASE statement to properly label the Kiosk (which fails the join).
         $gate_results = $wpdb->get_results( $wpdb->prepare(
-            "SELECT COALESCE(d.friendly_name, 'Unknown Gate') as friendly_name, COUNT(l.log_id) as count
+            "SELECT 
+                CASE 
+                    WHEN l.controller_identifier = 'kiosk' OR l.controller_identifier = '900000' THEN 'Lobby Kiosk'
+                    ELSE COALESCE(d.friendly_name, 'Unknown Gate') 
+                END as friendly_name, 
+                COUNT(l.log_id) as count
             FROM ac_access_log l
             LEFT JOIN ac_controllers c ON l.controller_identifier = c.uhppoted_device_id
             LEFT JOIN ac_doors d ON c.controller_record_id = d.controller_record_id AND l.door_number = d.door_number_on_controller
-            WHERE l.access_granted = 1 AND l.event_description LIKE 'Card swipe%%' AND YEAR(l.event_timestamp) = %d AND MONTH(l.event_timestamp) = %d
-            GROUP BY COALESCE(d.friendly_name, 'Unknown Gate')
+            WHERE l.access_granted = 1 
+              AND YEAR(l.event_timestamp) = %d 
+              AND MONTH(l.event_timestamp) = %d
+            GROUP BY 
+                CASE 
+                    WHEN l.controller_identifier = 'kiosk' OR l.controller_identifier = '900000' THEN 'Lobby Kiosk'
+                    ELSE COALESCE(d.friendly_name, 'Unknown Gate') 
+                END
             ORDER BY COUNT(l.log_id) DESC",
             $year,
             $month
@@ -167,5 +188,101 @@ public function get_usage_analytics_callback( WP_REST_Request $request ) {
 
         return new WP_REST_Response($response_data, 200);
     }
-}
 
+    /**
+     * Returns a summary of usage (Total People) for Today, Yesterday, and the selected Month.
+     */
+    public function get_daily_summary_callback( WP_REST_Request $request ) {
+        $year = $request->get_param('year') ? absint($request->get_param('year')) : date('Y');
+        $month = $request->get_param('month') ? absint($request->get_param('month')) : date('m');
+
+        // 1. Get Data for "Today"
+        $today_start = current_time('Y-m-d 00:00:00');
+        $today_end   = current_time('Y-m-d 23:59:59');
+        $today_data  = $this->fetch_amenity_counts($today_start, $today_end);
+
+        // 2. Get Data for "Yesterday"
+        $yesterday_start = date('Y-m-d 00:00:00', strtotime('-1 day', current_time('timestamp')));
+        $yesterday_end   = date('Y-m-d 23:59:59', strtotime('-1 day', current_time('timestamp')));
+        $yesterday_data  = $this->fetch_amenity_counts($yesterday_start, $yesterday_end);
+
+        // 3. Get Data for "Selected Month"
+        // Create date range for the entire requested month
+        $month_start = sprintf('%04d-%02d-01 00:00:00', $year, $month);
+        $month_end   = date('Y-m-t 23:59:59', strtotime($month_start));
+        $month_data  = $this->fetch_amenity_counts($month_start, $month_end);
+
+        // 4. Merge Data
+        // We want a list of ALL amenities that appear in any of the three lists.
+        $all_amenities = array_unique(array_merge(
+            array_keys($today_data),
+            array_keys($yesterday_data),
+            array_keys($month_data)
+        ));
+        sort($all_amenities); // Alphabetical order
+
+        $summary = [];
+        $totals = ['amenity' => 'TOTALS', 'today' => 0, 'yesterday' => 0, 'month' => 0];
+
+        foreach ($all_amenities as $amenity) {
+            $t = $today_data[$amenity] ?? 0;
+            $y = $yesterday_data[$amenity] ?? 0;
+            $m = $month_data[$amenity] ?? 0;
+
+            $summary[] = [
+                'amenity'   => $amenity,
+                'today'     => $t,
+                'yesterday' => $y,
+                'month'     => $m,
+            ];
+
+            // Calculate Grand Totals
+            $totals['today'] += $t;
+            $totals['yesterday'] += $y;
+            $totals['month'] += $m;
+        }
+
+        // Add Totals row at the bottom
+        if (!empty($summary)) {
+            $summary[] = $totals;
+        }
+
+        return new WP_REST_Response([
+            'summary' => $summary,
+            'meta' => [
+                'today_label' => 'Today ' . date('M j', strtotime($today_start)),
+                'yesterday_label' => 'Yesterday ' . date('M j', strtotime($yesterday_start)),
+                'month_label' => 'Month ' . date('F Y', strtotime($month_start))
+            ]
+        ], 200);
+    }
+
+    /**
+     * Helper: Counts total people (Cardholder + Guests) per amenity for a date range.
+     * Logic: 
+     * - Access Granted Only
+     * - Amenity Name IS NOT NULL (Deduplicates Entry Gate swipes)
+     */
+    private function fetch_amenity_counts($start_date, $end_date) {
+        global $wpdb;
+        
+        $results = $wpdb->get_results($wpdb->prepare("
+            SELECT 
+                amenity_name, 
+                SUM(1 + guest_count) as total_people
+            FROM ac_access_log 
+            WHERE 
+                access_granted = 1 
+                AND amenity_name IS NOT NULL 
+                AND event_timestamp BETWEEN %s AND %s
+            GROUP BY amenity_name
+        ", $start_date, $end_date));
+
+        $data = [];
+        foreach ($results as $row) {
+            $data[$row->amenity_name] = (int)$row->total_people;
+        }
+        return $data;
+    }
+
+}

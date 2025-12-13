@@ -9,6 +9,8 @@ jQuery(document).ready(function($) {
         const year = $('#analytics-year').val();
         const month = $('#analytics-month').val();
 
+        fetchAndRenderSummary(year, month);
+
         // Show a loading indicator (optional but good UX)
         $('.chart-wrapper').append('<div class="loading-spinner"></div>');
 
@@ -144,6 +146,56 @@ jQuery(document).ready(function($) {
             }
         });
         $('#amenity-usage-chart-container').append('<p class="chart-note">* \'Courts\' amenity is access to all courts outside Lodge hours.</p>');
+    }
+
+    function fetchAndRenderSummary(year, month) {
+        const tableBody = $('#attendance-summary-table tbody');
+        
+        $.ajax({
+            url: `/wp-json/fsbhoa/v1/reports/daily-summary?year=${year}&month=${month}`,
+            method: 'GET',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', fsbhoa_reports_vars.rest_nonce);
+            },
+            success: function(data) {
+                // 1. Update Headers with dynamic dates
+                if (data.meta) {
+                    $('#header-today').text(data.meta.today_label);
+                    $('#header-yesterday').text(data.meta.yesterday_label);
+                    $('#header-month').text(data.meta.month_label);
+                }
+
+                // 2. Build Table Rows
+                tableBody.empty();
+                
+                if (data.summary && data.summary.length > 0) {
+                    data.summary.forEach(row => {
+                        // Bold the 'TOTALS' row
+                        const isTotal = row.amenity === 'TOTALS';
+                        const style = isTotal ? 'font-weight: bold; background-color: #f0f0f1;' : '';
+                        
+                        // Clean up amenity name (remove 'Amenity: ' prefix if present)
+                        const name = row.amenity.replace('Amenity: ', '');
+
+                        const html = `
+                            <tr style="${style}">
+                                <td>${name}</td>
+                                <td>${row.today}</td>
+                                <td>${row.yesterday}</td>
+                                <td>${row.month}</td>
+                            </tr>
+                        `;
+                        tableBody.append(html);
+                    });
+                } else {
+                    tableBody.html('<tr><td colspan="4">No attendance data found for this period.</td></tr>');
+                }
+            },
+            error: function(err) {
+                console.error("Error fetching summary:", err);
+                tableBody.html('<tr><td colspan="4" style="color:red;">Error loading summary data.</td></tr>');
+            }
+        });
     }
 
     // --- Event Handlers ---
