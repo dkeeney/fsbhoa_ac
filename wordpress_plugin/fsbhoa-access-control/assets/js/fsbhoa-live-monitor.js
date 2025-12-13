@@ -195,6 +195,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const li = document.createElement('li');
         li.dataset.eventData = JSON.stringify(eventData);
 
+        if (eventData.logId) {
+            li.dataset.logId = eventData.logId;
+        }
+
         if (isExpanded) {
             const isGranted = eventData.eventType === 'accessGranted';
             li.className = `p-4 flex items-start space-x-4 border-l-4 ${isGranted ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} is-expanded`;
@@ -222,6 +226,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function addEventToLog(eventData) {
+        console.log("Monitor: Received Event:", eventData);
+        
+        const uniqueId = eventData.logId;
+        let existingRow = null;
+
+        if (uniqueId) {
+            existingRow = document.querySelector(`li[data-log-id="${uniqueId}"]`);
+        }
+
         // 1. Check if the new event's timestamp is the same as the last one.
         if (eventData.timestamp === lastEventTimestamp) {
             return; // If it's the same, stop and ignore the event.

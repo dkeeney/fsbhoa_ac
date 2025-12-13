@@ -11,6 +11,22 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
     $form_post_hook_action = $is_edit_mode ? 'fsbhoa_update_controller' : 'fsbhoa_add_controller';
     $nonce_action = $is_edit_mode ? 'fsbhoa_update_controller_' . ($form_data['controller_record_id'] ?? 0) : 'fsbhoa_add_controller';
     $cancel_url = remove_query_arg(['action', 'controller_id']);
+
+    // Calculate loop limit based on whether this is Virtual (Unlimited) or Physical
+    $door_count_setting = (int)($form_data['door_count'] ?? 4);
+    $is_virtual_controller = ($door_count_setting > 4); // 127 means Virtual
+
+    if ($is_virtual_controller) {
+        // Virtual: Show all existing gates + 1 empty slot to allow growth
+        $highest_door_num = 0;
+        if (!empty($form_data['doors'])) {
+            $highest_door_num = max(array_keys($form_data['doors']));
+        }
+        $loop_limit = $highest_door_num + 1;
+    } else {
+        // Physical: Show exact count
+        $loop_limit = $door_count_setting;
+    }
     ?>
     <div class="fsbhoa-frontend-wrap is-form-view">
         <h1><?php echo esc_html( $page_title ); ?></h1>
@@ -52,9 +68,10 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                             <option value="1" <?php selected($form_data['door_count'], 1); ?>>1-Door</option>
                             <option value="2" <?php selected($form_data['door_count'], 2); ?>>2-Door</option>
                             <option value="4" <?php selected($form_data['door_count'], 4); ?>>4-Door</option>
+                            <option value="127" <?php selected($is_virtual_controller, true); ?>>Virtual (Unlimited)</option>
                         </select>
                     </div>
-                    <div class="form-field">
+                    <div class="form-field" id="ip_address_field">
                         <label for="ip_address">IP Address</label>
                         <input name="ip_address" type="text" id="ip_address" value="<?php echo esc_attr($form_data['ip_address'] ?? ''); ?>">
                     </div>
@@ -87,7 +104,7 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                             <strong>Notes</strong>
                         </div>
                     </div>
-                    <?php for ($i = 1; $i <= $form_data['door_count']; $i++) : 
+                    <?php for ($i = 1; $i <= $loop_limit; $i++) : 
                         $door_data = $form_data['doors'][$i] ?? null;
                         $door_record_id = $door_data['door_record_id'] ?? '';
                         $door_name = $door_data['friendly_name'] ?? '';
@@ -95,6 +112,10 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                         $current_door_role = $door_data['door_role'] ?? '';
                         $current_amenity_id_string = $door_data['amenity_id'] ?? '';
                         $selected_amenity_ids = array_map('trim', explode(',', $current_amenity_id_string));
+                        $name_placeholder = '(Unused)';
+                        if ($is_virtual_controller && $i == $loop_limit) {
+                            $name_placeholder = 'Enter new gate name...';
+                        }
                     ?>
                         <div class="gate-form-row">
                             <input type="hidden" name="gates[<?php echo $i; ?>][door_record_id]" value="<?php echo esc_attr($door_record_id); ?>">
@@ -104,16 +125,21 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                             </div>
                             <div class="form-field gate-name-field">
                                 <label for="gate_name_<?php echo $i; ?>">Gate Name</label>
-                                <input type="text" id="gate_name_<?php echo $i; ?>" name="gates[<?php echo $i; ?>][friendly_name]" value="<?php echo esc_attr($door_name); ?>" placeholder="(Unused)">
+                                <input type="text" id="gate_name_<?php echo $i; ?>" name="gates[<?php echo $i; ?>][friendly_name]" value="<?php echo esc_attr($door_name); ?>" placeholder="<?php echo esc_attr($name_placeholder); ?>">
                             </div>
                             
                             <div class="form-field gate-role-field">
                                 <label for="gate_door_role_<?php echo $i; ?>">Door Role</label>
                                 <select name="gates[<?php echo $i; ?>][door_role]" id="gate_door_role_<?php echo $i; ?>" class="door-role-select">
-                                    <option value="" <?php selected($current_door_role, ''); ?>>— Not Set —</option>
-                                    <option value="PERIMETER" <?php selected($current_door_role, 'PERIMETER'); ?>>Perimeter Gate</option>
-                                    <option value="ENTRY_GATE" <?php selected($current_door_role, 'ENTRY_GATE'); ?>>Entry Gate</option>
-                                    <option value="INNER_GATE" <?php selected($current_door_role, 'INNER_GATE'); ?>>Inner Amenity Gate</option>
+                                    <?php 
+                                    // Fetch the master list from the class
+                                    $allowed_roles = Fsbhoa_Controller_Admin_Page::get_door_roles();
+    
+                                    foreach ( $allowed_roles as $role_value => $role_label ) : ?>
+                                        <option value="<?php echo esc_attr($role_value); ?>" <?php selected($current_door_role, $role_value); ?>>
+                                            <?php echo esc_html($role_label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
 
@@ -155,6 +181,27 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
             </p>
         </form>
     </div>
+    <script>
+    function toggleControllerFields() {
+        const modelSelect = document.getElementById('door_count');
+        const ipField = document.getElementById('ip_address_field');
+        const ipInput = document.getElementById('ip_address');
+        
+        // Value 127 indicates Virtual
+        if (modelSelect.value == '127') {
+            // Virtual: Disable IP field
+            ipField.style.opacity = '0.5';
+            ipField.style.pointerEvents = 'none';
+            if(ipInput.value === '') ipInput.value = '0.0.0.0';
+        } else {
+            // Physical: Enable IP field
+            ipField.style.opacity = '1';
+            ipField.style.pointerEvents = 'auto';
+        }
+    }
+    // Run on load to set initial state
+    document.addEventListener('DOMContentLoaded', toggleControllerFields);
+    </script>
     <style>
         .is-multi-column { display: flex; align-items: flex-end; gap: 15px; }
         .is-multi-column .form-field { flex: 1; }
@@ -214,15 +261,15 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
         }
         .gate-header-row .gate-name-field { 
             flex: 1 1 20%; 
-            text-align: left; /* ADD THIS */
+            text-align: left;
         }
         .gate-header-row .gate-role-field { 
             flex: 1 1 30%; 
-            text-align: left; /* ADD THIS */
+            text-align: left;
         }
         .gate-header-row .gate-notes-field { 
             flex: 1 1 50%; 
-            text-align: left; /* ADD THIS */
+            text-align: left;
         }
     </style>
     <?php

@@ -98,4 +98,20 @@ class Fsbhoa_Controller_Admin_Page {
 		fsbhoa_render_controller_form($form_data, $is_edit_mode, $errors, $amenities);
     }
 
+
+
+    /**
+     * Returns the allowed door roles and their human-readable labels.
+     * Use this in forms to ensure the dropdown always matches the logic.
+     */
+    public static function get_door_roles() {
+        return [
+            ''           => '— Not Set —',
+            'PERIMETER'  => 'Perimeter Gate',
+            'ENTRY_GATE' => 'Entry Gate (Provisional)',
+            'INNER_GATE' => 'Inner Amenity Gate',
+            'KIOSK'      => 'Kiosk (Virtual / Trusted)',
+        ];
+    }
+    
 }

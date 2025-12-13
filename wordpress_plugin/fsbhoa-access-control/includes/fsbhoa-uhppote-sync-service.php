@@ -63,7 +63,7 @@ function fsbhoa_perform_delta_sync() {
 
     // --- Execute the sync with the correctly identified changes ---
     $permission_data = fsbhoa_get_all_permission_data($active_schedule_id);
-    $controllers = $wpdb->get_results("SELECT * FROM ac_controllers");
+    $controllers = $wpdb->get_results("SELECT * FROM ac_controllers WHERE type = 'UHPPOTE'");
     fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $cardholders_to_delete, $task_sync_needed, $is_dry_run, false, $active_schedule_id);
 }
 
@@ -85,7 +85,7 @@ function fsbhoa_perform_nightly_rebuild_sync() {
     $permission_data = fsbhoa_get_all_permission_data($active_schedule_id);
 
     $cardholders_to_sync = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status = 'active'");
-    $controllers = $wpdb->get_results("SELECT * FROM ac_controllers");
+    $controllers = $wpdb->get_results("SELECT * FROM ac_controllers WHERE type = 'UHPPOTE'");
 
     //  Pass the active schedule ID to the main sync logic
     fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, [], true, $is_dry_run, true, $active_schedule_id);
@@ -133,6 +133,11 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
 //    $controller_retry_delay = 3; // 3 seconds
 
     foreach ($controllers as $controller) {
+        // --- SAFETY CHECK ---
+        if (isset($controller->type) && $controller->type !== 'UHPPOTE') {
+            continue;
+        }
+
         $device_id = $controller->uhppoted_device_id;
         $controller_id = $controller->controller_record_id;
         $friendly_name = $controller->friendly_name;
@@ -442,7 +447,7 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
 
 
 /**
- * New action hook for the daily 3AM time sync
+ * Action hook for the daily 3AM time sync
  */
 add_action('fsbhoa_run_daily_time_sync', 'fsbhoa_perform_daily_time_sync');
 
@@ -453,7 +458,7 @@ add_action('fsbhoa_run_daily_time_sync', 'fsbhoa_perform_daily_time_sync');
 function fsbhoa_perform_daily_time_sync() {
     error_log("DAILY TIME SYNC: Process started.");
     global $wpdb;
-    $controllers = $wpdb->get_results("SELECT uhppoted_device_id, friendly_name FROM ac_controllers");
+    $controllers = $wpdb->get_results("SELECT uhppoted_device_id, friendly_name FROM ac_controllers WHERE type = 'UHPPOTE");
 
     if (empty($controllers)) {
         error_log("DAILY TIME SYNC: No controllers found.");

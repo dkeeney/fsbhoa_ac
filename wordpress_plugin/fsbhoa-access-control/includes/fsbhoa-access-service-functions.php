@@ -1,31 +1,74 @@
-// --- In includes/fsbhoa-access-service.php ---
-
+<?php 
 class Fsbhoa_Access_Service {
     
     /**
      * Main entry point for processing all access events (Kiosk, Gate, Future Readers).
      * Handles rate limit, amenity logic, and database write.
      * * @param array $log_data Standardized event data array.
-     * @return bool|WP_Error Returns true on success, WP_Error on failure/rate limit.
+     * @return int|WP_Error Returns log_id on success, WP_Error on failure/rate limit.
      */
     public static function process_and_write_event( $log_data ) {
         
-        // 1. Rate Limit Check
+        // 1. Go find the cardholder
+        self::lookup_cardholder( $log_data );
+        
+        // 2. Rate Limit Check
         if (self::is_rate_limited($log_data)) {
             return new WP_Error('rate_limit', 'Event is a duplicate or rate-limited.');
         }
 
-        // 2. Amenity Processing (Assigns amenity_name, updates guest_count, clears preceding logs)
+        // 3. Amenity Processing (Assigns amenity_name, updates guest_count, clears preceding logs)
         $log_data = self::process_amenity_logic($log_data);
 
-        // 3. Database Write
-        if ( ! self::write_to_access_log($log_data) ) {
+        // 4. Database Write
+        $log_id = self::write_to_access_log($log_data);
+        if ( !$log_id ) {
+            // Database write failed (write_to_access_log returned false).
              return new WP_Error('db_error', 'Failed to insert event into access log.');
         }
 
-        return true;
+        // 5. Notification (Centralized logic)
+        // If we successfully wrote the log, notify the monitor service.
+        self::send_notification_to_monitor($log_id);
+
+        // Return the log ID on success.
+        return $log_id;
     }
 
+    /**
+     * Looks up the cardholder and populates cardholder_id in the log array.
+     * @param array &$log_data The standardized log data array (passed by reference).
+     */
+    private static function lookup_cardholder( &$log_data ) {
+        global $wpdb;
+
+        $rfid = $log_data['rfid_id'];
+
+        // 1. Check for no RFID read 
+        if ( empty( $rfid ) ) {
+            $log_data['cardholder_id'] = 0;
+            $log_data['access_granted'] = $log_data['access_granted'] ?? 0; // Default to denied
+            $log_data['event_description'] = $log_data['event_description'] ?? 'No Card Read';
+            return; // Cannot proceed without an RFID
+        }
+
+        // 2. Lookup Cardholder using the rfid_id
+        $cardholder = $wpdb->get_row( $wpdb->prepare( "
+            SELECT id, resident_type
+            FROM ac_cardholders
+            WHERE rfid_id = %s", $rfid )
+        );
+
+        if ( $cardholder ) {
+            $log_data['cardholder_id'] = absint( $cardholder->id );
+            $log_data['resident_type'] = $cardholder->resident_type;
+        } else {
+            // Card is not found in the system
+            $log_data['cardholder_id'] = 0;
+            $log_data['access_granted'] = 0; // Ensure access is denied if card is unknown
+            $log_data['event_description'] = 'Card not found';
+        }
+    }
     
 
     /**
@@ -36,14 +79,19 @@ class Fsbhoa_Access_Service {
      *   all at about the same time.  It is just redundant. So ignore.
      *   1) If there is no RFID (not a valid cardholder) then just skip the check.
      *   2) If this is a system user, it means we are running a regression test, then
-     *   also skip the check.
+     *   also skip the check (allow the duplicate).
      *   3) If no rate limit time is specified, then skip the check.
      *   4) If the current swipe is the
      *        A. the same cardholder
      *        B. within this rate limit time
      *        C. at the same gate
      *        D. and the same access granted status
+     *        E. and the same amenity
      *      Then ignore this swipe entirely.
+     *
+     *   We need to handle the case were a cardholder signs in for "Pool (0 Guests)" and then 
+     *   immediately realized he forgot his guests and sign in again for "Pool (2 Guests)", 
+     *   in this case we update the previous record with the new count and count this as duplicate.
      *
      * @param array $log_data Standardized event data array.
      * @return bool Returns true if the event should be rate-limited (discarded), false otherwise.
@@ -63,10 +111,12 @@ class Fsbhoa_Access_Service {
             // Use WordPress's time functions to ensure the correct timezone.
             $time_ago_unix = current_time('timestamp') - ($minutes * MINUTE_IN_SECONDS);
             $time_ago = date('Y-m-d H:i:s', $time_ago_unix);
+            $guest_count = isset($log_data['guest_count']) ? $log_data['guest_count'] : 0;
+            $amenity_name = isset($log_data['amenity_name']) ? $log_data['amenity_name'] : '';
 
             // Query for a similar event for the same cardholder, door, and granted status
-            $duplicate_check_query = $wpdb->prepare("
-             SELECT log.log_id
+            $query = $wpdb->prepare("
+             SELECT log.log_id, log.guest_count
                 FROM ac_access_log log
                 INNER JOIN ac_cardholders card ON log.cardholder_id = card.id
                 WHERE log.cardholder_id = %d
@@ -75,6 +125,7 @@ class Fsbhoa_Access_Service {
                   AND log.access_granted = %d
                   AND log.event_timestamp >= %s
                   AND card.resident_type != 'System' /* EXCLUDE SYSTEM USERS */
+                  AND (log.amenity_name = %s OR (log.amenity_name IS NULL AND %s = ''))
                 ORDER BY log.event_timestamp DESC
                 LIMIT 1
             ", 
@@ -82,14 +133,46 @@ class Fsbhoa_Access_Service {
                 $log_data['controller_identifier'],
                 $log_data['door_number'],
                 $log_data['access_granted'],
-                $time_ago
+                $time_ago,
+                $amenity_name,
+                $amenity_name
             );
     
-            $duplicate_log_id = $wpdb->get_var( $duplicate_check_query );
+            $recent_log = $wpdb->get_row( $query );
 
-            if ($duplicate_log_id) {
-                error_log( sprintf("[RATE LIMIT] Discarding duplicate event for Cardholder ID %d at %s.", 
-                    $log_data['cardholder_id'], $log_data['event_timestamp']
+            if ($recent_log) {
+                // found a recent record already in the log. See if the guest_count changed.  If so, update it.
+                $new_guests = isset($log_data['guest_count']) ? (int)$log_data['guest_count'] : 0;
+                $old_guests = (int)$recent_log->guest_count;
+
+                if ( $new_guests !== $old_guests ) {
+                    // Update the existing record to reflect the corrected count
+                    
+                    $new_description = 'Amenity: ' . esc_html($amenity_name);
+                    // Optional: You could append the count here if you like details in the text
+                    if ($new_guests > 0) $new_description .= " (+$new_guests guests)";
+
+                    $wpdb->update(
+                        'ac_access_log',
+                        [
+                            'guest_count'       => $new_guests,
+                            'event_description' => $new_description,
+                            'event_timestamp'   => $log_data['event_timestamp'] // Bump time to now
+                        ],
+                        ['log_id' => $recent_log->log_id],
+                        ['%d', '%s', '%s'],
+                        ['%d']
+                    );
+
+                    // Notify monitor so the screen updates immediately
+                    self::send_notification_to_monitor((int) $recent_log->log_id);
+                    error_log( sprintf("[RATE LIMIT] previous event's guest count modified for Cardholder rfid %s at %s.", 
+                        $log_data['rfid_id'], $log_data['event_timestamp']
+                    ) );
+                    return true; // Stop processing
+                }
+                error_log( sprintf("[RATE LIMIT] Discarding duplicate event for Cardholder rfid %s at %s.", 
+                    $log_data['rfid_id'], $log_data['event_timestamp']
                 ) );
                 return true; // Rate limited!
             }
@@ -156,32 +239,44 @@ class Fsbhoa_Access_Service {
     
         // --- SCENARIO A: INNER GATE SWIPE (Highest Priority: Clearing/Transfer) ---
         if ( $door_info->door_role === 'INNER_GATE' ) {
-        
-            $recent_entry = self::find_recent_entry_gate( $log_data, $time_ago ); 
-            $inner_amenity_name = self::get_amenity_name_by_id( $door_info->amenity_id );
-        
+
+            $recent_entry = self::find_recent_entry_gate( $log_data, $time_ago );
+    
+            // 1. Get the amenity names associated with the inner gate (array of names)
+            // NOTE: door_info now includes door_record_id
+            $inner_amenity_names = self::get_door_amenity_names( $door_info->door_record_id ); 
+    
+            // Use the first amenity name in the list for log messages if multiple exist
+            $inner_amenity_name_for_log = empty($inner_amenity_names) ? 'Unknown Amenity' : $inner_amenity_names[0];
+
             if ( $recent_entry && !empty($recent_entry->amenity_name) ) {
-            
-                // Check for Amenity Match (1B: Match)
-                if ( $inner_amenity_name === $recent_entry->amenity_name ) {
-                    // ACTION 1B/2B: Transfer amenity, clear preceding log
-                    $log_data['event_description'] = 'Amenity: ' . esc_html($inner_amenity_name) . ' (Confirmed)';
+
+                // Check if the single amenity name from the preceding entry is in the INNER GATE's list of names
+                if ( in_array( $recent_entry->amenity_name, $inner_amenity_names ) ) { 
+
+                    // ACTION 1B/2B: Transfer amenity, clear preceding log (Amenity Match)
+                    $log_data['event_description'] = 'Amenity: ' . esc_html($recent_entry->amenity_name);
                     $log_data['amenity_name'] = $recent_entry->amenity_name;
                     $log_data['guest_count'] = $recent_entry->guest_count;
-                    self::clear_preceding_log($recent_entry->log_id, $door_info->friendly_name); 
-                
+                    self::clear_preceding_log($recent_entry->log_id, $door_info->friendly_name);
+
                 } else {
                     // SCENARIO 1C: Mismatch (Concurrent Usage)
-                    // ACTION 1C: Record Inner Gate usage as a new event; preceding log remains
-                    $log_data['event_description'] = 'Amenity Access: ' . esc_html($inner_amenity_name) . ' (Concurrent)';
-                    $log_data['amenity_name'] = $inner_amenity_name;
-                    $log_data['guest_count'] = 0; // Assume 0 guests for the second swipe
+                    $log_data['event_description'] = 'Amenity: ' . esc_html($inner_amenity_name_for_log);
+                    $log_data['amenity_name'] = $inner_amenity_name_for_log;
+                    $log_data['guest_count'] = 0; 
+
+                    // CHECK: Was the previous record just a "Hardware Guess" (ENTRY_GATE)?
+                    // If so, delete it. It was wrong.
+                    if ( $recent_entry->previous_door_role === 'ENTRY_GATE' ) {
+                         self::clear_preceding_log($recent_entry->log_id,  $door_info->friendly_name);
+                    }
                 }
 
             } else {
                 // SCENARIO 3: Inner Gate (No Preceding Registration)
-                $log_data['event_description'] = 'Amenity Access: ' . esc_html($inner_amenity_name) . ' (Unregistered Entry)';
-                $log_data['amenity_name'] = $inner_amenity_name;
+                $log_data['event_description'] = 'Amenity: ' . esc_html($inner_amenity_name_for_log);
+                $log_data['amenity_name'] = $inner_amenity_name_for_log;
                 $log_data['guest_count'] = 0;
             }
         }
@@ -190,21 +285,35 @@ class Fsbhoa_Access_Service {
         else if ( $door_info->door_role === 'ENTRY_GATE' ) {
         
             // This includes West Gate and Kiosk (which supplies amenity_name directly).
-            // If Kiosk, $log_data['amenity_name'] is already set and carries guest count.
-        
+
             if ( $log_data['controller_identifier'] !== 'kiosk' ) {
                 // SCENARIO 2A: Physical Entry Gate (West Gate/Front Door) - Set Provisional
-                $provisional_name = self::get_amenity_name_by_id( $door_info->amenity_id );
-                
-                $log_data['event_description'] = 'Entry Access: Provisional ' . esc_html($provisional_name);
+        
+                // 1. Get the amenity names associated with the entry gate (array of names)
+                $entry_amenity_names = self::get_door_amenity_names( $door_info->door_record_id ); 
+        
+                // 2. Set the provisional name to the FIRST amenity in the list (if any)
+                $provisional_name = empty($entry_amenity_names) ? 'Unknown Amenity' : $entry_amenity_names[0];
+
+
+                $log_data['event_description'] = 'Access: ' . esc_html($provisional_name);
                 $log_data['amenity_name'] = $provisional_name;
                 $log_data['guest_count'] = 0;
-            } 
-            // If Kiosk, $log_data already contains the amenity_name and guest_count.
+            }
+        }
+        // --- SCENARIO C: KIOSK (Definitive / Human Intent) ---
+        else if ( $door_info->door_role === 'KIOSK' ) {
+            // We TRUST the input. The amenity_name is already in $log_data.
+            if ( !empty($log_data['amenity_name']) ) {
+                $log_data['event_description'] = 'Amenity: ' . esc_html($log_data['amenity_name']);
+            } else {
+                 $log_data['event_description'] = 'Kiosk Check-in: General';
+            }
         }
     
-        // --- SCENARIO C: PERIMETER GATE (Default/Log Only) ---
+        // --- SCENARIO D: PERIMETER GATE (Default/Log Only) ---
         // If the role is 'PERIMETER' or unknown, amenity_name remains NULL (as initialized).
+        // So, just log it.
 
         return $log_data;
     }
@@ -213,30 +322,33 @@ class Fsbhoa_Access_Service {
     /**
      * Writes the finalized log data array to the ac_access_log table.
      * @param array $log_data Standardized event data array.
-     * @return bool True on success, false on database failure.
+     * @return int|bool log_id (int) on successful insert, false on database failure.
      */
     private static function write_to_access_log( $log_data ) {
         global $wpdb;
 
-        // Remove any temporary/non-db fields (like 'resident_type' or 'door_info')
-        $db_fields = array_keys( $wpdb->get_columns_in_table( 'ac_access_log' ) );
-        $insert_data = array_intersect_key( $log_data, array_flip( $db_fields ) );
-    
+        $insert_data = $log_data;
+
+        // Remove fields that are not in the table.
+        // This is NOT really neccessary but just a security precaution.
+        unset($insert_data['door_info']);   
+        unset($insert_data['resident_type']);
+
         // Explicitly define formats for insert (using placeholders for safety)
-        $formats = array_fill(0, count($insert_data), '%s'); // Use %s generically, %d for integer fields if known
-    
-        $result = $wpdb->insert( $wpdb->prefix . 'ac_access_log', $insert_data, $formats );
-        
+        $formats = array_fill(0, count($insert_data), '%s'); 
+
+        $result = $wpdb->insert( 'ac_access_log', $insert_data, $formats );
+
         if ( $result === false ) {
             error_log( sprintf(
                 "CRITICAL DB ERROR: Failed to log access event. Error: %s. Data: %s",
-                $wpdb->last_error, 
+                $wpdb->last_error,
                 json_encode($log_data)
             ));
             return false;
         }
-    
-        return true;
+
+        return $wpdb->insert_id; // Return the new log_id
     }
 
 
@@ -245,6 +357,9 @@ class Fsbhoa_Access_Service {
      * Finds a recent log entry that should be cleared by the current inner gate swipe.
      * Searches for Kiosk or ENTRY_GATE swipes within the time limit.
      *
+     * Now fetches the 'door_role' of the previous gate to help us distinguish 
+     * between a 'KIOSK' (Keep) and an 'ENTRY_GATE' (Delete).
+     *
      * @param array $current_log_data Standardized event data array for the current swipe.
      * @param string $time_ago The minimum timestamp to search from.
      * @return object|null The preceding log entry object, or null if not found.
@@ -252,18 +367,24 @@ class Fsbhoa_Access_Service {
     private static function find_recent_entry_gate( $current_log_data, $time_ago ) {
         global $wpdb;
 
-        // We assume Kiosk events and ENTRY_GATE events are the ones that need clearing.
-        // The key marker is that the preceding event must have an amenity_name set.
+        // JOIN to ac_doors to find out the ROLE of the gate that created the previous log.
         $query = $wpdb->prepare("
-            SELECT log_id, amenity_name, guest_count
-            FROM ac_access_log
-            WHERE cardholder_id = %d
-              AND event_timestamp >= %s
-              AND amenity_name IS NOT NULL
-              AND access_granted = 1
-            ORDER BY event_timestamp DESC 
+            SELECT 
+                log.log_id, 
+                log.amenity_name, 
+                log.guest_count,
+                log.controller_identifier,
+                d.door_role as previous_door_role
+            FROM ac_access_log log
+            LEFT JOIN ac_controllers c ON log.controller_identifier = c.uhppoted_device_id
+            LEFT JOIN ac_doors d ON (c.controller_record_id = d.controller_record_id AND log.door_number = d.door_number_on_controller)
+            WHERE log.cardholder_id = %d
+              AND log.event_timestamp >= %s
+              AND log.amenity_name IS NOT NULL
+              AND log.access_granted = 1
+            ORDER BY log.event_timestamp DESC
             LIMIT 1
-        ", 
+        ",
             $current_log_data['cardholder_id'],
             $time_ago
         );
@@ -318,7 +439,8 @@ class Fsbhoa_Access_Service {
             SELECT 
                 d.friendly_name, 
                 d.door_role, 
-                d.amenity_id
+                d.amenity_id,
+                d.door_record_id
             FROM ac_doors d
             INNER JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
             WHERE c.uhppoted_device_id = %s 
@@ -386,4 +508,31 @@ class Fsbhoa_Access_Service {
         return array_map('sanitize_text_field', $names);
     }
 
+    /**
+     * Private helper to send notifications to monitor_service.
+     * The Go services communicate internally via HTTPS on the local host.
+     * @param int $log_id The ID of the newly created log entry.
+     */
+    private static function send_notification_to_monitor($log_id){
+        $monitor_port = get_option('fsbhoa_ac_monitor_port', 8082);
+        $tls_cert_path = get_option('fsbhoa_ac_tls_cert_path', '');
+        $tls_key_path  = get_option('fsbhoa_ac_tls_key_path', '');
+        $protocol = (!empty($tls_cert_path) && !empty($tls_key_path)) ? 'https' : 'http';
+        $monitor_url = sprintf('%s://127.0.0.1:%d/notify', $protocol, $monitor_port);
+        $post_body = [ 'event_id' => (int)$log_id ];
+
+        $monitor_response = wp_remote_post($monitor_url, [
+            'method'    => 'POST',
+            'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
+            'body'      => json_encode($post_body),
+            'timeout'   => 5,
+            'sslverify' => false,
+        ]);
+
+        if( is_wp_error( $monitor_response ) ){
+            error_log('MONITOR-NOTIFY-ERROR: Failed to notify monitor_service. Reason: ' . $monitor_response->get_error_message());
+        } else {
+            error_log('MONITOR-NOTIFY-SUCCESS: Successfully sent notification to monitor_service for event_id: ' . $log_id);
+        }
+    }
 }

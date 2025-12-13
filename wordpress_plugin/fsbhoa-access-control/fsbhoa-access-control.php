@@ -119,6 +119,7 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
 
 
 // For Live Monitor
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-access-service-functions.php';       // also used by kiosk rest-api.
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-api.php';
 
 // for test Suite
@@ -395,47 +396,45 @@ add_action('admin_footer', 'fsbhoa_remove_theme_padding_script');
  */
 function fsbhoa_schedule_cron_jobs() {
 
-    // --- 1. Nightly Rebuild (for 12:00 AM Local Time) ---
+    // --- 1. Nightly Rebuild (12:00 AM Local Time) ---
     $rebuild_hook = 'fsbhoa_run_nightly_rebuild';
+    
+    // Only schedule if NOT already in the system
     if ( ! wp_next_scheduled( $rebuild_hook ) ) {
+        
+        // current_datetime() automatically uses the Timezone you set in WP Settings
+        $local_time = current_datetime(); 
+        
+        // Move to Tomorrow 00:00:00
+        $target_time = $local_time->modify( 'tomorrow 00:00' );
 
-        // 1. Define the desired next local time (00:00 AM tomorrow).
-        // This string relies on the site's local timezone.
-        $local_start_string = 'tomorrow 00:00am';
-    
-        // 2. Calculate the local timestamp for the target time.
-        // strtotime will calculate the timestamp in the site's local timezone (PST/PDT).
-        $local_target_timestamp = strtotime($local_start_string);
-    
-        // 3. Convert that local time into the final required UTC timestamp.
-        // This is the safest way to get the UTC time for the database.
-        $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
-
-        // 4. Ensure the time is not in the past.
-        // If the time is already past (e.g., ran just after midnight), push it 1 day forward.
-        if ( $start_time_utc < time() ) {
-            $local_target_timestamp = strtotime('tomorrow 00:00am + 1 day');
-            $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
+        // If for some reason that time is in the past, move to next day
+        if ( $target_time->getTimestamp() < time() ) {
+            $target_time = $target_time->modify( '+1 day' );
         }
-    
-        wp_schedule_event( $start_time_utc, 'daily', $rebuild_hook );
-        error_log('[' . current_time('Y-m-d H:i:s T') . "] FSBHOA Sync: Nightly REBUILD scheduled for: " . date('Y-m-d H:i:s T', $start_time_utc));
+
+        // Schedule using the calculated timestamp
+        wp_schedule_event( $target_time->getTimestamp(), 'daily', $rebuild_hook );
+        
+        // Log the Human Readable time to confirm it matches your expectation
+        error_log("FSBHOA Sync: Nightly Rebuild scheduled for: " . $target_time->format('Y-m-d H:i:s T'));
     }
 
-    // --- 2. Daily Time Sync (for 3:05 AM Local Time) ---
+    // --- 2. Daily Time Sync (3:05 AM Local Time) ---
     $time_sync_hook = 'fsbhoa_run_daily_time_sync';
+    
     if ( ! wp_next_scheduled( $time_sync_hook ) ) {
-        $local_start_string = 'tomorrow 3:05am';
-        $local_target_timestamp = strtotime($local_start_string);
-        $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
+        
+        $local_time = current_datetime();
+        $target_time = $local_time->modify( 'tomorrow 03:05' );
 
-        if ( $start_time_utc < time() ) {
-            $local_target_timestamp = strtotime('tomorrow 3:05am + 1 day');
-            $start_time_utc = get_gmt_from_date(date('Y-m-d H:i:s', $local_target_timestamp), 'U');
+        if ( $target_time->getTimestamp() < time() ) {
+            $target_time = $target_time->modify( '+1 day' );
         }
 
-        wp_schedule_event( $start_time_utc, 'daily', $time_sync_hook );
-        error_log('[' . current_time('Y-m-d H:i:s T') . "] FSBHOA Sync: Daily TIME SYNC scheduled for: " . date('Y-m-d H:i:s T', $start_time_utc));
+        wp_schedule_event( $target_time->getTimestamp(), 'daily', $time_sync_hook );
+        
+        error_log("FSBHOA Sync: Daily Time Sync scheduled for: " . $target_time->format('Y-m-d H:i:s T'));
     }
 }
 add_action( 'init', 'fsbhoa_schedule_cron_jobs' );

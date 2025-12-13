@@ -32,6 +32,7 @@ class Fsbhoa_Controller_Actions {
 			'uhppoted_device_id'   => absint($_POST['uhppoted_device_id']),
 			'ip_address'           => sanitize_text_field($_POST['ip_address']),
 			'door_count'           => isset($_POST['door_count']) ? absint($_POST['door_count']) : 4,
+                        'type'                 => $controller_type,
 			'is_static_ip'         => $reverting_to_dhcp ? 0 : 1, // It's static unless we are reverting to DHCP
 			'notes'                => sanitize_textarea_field($_POST['notes']),
                        

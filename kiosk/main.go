@@ -8,8 +8,9 @@ import (
     "log"
     "net/http"
     "os"
-    "time"
+    "strings"
     "sync"
+    "time"
 
 "github.com/gorilla/websocket"
 )
@@ -46,6 +47,8 @@ type SignInPayload struct {
 	RFID    string `json:"rfid"`
 	Amenity string `json:"amenity"`
         Guests  int    `json:"guests"`
+        SerialNumber string `json:"serial_number"` // using string to match "900000" or int? 
+        DoorNumber   int    `json:"door_number"`
 }
 
 
@@ -124,10 +127,15 @@ func fetchKioskConfig() {
 }
 
 // logSignInToWordPress sends the final amenity selection event to WordPress.
-func logSignInToWordPress(rfid, amenity string, guests int) {
+func logSignInToWordPress(rfid, amenity string, guests int, serial string, door int) {
         log.Println("GO DEBUG 3: logSignInToWordPress function has started.")
-	log.Printf("LOGGING TO WORDPRESS: Card %s, Amenity %s, guest %d\n", rfid, amenity, guests)
-	payload := SignInPayload{RFID: rfid, Amenity: amenity, Guests: guests}
+        log.Printf("LOGGING TO WORDPRESS: Card %s, Amenity %s, Guest %d, Serial %s, Door %d\n", rfid, amenity, guests, serial, door)
+	payload := SignInPayload{
+            RFID: rfid, 
+            Amenity: amenity, 
+            Guests: guests,
+            SerialNumber: serial,
+            DoorNumber: door,}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshalling JSON for sign-in: %v", err)
@@ -309,17 +317,42 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		log.Printf("GO DEBUG 1: Received WebSocket message with event type: %s", msg.Event)
 
 		switch msg.Event {
-		case "amenitySelected":
-			log.Println("GO DEBUG 2: Entered 'amenitySelected' case.")
-			if payload, ok := msg.Payload.(map[string]interface{}); ok {
-				rfid, okR := payload["rfid"].(string)
-				amenity, okA := payload["amenity"].(string)
-				guestsFloat, okG := payload["guests"].(float64) // JSON numbers are float64
-				if okR && okA && okG {
-					guests := int(guestsFloat)
-					go logSignInToWordPress(rfid, amenity, guests)
-				}
-			}
+                case "amenitySelected":
+                        log.Println("GO DEBUG 2: Entered 'amenitySelected' case.")
+                        if payload, ok := msg.Payload.(map[string]interface{}); ok {
+                                // 1. Extract standard fields with safety checks
+                                rfid, okR := payload["rfid"].(string)
+                                amenity, okA := payload["amenity"].(string)
+                                guestsFloat, okG := payload["guests"].(float64)
+
+                                // 2. Extract new Identity fields (Optional - default if missing)
+                                // We don't fail if these are missing, we just default to "0" to handle legacy clients.
+                                
+                                var serialStr string = "0"
+                                if serialRaw, exists := payload["serial_number"]; exists {
+                                    // JSON numbers come as float64, strings as string. Handle both.
+                                    if s, ok := serialRaw.(string); ok {
+                                        serialStr = s
+                                    } else if f, ok := serialRaw.(float64); ok {
+                                        serialStr = fmt.Sprintf("%.0f", f)
+                                    }
+                                }
+
+                                var doorInt int = 0
+                                if doorRaw, exists := payload["door_number"]; exists {
+                                     if f, ok := doorRaw.(float64); ok {
+                                         doorInt = int(f)
+                                     }
+                                }
+
+                                // 3. Execute only if core data is valid
+                                if okR && okA && okG {
+                                        guests := int(guestsFloat)
+                                        go logSignInToWordPress(rfid, amenity, guests, serialStr, doorInt)
+                                } else {
+                                        log.Printf("ERROR: Missing required fields in amenitySelected. R=%v A=%v G=%v", okR, okA, okG)
+                                }
+                        }
 
                 case "startSessionById":
                     if payload, ok := msg.Payload.(map[string]interface{}); ok {
@@ -417,6 +450,63 @@ func validateCardholderByID(id string) (ValidationResponse, error) {
 }
 
 
+// apiProxyHandler  acts as a bridge between the Kiosk JS and the WordPress API.
+// Allowed paths that the frontend is permitted to request via the proxy.
+// This prevents the frontend from accessing sensitive WP endpoints (like /users).
+var allowedProxyPaths = map[string]bool{
+    "/fsbhoa/v1/monitor/gates": true,
+    // Add future paths here, e.g.:
+    // "/fsbhoa/v1/amenities/status": true,
+}
+
+func apiProxyHandler(w http.ResponseWriter, r *http.Request) {
+    // 1. Get the requested path from the query string (e.g. ?endpoint=/fsbhoa/v1/monitor/gates)
+    endpoint := r.URL.Query().Get("endpoint")
+    
+    // 2. SECURITY CHECK: Is this path allowed?
+    // We strip query parameters from the map check (e.g. "?role=KIOSK")
+    // This is a simple check; for production, you might need more robust parsing.
+    basePath := endpoint
+    if idx := strings.Index(endpoint, "?"); idx != -1 {
+        basePath = endpoint[:idx]
+    }
+
+    if !allowedProxyPaths[basePath] {
+        log.Printf("SECURITY: Blocked proxy attempt to unauthorized path: %s", endpoint)
+        http.Error(w, "Forbidden", http.StatusForbidden)
+        return
+    }
+
+    // 3. Construct the full URL
+    // We pass the raw 'endpoint' string which includes the query params from the frontend
+    targetURL := fmt.Sprintf("%s/wp-json%s", config.WordPressAPIBaseURL, endpoint)
+
+    // 4. Create Request
+    req, err := http.NewRequest("GET", targetURL, nil)
+    if err != nil {
+        log.Printf("PROXY ERROR: Could not create request: %v", err)
+        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        return
+    }
+
+    req.Header.Set("X-API-KEY", config.APIKey)
+
+    // 5. Send Request
+    client := &http.Client{Timeout: 5 * time.Second}
+    resp, err := client.Do(req)
+    if err != nil {
+        log.Printf("PROXY ERROR: Backend unreachable: %v", err)
+        http.Error(w, "Bad Gateway", http.StatusBadGateway)
+        return
+    }
+    defer resp.Body.Close()
+
+    // 6. Forward Response
+    w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+    w.WriteHeader(resp.StatusCode)
+    io.Copy(w, resp.Body)
+}
+
 
 // main is the application entry point.
 
@@ -427,6 +517,7 @@ func main() {
 
 
 	fs := http.FileServer(http.Dir("./web"))
+        http.HandleFunc("/api/proxy", apiProxyHandler)
 	http.Handle("/", fs)
         http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { handleConnections(w, r) })
 

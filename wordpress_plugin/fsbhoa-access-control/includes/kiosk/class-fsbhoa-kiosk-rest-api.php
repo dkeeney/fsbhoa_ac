@@ -78,119 +78,58 @@ class Fsbhoa_Kiosk_REST_API {
 
     /**
      * This is called when kiosk has collected an amenity for a valid cardholder.
+     * UPDATED: Delegates all processing to Fsbhoa_Access_Service::process_and_write_event.
      */
     public function log_signin_callback( WP_REST_Request $request ) {
-        global $wpdb;
         $params = $request->get_json_params();
+        
         $rfid = isset($params['rfid']) ? sanitize_text_field($params['rfid']) : '';
         $amenity_name = isset($params['amenity']) ? sanitize_text_field($params['amenity']) : '';
-        $guests = isset($params['guests']) ? absint($params['guests']) : 0; // The new guest count
+        $guests = isset($params['guests']) ? absint($params['guests']) : 0;
+
+        // Identity Logic: Default to '900000' (Virtual) if not provided
+        $controller_sn = isset($params['serial_number']) && !empty($params['serial_number']) 
+            ? sanitize_text_field($params['serial_number']) 
+            : '900000';
+            
+        $door_num = isset($params['door_number']) && $params['door_number'] > 0 
+            ? absint($params['door_number']) 
+            : 1;
 
         if (empty($rfid) || empty($amenity_name)) {
             return new WP_Error( 'bad_request', 'Missing rfid or amenity name.', ['status' => 400] );
         }
 
-        $cardholder = $wpdb->get_row($wpdb->prepare("SELECT id, resident_type FROM ac_cardholders WHERE rfid_id = %s", $rfid));
-        if ($wpdb->last_error) {
-            return new WP_Error( 'db_error', 'Database error finding cardholder.', ['status' => 500, 'db_error' => $wpdb->last_error] );
-        }
-
-        $cardholder_id = $cardholder ? (int)$cardholder->id : null;
-
-        //  Create the final description string ONCE ---
-        $event_description_for_db = 'Amenity: ' . $amenity_name;
-        if ($guests > 0) {
-            $event_description_for_db .= ' (+' . $guests . ' ' . ($guests === 1 ? 'guest' : 'guests') . ')';
-        }
-
-        // Do the Rate-limit check
-        if ($cardholder && $cardholder->resident_type !== 'System') {
-            $minutes = get_option('fsbhoa_ac_rate_limit_minutes', 10);
-
-            if ($minutes > 0) {
-                $time_ago_unix = current_time('timestamp') - ($minutes * MINUTE_IN_SECONDS);
-                $time_ago = date('Y-m-d H:i:s', $time_ago_unix);
-                $amenity_search = 'Amenity: ' . $amenity_name;
-
-                // Get the log_id and event_description of the most recent swipe
-                $query = $wpdb->prepare(
-                    "SELECT log_id, event_description FROM ac_access_log WHERE cardholder_id = %d AND event_timestamp >= %s AND controller_identifier = 'kiosk' AND event_description LIKE CONCAT(%s, '%%') AND access_granted = 1 ORDER BY event_timestamp DESC LIMIT 1",
-                    $cardholder_id,
-                    $time_ago,
-                    $amenity_search
-                );
-
-                $recent_swipe_data = $wpdb->get_row($query);
-
-                if ($recent_swipe_data) {
-                    // Found a recent swipe. Check if the guest count is different.
-                    preg_match('/\+\s*(\d+)/', $recent_swipe_data->event_description, $matches);
-                    $old_guests = isset($matches[1]) ? absint($matches[1]) : 0;
-
-                    if ($guests !== $old_guests) {
-                        // Guest count is different. 
-                        //   UPDATE the old log entry rather than creating a new entry.
-                        error_log("[RATE LIMIT DEBUG] Guest count mismatch (New: $guests, Old: $old_guests). Updating log_id: " . $recent_swipe_data->log_id);
-                        error_log("[RATE LIMIT DEBUG] New description string is: '" . $event_description_for_db . "'"); // Log the string we WILL use
-
-                        $update_result = $wpdb->update(
-                            'ac_access_log',
-                            [
-                                'event_description' => $event_description_for_db, // Use the string defined above
-                                'event_timestamp' => current_time('mysql'),     // Update the timestamp
-                                'guest_count' => $guest,
-                                'amenity_name' => $amenity_name,
-                            ],
-                            ['log_id' => $recent_swipe_data->log_id], // Where log_id matches
-                            ['%s', '%s'], // Format for data (%s = string)
-                            ['%d']        // Format for where (%d = integer)
-                        );
-
-                        //  Check if the update failed
-                        if ($update_result === false) {
-                             error_log('KIOSK DB UPDATE FAILED: ' . $wpdb->last_error . ' | log_id: ' . $recent_swipe_data->log_id . ' | New Description: ' . $event_description_for_db);
-                             // Even if update fails, we might still want to notify the monitor? Or return an error?
-                             // For now, let's just log it and proceed to notify.
-                        }
-
-                        // Notify the monitor with the *original* log_id, which should now have updated data
-                        $this->send_notification_to_monitor($recent_swipe_data->log_id);
-                        return new WP_REST_Response( ['status' => 'success', 'message' => 'Sign-in updated.'], 200 );
-
-                    } else {
-                        // Guest count is the same. This is a true duplicate.
-                        error_log("[RATE LIMIT DEBUG] FOUND identical recent swipe. Ignoring this one.");
-                        return new WP_REST_Response( ['status' => 'success', 'message' => 'Duplicate sign-in ignored.'], 200 );
-                    }
-                }
-                // No recent swipe found, so proceed to INSERT below.
-            }
-        }
-
-        // --- Log the new event (INSERT Case) ---
+        // Prepare the standardized log data array
+        // We do NOT need to look up cardholder_id here; the service does it.
         $log_data = [
             'event_timestamp'       => current_time('mysql'),
-            'controller_identifier' => 'kiosk',
-            'door_number'           => 0,
+            'controller_identifier' => $controller_sn,
+            'door_number'           => $door_num,
             'rfid_id'               => $rfid,
-            'cardholder_id'         => $cardholder_id ? (int)$cardholder_id : null,
-            'event_type_code'       => 100, // Kiosk Sign-in Success
-            'event_description'     => $event_description_for_db, // Use the description created earlier
-            'access_granted'        => 1,
+            'event_type_code'       => 100, // Code for "Access Granted" / Kiosk Sign-in
+            'access_granted'        => 1,   // Kiosk implies they were validated on the frontend
             'guest_count'           => $guests,
             'amenity_name'          => $amenity_name,
+            // We pass the amenity name, and the Service will handle the description logic based on the 'KIOSK' role
         ];
 
-        $wpdb->insert('ac_access_log', $log_data);
-        $record_id = $wpdb->insert_id;
+        // --- HAND OFF TO CENTRAL SERVICE ---
+        $result = Fsbhoa_Access_Service::process_and_write_event( $log_data );
 
-        if ($record_id === 0) { // Check if insert failed
-            error_log('KIOSK DB INSERT FAILED: ' . $wpdb->last_error);
-            return new WP_Error( 'db_error', 'Failed to insert kiosk sign-in into access log.', ['status' => 500, 'db_error' => $wpdb->last_error] );
+        if ( is_wp_error( $result ) ) {
+            $error_code = $result->get_error_code();
+            $message = $result->get_error_message();
+
+            // Special handling: If rate limited, we tell the Kiosk "Success" so it doesn't show an error.
+            // This happens if they double-tap the button.
+            if ( $error_code === 'rate_limit' ) {
+                return new WP_REST_Response( ['status' => 'success', 'message' => 'Sign-in logged (duplicate).'], 200 );
+            }
+
+            error_log("KIOSK LOGGING FAILED: " . $message);
+            return new WP_REST_Response( ['status' => 'failure', 'message' => 'System error logging sign-in.'], 500 );
         }
-
-        // After successfully logging, notify the monitor to display the event
-        $this->send_notification_to_monitor($record_id);
 
         return new WP_REST_Response( ['status' => 'success', 'message' => 'Sign-in logged.'], 200 );
     }

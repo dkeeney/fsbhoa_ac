@@ -28,6 +28,77 @@ let hasConnectedBefore = false; // Flag to track initial connection
 let longPressTimer;
 let isDirectLoad = false;
 
+// --- KIOSK IDENTITY LOGIC ---
+let kioskIdentity = null;
+
+function checkIdentity() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // 1. Reset Command
+    if (urlParams.has('reset_kiosk')) {
+        localStorage.removeItem('fsbhoa_kiosk_identity');
+        alert("Configuration Cleared. Reloading...");
+        window.location.href = window.location.pathname; 
+        return;
+    }
+
+    // 2. Check Storage
+    const stored = localStorage.getItem('fsbhoa_kiosk_identity');
+    if (!stored) {
+        showSetupScreen();
+    } else {
+        kioskIdentity = JSON.parse(stored);
+        logToScreen(`Identity Loaded: ${kioskIdentity.name} (Door ${kioskIdentity.door})`);
+        
+        // Hide setup, show idle
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('idle-screen').style.display = 'block';
+        connect(); // Connect to WS only after we have identity
+    }
+}
+
+function showSetupScreen() {
+    document.getElementById('idle-screen').style.display = 'none';
+    document.getElementById('setup-screen').style.display = 'block';
+
+    // Fetch available KIOSK doors from WordPress via your Go proxy.
+    const targetEndpoint = '/fsbhoa/v1/monitor/gates?role=KIOSK';
+    fetch(`/api/proxy?endpoint=${encodeURIComponent(targetEndpoint)}`)
+        .then(res => {
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            return res.json();
+        })
+        .then(doors => {
+            const select = document.getElementById('kiosk-location-select');
+            select.innerHTML = '';
+            doors.forEach(door => {
+                const opt = document.createElement('option');
+                opt.value = JSON.stringify({
+                    serial: door.uhppoted_device_id,
+                    door: door.door_number_on_controller,
+                    name: door.friendly_name
+                });
+                opt.textContent = door.friendly_name;
+                select.appendChild(opt);
+            });
+        })
+        .catch(err => {
+            logToScreen("Error fetching doors: " + err);
+            alert("Could not load Kiosk list. Check network.");
+        });
+}
+
+// Global function for the button
+window.saveKioskIdentity = function() {
+    const select = document.getElementById('kiosk-location-select');
+    if (select.value) {
+        localStorage.setItem('fsbhoa_kiosk_identity', select.value);
+        location.reload();
+    }
+};
+// --- END KIOSK IDENTITY LOGIC ---
+
+
 // logging function
 function logToScreen(message) {
     console.log(message);   // in case running on a PC
@@ -144,9 +215,9 @@ function connect() {
                     // Add these two lines to start the after-swipe idle timer
                     idleTimerFired = false;
                     clearTimeout(idleTimeout);
-logToScreen(`TIMER: swiped - Setting 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
+//logToScreen(`TIMER: swiped - Setting 30-second idle timeout at ${new Date().toLocaleTimeString()}`);
                     idleTimeout = setTimeout(handleIdleTimeout, AMENITY_SELECTION_TIMEOUT);
-logToScreen(`TIMER: >>>> New idleTimeout ID is: ${idleTimeout}`);
+//logToScreen(`TIMER: >>>> New idleTimeout ID is: ${idleTimeout}`);
                 } else {
                     statusMessage.textContent = swipeData.message;
                     statusMessage.style.color = 'red';
@@ -232,7 +303,9 @@ function createAmenityButtons(amenities) {
                     payload: {
                         rfid: lastSwipedCard,
                         amenity: selectedAmenityName,
-                        guests: selectedGuestCount
+                        guests: selectedGuestCount,
+                        serial_number: kioskIdentity.serial,
+                        door_number: kioskIdentity.door
                     }
                 };
 
@@ -300,7 +373,9 @@ logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeStr
             payload: {
                 rfid: lastSwipedCard,
                 amenity: 'Lobby', // Default to Lobby
-                guests: selectedGuestCount
+                guests: selectedGuestCount,
+                serial_number: kioskIdentity ? kioskIdentity.serial : '900000',
+                door_number: kioskIdentity ? kioskIdentity.door : 1
             }
         }));
 
@@ -427,6 +502,8 @@ function cancelPressTimer(e) {
 }
 
 
-// Initial connection attempt
-connect();
+// --- STARTUP ---
+// Call checkIdentity() instead of just connect() at the bottom of the file.
+// connect() will be called after identity has been set.
+checkIdentity();
 
