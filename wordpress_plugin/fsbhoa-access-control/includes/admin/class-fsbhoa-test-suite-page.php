@@ -57,6 +57,17 @@ class Fsbhoa_Test_Suite_Page {
                             <th scope="row"><label for="custom-serial-number">Controller Serial Number</label></th>
                             <td><input type="text" id="custom-serial-number" class="regular-text" value="425043852"></td>
                         </tr>
+                        <tr>
+                            <th scope="row"><label for="custom-door-number">Door Number</label></th>
+                            <td>
+                                <select id="custom-door-number" class="regular-text">
+                                    <option value="1">Door 1</option>
+                                    <option value="2">Door 2</option>
+                                    <option value="3">Door 3</option>
+                                    <option value="4">Door 4</option>
+                                </select>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>

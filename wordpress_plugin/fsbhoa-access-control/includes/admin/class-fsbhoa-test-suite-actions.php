@@ -64,7 +64,8 @@ class Fsbhoa_Test_Suite_Actions {
 
         $body = [
             'card_number'   => 11111111,
-            'serial_number' => (int) $serial_number // Pass the dynamic serial number
+            'serial_number' => (int) $serial_number, // Pass the dynamic serial number
+            'door_number'   => 254 // DOOR 254 (System Unit Test)
         ];
         $args = [
             'method'    => 'POST',

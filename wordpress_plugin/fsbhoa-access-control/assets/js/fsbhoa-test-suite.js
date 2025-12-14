@@ -31,6 +31,7 @@ jQuery(document).ready(function($) {
         var $button = $('#run-custom-test-btn');
         var $cardNumberInput = $('#custom-card-number');
         var $serialNumberInput = $('#custom-serial-number');
+        var $doorNumberInput = $('#custom-door-number');
 
         // Exit if the button doesn't exist on this page
         if ($button.length === 0) {
@@ -40,6 +41,7 @@ jQuery(document).ready(function($) {
         $button.on('click', function() {
             var cardNumber = $cardNumberInput.val();
             var serialNumber = $serialNumberInput.val();
+            var doorNumber = $doorNumberInput.val();
 
             if (!cardNumber || !serialNumber) {
                 alert('Please enter both a Card Number and a Controller Serial Number.');
@@ -48,7 +50,8 @@ jQuery(document).ready(function($) {
 
             var payload = {
                 card_number: parseInt(cardNumber, 10),
-                serial_number: parseInt(serialNumber, 10)
+                serial_number: parseInt(serialNumber, 10),
+                door_number: parseInt(doorNumber, 10)
             };
 
             // AJAX call to a WordPress action that will trigger the Go service

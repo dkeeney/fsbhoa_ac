@@ -27,14 +27,31 @@ let audioCtx;
 let hasConnectedBefore = false; // Flag to track initial connection
 let longPressTimer;
 let isDirectLoad = false;
+let overrideDoorNumber = null;
 
 // --- KIOSK IDENTITY LOGIC ---
 let kioskIdentity = null;
 
 function checkIdentity() {
     const urlParams = new URLSearchParams(window.location.search);
+
+    // 1. Direct Load Bypass (Simulation from Admin Console)
+    // If we are simulating a swipe, we don't need to configure the kiosk.
+    if (urlParams.has('cardholder_id')) {
+        logToScreen("Direct Load detected. Bypassing identity setup.");
+        // Hide setup, show idle (it will immediately transition to processing in connect())
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('idle-screen').style.display = 'block';
+        
+        // Grab the door override immediately if present
+        const doorNum = urlParams.get('door_number');
+        overrideDoorNumber = doorNum ? parseInt(doorNum, 10) : null;
+        
+        connect();
+        return;
+    }
     
-    // 1. Reset Command
+    // 2. Reset Command
     if (urlParams.has('reset_kiosk')) {
         localStorage.removeItem('fsbhoa_kiosk_identity');
         alert("Configuration Cleared. Reloading...");
@@ -42,7 +59,7 @@ function checkIdentity() {
         return;
     }
 
-    // 2. Check Storage
+    // 3. Check Storage
     const stored = localStorage.getItem('fsbhoa_kiosk_identity');
     if (!stored) {
         showSetupScreen();
@@ -153,13 +170,23 @@ function connect() {
         // After connecting, check if we were loaded with a cardholder ID.
         const urlParams = new URLSearchParams(window.location.search);
         const cardholderId = urlParams.get('cardholder_id');
+        // Check for door_number param (default to 0 if missing)
+        const doorNumberParam = urlParams.get('door_number'); 
+        const doorNumber = doorNumberParam ? parseInt(doorNumberParam, 10) : 0;
         
         if (cardholderId) {
             isDirectLoad = true; // Set flag if loaded directly
-            logToScreen(`Direct load requested for cardholder ID: ${cardholderId}`);
+            // Send the override door number to the backend context
+            // Note: We already captured overrideDoorNumber in checkIdentity, 
+            // but we can send it in the payload if the backend supports it.
+            const payload = { id: cardholderId };
+            if (overrideDoorNumber !== null) {
+                payload.door_number = overrideDoorNumber;
+            }
+            logToScreen(`Direct load requested for cardholder ID: ${cardholderId}, Door: ${doorNumber}`);
             socket.send(JSON.stringify({
                 event: 'startSessionById',
-                payload: { id: cardholderId }
+                payload: payload
             }));
         } else {
             isDirectLoad = false;  // Ensure flag is false otherwise
@@ -297,6 +324,22 @@ function createAmenityButtons(amenities) {
             const selectedAmenityName = this.dataset.name;
             logToScreen(`Selected Amenity: ${selectedAmenityName}`);
 
+            // Determine the correct door number
+            // If we have an override (from Admin Console), use it.
+            // Otherwise, use the Kiosk's configured door.
+            // If neither (default), use 1.
+            let finalDoorNumber = 1;
+            let finalSerial = '900000';
+
+            if (kioskIdentity) {
+                finalDoorNumber = kioskIdentity.door;
+                finalSerial = kioskIdentity.serial;
+            }
+
+            if (overrideDoorNumber !== null) {
+                finalDoorNumber = overrideDoorNumber;
+            }
+
             try {
                 const messageToSend = {
                     event: 'amenitySelected',
@@ -304,8 +347,8 @@ function createAmenityButtons(amenities) {
                         rfid: lastSwipedCard,
                         amenity: selectedAmenityName,
                         guests: selectedGuestCount,
-                        serial_number: kioskIdentity.serial,
-                        door_number: kioskIdentity.door
+                        serial_number: finalSerial,
+                        door_number: finalDoorNumber
                     }
                 };
 

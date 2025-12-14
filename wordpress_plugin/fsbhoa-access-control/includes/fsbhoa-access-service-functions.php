@@ -56,7 +56,7 @@ class Fsbhoa_Access_Service {
         $cardholder = $wpdb->get_row( $wpdb->prepare( "
             SELECT id, resident_type
             FROM ac_cardholders
-            WHERE rfid_id = %s", $rfid )
+            WHERE rfid_id = %s AND card_status = 'active' ", $rfid )
         );
 
         if ( $cardholder ) {
@@ -433,7 +433,31 @@ class Fsbhoa_Access_Service {
      */
     private static function get_door_info( $controller_identifier, $door_number ) {
         global $wpdb;
-    
+
+        // --- SPECIAL CASES FOR VIRTUAL/TESTING EVENTS ---
+        
+        // Scenario 3: Admin Console Simulation (Door 255)
+        if ( $door_number == 255 ) {
+            return (object)[
+                'friendly_name'  => 'Admin Console',
+                'door_role'      => 'VIRTUAL',
+                'amenity_id'     => '',
+                'door_record_id' => 0
+            ];
+        }
+
+        // Scenario 1: Unit Tests (Door 254)
+        if ( $door_number == 254 ) {
+            return (object)[
+                'friendly_name'  => 'System Unit Test',
+                'door_role'      => 'VIRTUAL',
+                'amenity_id'     => '',
+                'door_record_id' => 0
+            ];
+        }
+
+        // --- STANDARD LOOKUP ---
+
         // NOTE: This query joins controllers and doors to find the configuration mapping.
         $door_info_query = $wpdb->prepare("
             SELECT 
@@ -451,18 +475,27 @@ class Fsbhoa_Access_Service {
         );
 
         $result = $wpdb->get_row($door_info_query);
-    
+
         if ($result === null && !empty($wpdb->last_error)) {
-            error_log(sprintf("DB ERROR: Failed to fetch door info. Error: %s. Query: %s",
-                $wpdb->last_error, 
-                $wpdb->last_query
-            ));
-            // Still return null, allowing the calling function to proceed, but log the error
-            return null; 
+             error_log("DB ERROR: " . $wpdb->last_error);
+             return null;
         }
-    
+        
+        // Fallback for Diagnostics: 
+        // If we tested a Controller/Door combo that doesn't exist in the DB yet,
+        // return a generic name instead of failing.
+        if ( $result === null ) {
+            return (object)[
+                'friendly_name'  => 'Test: Controller ' . $controller_identifier . ' Door ' . $door_number,
+                'door_role'      => 'TEST',
+                'amenity_id'     => '',
+                'door_record_id' => 0
+            ];
+        }
+
         return $result;
     }
+
 
     /**
      * Retrieves the list of amenity names covered by a single door.

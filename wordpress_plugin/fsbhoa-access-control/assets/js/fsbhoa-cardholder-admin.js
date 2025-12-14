@@ -220,7 +220,8 @@ jQuery(function($) {
                 const cardholderId = $(this).data('id');
                 
                 if (cardholderId > 0 && typeof fsbhoa_ajax_settings !== 'undefined' && fsbhoa_ajax_settings.kiosk_url) {
-                    const kioskUrl = `${fsbhoa_ajax_settings.kiosk_url}/?cardholder_id=${cardholderId}`;
+                    // call the kiosk app and  Pass door_number=255 to indicate Admin Console simulation
+                    const kioskUrl = `${fsbhoa_ajax_settings.kiosk_url}/?cardholder_id=${cardholderId}&door_number=255`;
                     window.open(kioskUrl, '_blank');
                 } else {
                     alert('Error: Kiosk URL not configured or cardholder ID is missing.');

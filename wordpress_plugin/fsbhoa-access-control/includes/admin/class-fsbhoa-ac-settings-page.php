@@ -484,6 +484,17 @@ class Fsbhoa_Ac_Settings_Page {
     public function render_monitor_settings_page() {
         ?>
         <div class="wrap">
+            <style>
+                #fsbhoa-gate-legend ol {
+                    margin-top: 0;
+                    margin-bottom: 0;
+                }
+                #fsbhoa-gate-legend li {
+                    margin-bottom: 4px; /* Tighter spacing between items */
+                    line-height: 1.2;   /* Tighter line height for multi-line text */
+                    font-size: 13px;    /* Optional: slightly smaller text if list is long */
+                }
+            </style>
             <h1>Live Monitor Settings</h1>
             <p>Use these tools to configure the Live Monitor service and its map display.</p>
             <hr>
@@ -491,11 +502,16 @@ class Fsbhoa_Ac_Settings_Page {
             <h2>Gate Position Editor</h2>
             <p class="description">Upload a map image, then drag the gate markers to their correct positions. All settings will be saved with the button at the bottom.</p>
             <div id="fsbhoa-editor-area" style="display: flex; gap: 20px; margin-top: 1em;">
-                <div id="fsbhoa-map-editor-container" style="position: relative; border: 2px solid #ccc; flex-basis: 70%; min-height: 400px;">
-                    <img id="fsbhoa-map-editor-bg" src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" style="max-width: 100%; display: block; opacity: 0.7;">
+                
+                <div style="flex-basis: 70%;">
+                    <div id="fsbhoa-map-editor-container" style="position: relative; border: 2px solid #ccc; display: inline-block;">
+                        <img id="fsbhoa-map-editor-bg" src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" style="max-width: 100%; display: block; opacity: 0.7;">
+                    </div>
                 </div>
+
                 <div id="fsbhoa-gate-legend" style="flex-basis: 30%;">
-                    <h3>Gate Legend</h3>
+                    <h3 style="margin-top: 0;">Gate Legend</h3>
+                    <p class="description">Drag dots on map to set position.</p>
                     <ol style="margin-left: 20px; background: #fff; border: 1px solid #ddd; padding: 10px;"></ol>
                 </div>
             </div>

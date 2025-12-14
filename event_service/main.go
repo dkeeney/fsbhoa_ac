@@ -147,10 +147,12 @@ func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
         var payload struct {
             CardNumber   uint32 `json:"card_number"`
             SerialNumber uint32 `json:"serial_number"`
+            DoorNumber   uint8  `json:"door_number"`
         }
 
         testCardNumber := uint32(15364678)
         testSerialNumber := uint32(425043852)
+        testDoorNumber := uint8(1)
 
         if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
             if payload.CardNumber != 0 {
@@ -159,9 +161,11 @@ func testEventHandler(hub *Hub, listener *EventMonitor) http.HandlerFunc {
             if payload.SerialNumber != 0 {
                 testSerialNumber = payload.SerialNumber
             }
+            if payload.DoorNumber != 0 {
+                testDoorNumber = payload.DoorNumber // Use provided door number
+            }
         }
 
-        const testDoorNumber uint8 = 1
         granted := rand.Intn(10) > 2
 
         var reasonCode uint8 = 1 // Default to 'Swipe'
