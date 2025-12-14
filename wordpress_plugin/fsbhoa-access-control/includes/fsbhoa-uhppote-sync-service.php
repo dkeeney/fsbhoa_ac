@@ -89,6 +89,7 @@ function fsbhoa_perform_nightly_rebuild_sync() {
 
     //  Pass the active schedule ID to the main sync logic
     fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, [], true, $is_dry_run, true, $active_schedule_id);
+
 }
 
 /**
@@ -442,6 +443,10 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
         if ($is_dry_run) { $final_message = "Dry run complete."; }
         set_transient('fsbhoa_sync_status', ['status' => 'complete', 'message' => $final_message], MINUTE_IN_SECONDS * 5);
         error_log("Sync Complete.");
+
+        // REBUILD MONITOR CACHE
+        fsbhoa_rebuild_monitor_status_cache();
+        error_log("NIGHTLY REBUILD: Monitor status cache updated.");
     }
 }
 

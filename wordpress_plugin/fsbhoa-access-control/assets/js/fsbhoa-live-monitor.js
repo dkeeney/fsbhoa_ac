@@ -5,6 +5,9 @@
 document.addEventListener('DOMContentLoaded', function () {
     // These variables are passed from WordPress via wp_localize_script
     const WS_URL = fsbhoa_monitor_vars.ws_url || ''; 
+    const STATUS_API_URL = '/wp-json/fsbhoa/v1/monitor/group-status';
+    let gateAccessStatus = {}; // Stores { doorId: true/false } from the API
+    let gateHardwareStatus = {}; // Stores { doorId: 'locked'/'unlocked'/'intermediate' } from WebSocket
 
     // --- DOM Elements ---
     const eventList = document.getElementById('event-list');
@@ -331,25 +334,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateGateStatus(statusData) {
         const { doorRecordId, status } = statusData;
-        const light = document.getElementById(`gate-light-${doorRecordId}`);
-        if (light) {
-            light.className = 'gate-light'; // Reset classes
-            switch (status) {
-                case 'locked':
-                    light.classList.add('status-locked');
-                    break;
-                case 'unlocked':
-                    light.classList.add('status-unlocked');
-                    break;
-                case 'intermediate':
-                    light.classList.add('status-intermediate');
-                    break;
-                case 'down':
-                default:
-                    light.classList.add('status-down');
-                    break;
-            }
-        }
+        
+        // 1. Update the data model
+        gateHardwareStatus[doorRecordId] = status;
+        
+        // 2. Trigger a visual refresh
+        refreshAllGateVisuals();
     }
 
     function flashGateLight(doorRecordId) {
@@ -388,6 +378,62 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    async function updateAccessStatus() {
+        try {
+            const response = await fetch(STATUS_API_URL);
+            if (!response.ok) return; // Silent fail
+            const newStatus = await response.json();
+            
+            // Only update DOM if something changed to avoid flicker/reflow
+            if (JSON.stringify(newStatus) !== JSON.stringify(gateAccessStatus)) {
+                gateAccessStatus = newStatus;
+                refreshAllGateVisuals();
+            }
+        } catch (e) {
+            console.warn("Could not fetch group status", e);
+        }
+    }
+
+    function refreshAllGateVisuals() {
+        // Loop through all known gates (from the hardware status map)
+        // If we don't have hardware status yet, we can't render much, but iterate map elements.
+        const allLights = document.querySelectorAll('.gate-light');
+        
+        allLights.forEach(light => {
+            const doorId = light.id.replace('gate-light-', '');
+            // Get last known hardware status (default to 'down' if unknown)
+            const hwStatus = gateHardwareStatus[doorId] || 'down';
+            
+            // Get access status (true = Open for Group, false = Closed)
+            // Default to false (solid yellow) if unknown
+            const isAccessible = gateAccessStatus[doorId] === true; 
+            
+            light.className = 'gate-light'; // Reset base class
+            
+            switch (hwStatus) {
+                case 'intermediate':
+                    // intermediate means "Controlled Mode" (Yellow)
+                    // If accessible -> Throb. If not -> Solid.
+                    if (isAccessible) {
+                        light.classList.add('status-intermediate-throb');
+                    } else {
+                        light.classList.add('status-intermediate');
+                    }
+                    break;
+                case 'unlocked':
+                    light.classList.add('status-unlocked'); // Green (always solid)
+                    break;
+                case 'locked':
+                    light.classList.add('status-locked'); // Red (always solid)
+                    break;
+                case 'down':
+                default:
+                    light.classList.add('status-down'); // Grey
+                    break;
+            }
+        });
+    }
+
     // Initialize the toggle button functionality
     setupMapViewToggle();
 
@@ -399,9 +445,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Run all initialization tasks, then connect the WebSocket.
     Promise.all([
         initializeMap(),
-    ]).then(() => connect());
-
-    
+        updateAccessStatus()
+    ]).then(() => {
+        connect();
+        setInterval(updateAccessStatus, 60000); // Poll every 60 seconds
+    });
 });
-
-

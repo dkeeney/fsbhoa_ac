@@ -1,6 +1,5 @@
 <?php
 // FILE: fsbhoa-permission-functions.php
-// REFACTORED VERSION with Global Profile Dictionary logic
 
 if (!defined('WPINC')) { die; }
 
@@ -335,4 +334,64 @@ function fsbhoa_get_active_schedule_id() {
            LIMIT 1"
     );
     return $active_id ? absint($active_id) : 1;
+}
+
+/**
+ * REBUILDS the daily access cache for the Monitor Status Group.
+ * This runs at midnight and on settings save.
+ * It stores a simple array of valid time windows for "Today" for each door.
+ */
+function fsbhoa_rebuild_monitor_status_cache() {
+    global $wpdb;
+
+    // 1. Get Configuration
+    $group_id = get_option('fsbhoa_monitor_status_group_id', 0);
+    if (!$group_id) return; // Feature disabled
+
+    // 2. Get Context (Today's Schedule & Day of Week)
+    $schedule_id = fsbhoa_get_active_schedule_id();
+    $now_ts = current_time('timestamp');
+    $current_day_col = 'on_' . strtolower(date('D', $now_ts)); // e.g., 'on_mon'
+
+    // 3. Fetch Data (Heavy lifting happens here)
+    $permission_data = fsbhoa_get_all_permission_data($schedule_id);
+    $all_door_data = $wpdb->get_results("SELECT door_record_id, controller_record_id, door_number_on_controller FROM ac_doors", OBJECT_K) ?: [];
+
+    // 4. Calculate Specificity Rules
+    $group_sig = strval($group_id);
+    $sig_to_groups = [$group_sig => [$group_id]];
+    $raw_perm_sets = fsbhoa_calculate_raw_permissions_for_sets($sig_to_groups, $permission_data, $all_door_data);
+    
+    $final_perms = $raw_perm_sets[$group_sig]['perms'] ?? [];
+    $has_all_access = $raw_perm_sets[$group_sig]['all_access'] ?? false;
+
+    // 5. Build the Simple Cache: [ door_id => [ 'start'=>'08:00', 'end'=>'20:00' ] ]
+    $todays_cache = [];
+
+    foreach ($all_door_data as $door_id => $door) {
+        if ($has_all_access) {
+            $todays_cache[$door_id] = 'ALWAYS';
+            continue;
+        }
+
+        $todays_cache[$door_id] = null; // Default to closed
+
+        if (isset($final_perms[$door_id])) {
+            foreach ($final_perms[$door_id] as $rule) {
+                // If this rule is active TODAY, store its window
+                if (!empty($rule->$current_day_col) && isset($rule->start_time) && isset($rule->end_time)) {
+                    // We found the specific winning rule for today. Store it.
+                    $todays_cache[$door_id] = [
+                        'start' => substr($rule->start_time, 0, 5), // '08:00'
+                        'end'   => substr($rule->end_time, 0, 5)    // '22:00'
+                    ];
+                    break; // Stop after finding the winning rule
+                }
+            }
+        }
+    }
+
+    // 6. Save to WP Options (Persistent Cache)
+    update_option('fsbhoa_monitor_daily_cache', $todays_cache, false); // 'false' = autoload not required on every page load
+    update_option('fsbhoa_monitor_cache_date', date('Y-m-d', $now_ts)); // To verify freshness
 }

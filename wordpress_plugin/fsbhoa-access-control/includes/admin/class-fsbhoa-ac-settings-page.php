@@ -76,7 +76,7 @@ class Fsbhoa_Ac_Settings_Page {
             'wordpress_api'     => get_site_url() . '/wp-json/fsbhoa/v1/monitor/event',
             'tls_cert_path'     => sanitize_text_field($tls_cert_path),
             'tls_key_path'      => sanitize_text_field($tls_key_path),
-            'event_service_url' => sprintf( $wp_host, absint($websocket_port)),
+            'event_service_url' => sprintf('%s://%s:%d', ($protocol === 'https' ? 'wss' : 'ws'), $wp_host, absint($websocket_port)),
             'photo_event_limit' => (int) get_option('fsbhoa_ac_monitor_photo_limit', 3),
         ];
         $this->write_config_file($this->monitor_service_config_path, $monitor_config);
@@ -535,6 +535,27 @@ class Fsbhoa_Ac_Settings_Page {
                     </tr>
                     <tr>
                         <th scope="row">
+                            <label for="fsbhoa_monitor_status_group_id">Status Indicator Group</label>
+                        </th>
+                        <td>
+                            <?php 
+                            global $wpdb;
+                            $groups = $wpdb->get_results("SELECT group_id, group_name FROM ac_groups ORDER BY group_name ASC");
+                            $selected_group = get_option('fsbhoa_monitor_status_group_id', 0);
+                            ?>
+                            <select name="fsbhoa_monitor_status_group_id" id="fsbhoa_monitor_status_group_id">
+                                <option value="0">-- None (Always Solid) --</option>
+                                <?php foreach ($groups as $g) : ?>
+                                    <option value="<?php echo esc_attr($g->group_id); ?>" <?php selected($selected_group, $g->group_id); ?>>
+                                        <?php echo esc_html($g->group_name); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description">Select the group (e.g., "Residents") whose schedule will determine if the yellow status dots throb (access allowed) or stay solid (access denied).</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
                             <label for="fsbhoa_ac_monitor_photo_limit">Photo Event Limit</label>
                         </th>
                         <td>
@@ -650,6 +671,7 @@ class Fsbhoa_Ac_Settings_Page {
         $gates_data = isset($_POST['gates']) && is_array($_POST['gates']) ? $_POST['gates'] : [];
         $map_url = isset($_POST['map_url']) ? esc_url_raw($_POST['map_url']) : '';
         $port = isset($_POST['port']) ? absint($_POST['port']) : 8082;
+        $status_group = isset($_POST['status_group_id']) ? absint($_POST['status_group_id']) : 0;
         $photo_limit = isset($_POST['photo_limit']) ? absint($_POST['photo_limit']) : 3;
         $errors = [];
         
@@ -680,7 +702,14 @@ class Fsbhoa_Ac_Settings_Page {
         // 4. Save Other Settings to wp_options
         update_option('fsbhoa_monitor_map_url', $map_url);
         update_option('fsbhoa_ac_monitor_port', $port);
+        update_option('fsbhoa_monitor_status_group_id', $status_group);
         update_option('fsbhoa_ac_monitor_photo_limit', $photo_limit);
+
+        // Trigger Cache Rebuild Immediately so the monitor updates instantly
+        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
+        if (function_exists('fsbhoa_rebuild_monitor_status_cache')) {
+            fsbhoa_rebuild_monitor_status_cache();
+        }
         
         // 5. Trigger the Master Config Writer
         // This runs regardless of gate update errors, so the config files are always

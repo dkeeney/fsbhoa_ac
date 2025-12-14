@@ -193,23 +193,37 @@
     }
 }
 
-/* Gate Status Colors */
-.gate-light.status-locked { background-color: #ef4444; color: #ef4444; } /* red-500 */
-.gate-light.status-unlocked { background-color: #22c55e; color: #22c55e; } /* green-500 */
-.gate-light.status-intermediate { background-color: #f59e0b; color: #f59e0b; } /* amber-500 */
-.gate-light.status-down { background-color: #1f2937; color: #1f2937; animation: none; } /* gray-800, no pulse */
-.gate-light.status-down::after { animation: none; } /* Turn off pulse for down state */
+/* --- Gate Status Colors --- */
 
-/* Flash effect for access events */
-.gate-light.flash {
-    animation: flash-animation 0.7s ease-out;
+/* 1. Intermediate (Yellow) - Controlled Mode */
+
+/* SOLID: When schedule is closed */
+.gate-light.status-intermediate { 
+    background-color: #f59e0b; /* Amber */
+    color: #f59e0b; 
+    animation: none;
 }
-@keyframes flash-animation {
-    0% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 20px 5px #ffffff; }
-    50% { transform: translate(-50%, -50%) scale(1.8); box-shadow: 0 0 35px 15px #ffffff; }
-    100% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 20px 5px #ffffff; }
+/* IMPORTANT: Stop the ghost circle from pulsing */
+.gate-light.status-intermediate::after {
+    animation: none; 
 }
 
+/* THROB: When schedule is open */
+.gate-light.status-intermediate-throb { 
+    background-color: #f59e0b; 
+    color: #f59e0b; 
+    /* No need to set animation here; the default ::after rule handles it */
+}
+
+/* 2. Other States (Always Solid) */
+.gate-light.status-locked { background-color: #ef4444; color: #ef4444; animation: none; }
+.gate-light.status-locked::after { animation: none; }
+
+.gate-light.status-unlocked { background-color: #22c55e; color: #22c55e; animation: none; }
+.gate-light.status-unlocked::after { animation: none; }
+
+.gate-light.status-down { background-color: #1f2937; color: #1f2937; animation: none; }
+.gate-light.status-down::after { animation: none; }
 
 /*
  * Styles for the Connection Status Indicator

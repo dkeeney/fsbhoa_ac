@@ -55,6 +55,13 @@ class Fsbhoa_Monitor_REST_API {
                 return current_user_can('manage_options');
             },
         ) );
+
+        // This route is called by the monitor page to check if the status group (Residents) has access now
+        register_rest_route( $this->namespace, '/monitor/group-status', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'get_group_status_callback' ),
+            'permission_callback' => '__return_true', // Public read-only status
+        ) );
     }
 
     public function is_numeric_callback( $value, $request, $param ) {
@@ -294,6 +301,53 @@ class Fsbhoa_Monitor_REST_API {
     }
     
 
+    public function get_group_status_callback(WP_REST_Request $request) {
+        // 1. Load Cache
+        $cache = get_option('fsbhoa_monitor_daily_cache', []);
+        $cache_date = get_option('fsbhoa_monitor_cache_date', '');
+        
+        // Safety: If cache is stale or missing (e.g., missed cron), rebuild it now.
+        if (empty($cache) || $cache_date !== current_time('Y-m-d')) {
+            require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
+            fsbhoa_rebuild_monitor_status_cache();
+            $cache = get_option('fsbhoa_monitor_daily_cache', []);
+        }
+
+        if (empty($cache)) {
+            return rest_ensure_response([]); // No config or no doors
+        }
+
+        // 2. Compare against Current Time
+        $now = current_time('H:i'); // e.g. '14:30'
+        $status_map = [];
+
+        foreach ($cache as $door_id => $rule) {
+            if ($rule === 'ALWAYS') {
+                $status_map[$door_id] = true;
+                continue;
+            }
+
+            if ($rule === null) {
+                $status_map[$door_id] = false;
+                continue;
+            }
+
+            // Time comparison
+            $start = $rule['start'];
+            $end   = $rule['end'];
+
+            if ($end <= $start) {
+                // Overnight rule (e.g. 22:00 to 05:00)
+                // Open if NOW > Start OR NOW < End
+                $status_map[$door_id] = ($now >= $start || $now <= $end);
+            } else {
+                // Normal rule (e.g. 08:00 to 20:00)
+                $status_map[$door_id] = ($now >= $start && $now <= $end);
+            }
+        }
+
+        return rest_ensure_response($status_map);
+    }
 
 
 } // end of class
