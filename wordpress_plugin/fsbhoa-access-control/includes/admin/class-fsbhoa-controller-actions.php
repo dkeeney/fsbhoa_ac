@@ -27,11 +27,22 @@ class Fsbhoa_Controller_Actions {
 		$submitted_ip = sanitize_text_field($_POST['ip_address']);
 		$reverting_to_dhcp = ($is_update && (empty($submitted_ip) || $submitted_ip === '0.0.0.0'));
 
+                // 1. Get the door count first
+                $door_count = isset($_POST['door_count']) ? absint($_POST['door_count']) : 4;
+
+                // 2. Define controller_type based on door_count
+                // If door_count is 127, we assume it is the Virtual Kiosk.
+                if ( $door_count === 127 ) {
+                    $controller_type = 'VIRTUAL_KIOSK';
+                } else {
+                    $controller_type = 'UHPPOTE';
+                }
+
 		$controller_data = [
 			'friendly_name'        => sanitize_text_field($_POST['friendly_name']),
 			'uhppoted_device_id'   => absint($_POST['uhppoted_device_id']),
 			'ip_address'           => sanitize_text_field($_POST['ip_address']),
-			'door_count'           => isset($_POST['door_count']) ? absint($_POST['door_count']) : 4,
+			'door_count'           => $door_count,
                         'type'                 => $controller_type,
 			'is_static_ip'         => $reverting_to_dhcp ? 0 : 1, // It's static unless we are reverting to DHCP
 			'notes'                => sanitize_textarea_field($_POST['notes']),
