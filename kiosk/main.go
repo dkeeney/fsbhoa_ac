@@ -2,6 +2,7 @@ package main
 
 import (
     "bytes"
+    "crypto/tls"
     "encoding/json"
     "fmt"
     "io"
@@ -24,6 +25,7 @@ type Config struct {
 	Port                string `json:"port"`
 	LogFile             string `json:"log_file"`
         MaxGuests           int    `json:"max_guests"`
+        MonitorServiceURL   string `json:"monitor_service_url"`
 }
 
 type Amenity struct {
@@ -163,6 +165,54 @@ func logSignInToWordPress(rfid, amenity string, guests int, serial string, door 
 	}
 }
 
+// notifyMonitorService acts as a "Virtual Controller" heartbeat.
+// It tells the central Monitor Service that this Kiosk Door is Online/Offline.
+func notifyMonitorService(doorID int, status string) {
+    // Run in background (fire-and-forget) so we don't block the Kiosk
+    go func() {
+        // URL of the Monitor Service (running on the same machine)
+        // If you ever split servers, this would need to be in config.json
+        targetURL := config.MonitorServiceURL
+        if targetURL == "" {
+             targetURL = "https://127.0.0.1:8082" // Fallback
+        }
+        targetURL = strings.TrimRight(targetURL, "/")
+        url := fmt.Sprintf("%s/update-gate-status", targetURL)
+
+        payload := map[string]interface{}{
+            "doorRecordId": doorID,
+            "status":       status, // "intermediate" (Online/Yellow) or "down" (Offline/Black)
+        }
+
+        jsonPayload, err := json.Marshal(payload)
+        if err != nil {
+            log.Printf("Error marshalling monitor notification: %v", err)
+            return
+        }
+
+        // Send asynchronously so we don't block the Kiosk if Monitor is down
+
+        // Configure Client
+        tr := &http.Transport{
+            TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+        }
+        client := &http.Client{Transport: tr, Timeout: 5 * time.Second}
+
+        // 4. Send Request
+        resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+        if err != nil {
+            log.Printf("Warning: Failed to notify Monitor Service: %v", err)
+            return
+        }
+        defer resp.Body.Close()
+
+        if resp.StatusCode != http.StatusOK {
+            log.Printf("Warning: Monitor Service returned status: %s", resp.Status)
+        }
+
+    }()
+}
+
 // broadcast sends a message to all connected browser clients.
 func broadcast(message SocketMessage) {
 	clientsMutex.Lock()
@@ -217,19 +267,31 @@ func validateRFID(rfid string) (ValidationResponse, string, error) {
 
 // handleConnections is the WebSocket handler for browser UI communication.
 func handleConnections(w http.ResponseWriter, r *http.Request) {
+        // Parse Door ID from the connection URL
+	// The frontend will connect to: ws://host/ws?doorId=33
+	doorIDStr := r.URL.Query().Get("doorId")
+	doorID := 0
+	if doorIDStr != "" {
+		fmt.Sscanf(doorIDStr, "%d", &doorID)
+	}
+
 	log.Println("==> Received a request to upgrade to WebSocket")
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("ERROR: Failed to upgrade WebSocket connection: %v", err)
 		return
 	}
-	log.Println("==> WebSocket upgrade successful. A client is now connected.")
-	defer ws.Close()
+        //  Notify Monitor: "Kiosk is Online"
+	// We treat "Connected" as "Intermediate" (Yellow/Controlled) status
+	if doorID > 0 {
+		log.Printf("Kiosk client connected for Door %d. Notifying Monitor Service.", doorID)
+		notifyMonitorService(doorID, "intermediate")
+	}
 
 	clientsMutex.Lock()
 	clients[ws] = true
 	clientsMutex.Unlock()
-	log.Println("Client Connected")
+        log.Printf("Client Connected. Received DoorID param: '%s'", doorIDStr)
 
 	// Send initial kiosk config to the newly connected client.
 	ws.WriteJSON(SocketMessage{Event: "kioskConfig", Payload: kioskConfig})
@@ -307,6 +369,14 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			clientsMutex.Lock()
 			delete(clients, ws)
 			clientsMutex.Unlock()
+
+                        //  Notify Monitor: "Kiosk is Offline"
+			// We treat "Disconnected" as "Down" (Black) status
+			if doorID > 0 {
+				log.Printf("Kiosk client disconnected for Door %d. Notifying Monitor Service.", doorID)
+				notifyMonitorService(doorID, "down")
+			}
+
 			// Stop any pending timer when client disconnects
 			if walletScanTimer != nil {
 				walletScanTimer.Stop()

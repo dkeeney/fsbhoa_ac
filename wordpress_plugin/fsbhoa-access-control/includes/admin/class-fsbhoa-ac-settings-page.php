@@ -116,6 +116,7 @@ class Fsbhoa_Ac_Settings_Page {
 		'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
 		'log_file'               => sanitize_text_field(get_option('fsbhoa_kiosk_log_file', '/var/log/fsbhoa/kiosk.log')),
                 'max_guests'             => (int) get_option('fsbhoa_kiosk_max_guests', 8),
+                'monitor_service_url'    => sprintf('%s://127.0.0.1:%d', $protocol, absint($monitor_port)),
 	];
 	$this->write_config_file($this->kiosk_config_path, $kiosk_config);
 

@@ -62,6 +62,27 @@ class Fsbhoa_Monitor_REST_API {
             'callback'            => array( $this, 'get_group_status_callback' ),
             'permission_callback' => '__return_true', // Public read-only status
         ) );
+
+        register_rest_route( $this->namespace, '/monitor/set-door-state', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'set_door_state_callback' ),
+            'permission_callback' => function ( WP_REST_Request $request ) {
+                // 1. Allow Admins
+                if ( current_user_can( 'manage_options' ) ) {
+                    return true;
+                }
+                
+                // 2. Allow Kiosk via API Key Header
+                $stored_key = get_option('fsbhoa_ac_kiosk_api_key', '');
+                $provided_key = $request->get_header('X-FSBHOA-Kiosk-Key');
+                
+                if ( !empty($stored_key) && !empty($provided_key) && hash_equals($stored_key, $provided_key) ) {
+                    return true;
+                }
+                
+                return false;
+            },
+        ) );
     }
 
     public function is_numeric_callback( $value, $request, $param ) {

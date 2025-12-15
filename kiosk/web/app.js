@@ -92,8 +92,9 @@ function showSetupScreen() {
                 const opt = document.createElement('option');
                 opt.value = JSON.stringify({
                     serial: door.uhppoted_device_id,
-                    door: door.door_number_on_controller,
-                    name: door.friendly_name
+                    door: door.door_number_on_controller, // Physical ID (1-4)
+                    name: door.friendly_name,
+                    id: door.door_record_id,              // Global ID (e.g. 33)
                 });
                 opt.textContent = door.friendly_name;
                 select.appendChild(opt);
@@ -152,8 +153,15 @@ function beep(count, volume, duration) {
 }
 
 function connect() {
+
+    // Check for identity and append door ID
+    let doorParam = '';
+    // We check for 'id' (the new field)
+    if (kioskIdentity && kioskIdentity.id) {
+        doorParam = `?doorId=${kioskIdentity.id}`;
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socketURL = `${protocol}//${window.location.host}/ws`;
+    const socketURL = `${protocol}//${window.location.host}/ws${doorParam}`;
 
     logToScreen(`Connecting to WebSocket at: ${socketURL}`);
     socket = new WebSocket(socketURL);
