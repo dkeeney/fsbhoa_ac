@@ -74,6 +74,28 @@ function checkIdentity() {
     }
 }
 
+// --- AUTO-CONFIGURATION LOGIC ---
+(function checkAutoConfig() {
+    const params = new URLSearchParams(window.location.search);
+    
+    // Check if the startup script passed credentials
+    if (params.has('auto_id') && params.has('auto_name')) {
+        console.log("Auto-configuring Kiosk...");
+        
+        const config = {
+            id: parseInt(params.get('auto_id')),
+            name: params.get('auto_name'),
+            serial: '900000',
+            door: 1
+        };
+
+        localStorage.setItem('fsbhoa_kiosk_identity', JSON.stringify(config));
+        
+        // Clean the URL so the params don't stick around forever
+        window.history.replaceState({}, document.title, "/");
+    }
+})();
+
 function showSetupScreen() {
     document.getElementById('idle-screen').style.display = 'none';
     document.getElementById('setup-screen').style.display = 'block';

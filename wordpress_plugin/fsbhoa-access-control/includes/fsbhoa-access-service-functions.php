@@ -396,6 +396,7 @@ class Fsbhoa_Access_Service {
     /**
      * Clears the amenity data from a preceding log entry after it has been transferred
      * to an INNER_GATE swipe (preventing double counting).
+     * Then notify the real-time screen that this record was modified.
      *
      * @param int $log_id The log_id of the record to be cleared (the preceding Kiosk/Entry Gate swipe).
      * @param string $inner_gate_name The name of the inner gate that performed the clearing.
@@ -409,7 +410,7 @@ class Fsbhoa_Access_Service {
             esc_html($inner_gate_name)
         );
 
-        return $wpdb->update(
+        $result =  $wpdb->update(
             'ac_access_log',
             [
                 'amenity_name' => NULL,
@@ -420,6 +421,11 @@ class Fsbhoa_Access_Service {
             ['%s', '%d', '%s'],
             ['%d']
         );
+        // Only send if the database update was successful and rows were changed.
+        if ( $result !== false && $result > 0 ) {
+            self::send_notification_to_monitor( $log_id );
+        }
+        return $result;
     }
 
 

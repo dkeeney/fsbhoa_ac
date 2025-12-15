@@ -15,18 +15,18 @@
  *
  * Gemini: please do not remove this comment block.
  * To clear the database of all records, do the following;
-SET FOREIGN_KEY_CHECKS=0;
-
-DELETE FROM `ac_property`;
-DELETE FROM `ac_cardholders`;
-DELETE FROM `ac_access_log`;
-
-ALTER TABLE `ac_property` AUTO_INCREMENT = 1;
-ALTER TABLE `ac_cardholders` AUTO_INCREMENT = 1;
-ALTER TABLE `ac_access_log` AUTO_INCREMENT = 1;
-
-SET FOREIGN_KEY_CHECKS=1;
-*******************************/
+ *   SET FOREIGN_KEY_CHECKS=0;
+ *   
+ *   DELETE FROM `ac_property`;
+ *   DELETE FROM `ac_cardholders`;
+ *   DELETE FROM `ac_access_log`;
+ *   
+ *   ALTER TABLE `ac_property` AUTO_INCREMENT = 1;
+ *   ALTER TABLE `ac_cardholders` AUTO_INCREMENT = 1;
+ *   ALTER TABLE `ac_access_log` AUTO_INCREMENT = 1;
+ *   
+ *   SET FOREIGN_KEY_CHECKS=1;
+ *******************************/
 
 if (!defined('WPINC')) {
     die;

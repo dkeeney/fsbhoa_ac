@@ -144,7 +144,9 @@ class Fsbhoa_Kiosk_REST_API {
         $rfid = sanitize_text_field($request['rfid']);
 
         $cardholder = $wpdb->get_row($wpdb->prepare(
-            "SELECT first_name, last_name, photo, card_status, card_expiry_date FROM ac_cardholders WHERE rfid_id = %s",
+            "SELECT first_name, last_name, photo, card_status, card_expiry_date 
+             FROM ac_cardholders 
+             WHERE rfid_id = %s AND card_status = 'active'",
             $rfid
         ));
         if ($wpdb->last_error) { return new WP_Error('db_error', 'Database error validating card.', ['status' => 500]); }

@@ -23,7 +23,8 @@ HOSTNAME=$(jq -r '.wordpress_api_base_url' "$CONFIG_FILE")
 PORT=$(jq -r '.port' "$CONFIG_FILE" | sed 's/://g') # Read port and ensure no extra colons
 
 # Combine them to create the full, correct network URL.
-KIOSK_URL="${HOSTNAME}:${PORT}"
+#KIOSK_URL="${HOSTNAME}:${PORT}"
+KIOSK_URL="${HOSTNAME}:${PORT}/?auto_id=30&auto_name=Lodge+Lobby"
 # --- End of Configuration ---
 
 

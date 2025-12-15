@@ -53,3 +53,10 @@ zebra_print_service/target/
 zebra_print_service/project-repo/
 # Configuration file with secrets
 zebra_print_service/db.properties
+
+# executables
+event_service/event_service
+kiosk/kiosk
+monitor_service/monitor_service
+zebra_print_service/zebra_print_service
+
