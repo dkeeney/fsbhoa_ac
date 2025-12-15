@@ -359,6 +359,7 @@ class Fsbhoa_Controller_Actions {
                 d.map_y
             FROM {$controllers_table} c
             LEFT JOIN {$doors_table} d ON c.controller_record_id = d.controller_record_id
+            WHERE c.type = 'UHPPOTE'   
             ORDER BY c.uhppoted_device_id, d.door_number_on_controller
         ";
 
