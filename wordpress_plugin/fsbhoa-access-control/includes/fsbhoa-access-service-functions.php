@@ -296,7 +296,7 @@ class Fsbhoa_Access_Service {
                 $provisional_name = empty($entry_amenity_names) ? 'Unknown Amenity' : $entry_amenity_names[0];
 
 
-                $log_data['event_description'] = 'Access: ' . esc_html($provisional_name);
+                $log_data['event_description'] = 'Amenity: ' . esc_html($provisional_name);
                 $log_data['amenity_name'] = $provisional_name;
                 $log_data['guest_count'] = 0;
             }
