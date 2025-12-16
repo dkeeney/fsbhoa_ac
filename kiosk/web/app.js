@@ -32,110 +32,183 @@ let overrideDoorNumber = null;
 // --- KIOSK IDENTITY LOGIC ---
 let kioskIdentity = null;
 
-function checkIdentity() {
+// Main entry point for initialization
+async function initializeKiosk() {
+    logToScreen("Initializing Kiosk Logic...");
     const urlParams = new URLSearchParams(window.location.search);
 
-    // 1. Direct Load Bypass (Simulation from Admin Console)
-    // If we are simulating a swipe, we don't need to configure the kiosk.
-    if (urlParams.has('cardholder_id')) {
-        logToScreen("Direct Load detected. Bypassing identity setup.");
-        // Hide setup, show idle (it will immediately transition to processing in connect())
-        document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('idle-screen').style.display = 'block';
-        
-        // Grab the door override immediately if present
-        const doorNum = urlParams.get('door_number');
-        overrideDoorNumber = doorNum ? parseInt(doorNum, 10) : null;
-        
-        connect();
+    // 1. Direct Load (PHP initiated with specific cardholder and door)
+    if (urlParams.has('cardholder_id') && urlParams.has('door_number')) {
+        logToScreen("Step 1: Direct Load parameters detected.");
+        await handleDirectLoad(urlParams);
         return;
     }
-    
-    // 2. Reset Command
+
+    // 2. Reset Command (Clear storage and restart)
     if (urlParams.has('reset_kiosk')) {
+        logToScreen("Step 2: Reset command detected.");
         localStorage.removeItem('fsbhoa_kiosk_identity');
-        alert("Configuration Cleared. Reloading...");
+        alert("Kiosk Configuration Cleared. Reloading...");
+        // Reload without query parameters to trigger Setup Screen
         window.location.href = window.location.pathname; 
         return;
     }
 
-    // 3. Check Storage
-    const stored = localStorage.getItem('fsbhoa_kiosk_identity');
-    if (!stored) {
-        showSetupScreen();
-    } else {
-        kioskIdentity = JSON.parse(stored);
-        logToScreen(`Identity Loaded: ${kioskIdentity.name} (Door ${kioskIdentity.door})`);
-        
-        // Hide setup, show idle
-        document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('idle-screen').style.display = 'block';
-        connect(); // Connect to WS only after we have identity
+    // 3. Auto Config (Derive ID from 'auto_name' param)
+    if (urlParams.has('auto_name')) {
+        logToScreen("Step 3: Auto-Config detected.");
+        const success = await handleAutoConfig(urlParams.get('auto_name'));
+        if (success) {
+            connect(); // Connect immediately after saving
+            return;
+        }
+        // If auto-config fails, we fall through to Setup Screen
     }
+
+    // 4. Check Storage (Existing configuration)
+    const stored = localStorage.getItem('fsbhoa_kiosk_identity');
+    if (stored) {
+        logToScreen("Step 4: Found existing identity in storage.");
+        try {
+            kioskIdentity = JSON.parse(stored);
+            logToScreen(`Identity Loaded: ${kioskIdentity.name} (ID: ${kioskIdentity.id})`);
+            
+            // Hide Setup, Show Idle
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('idle-screen').style.display = 'block';
+            
+            connect();
+            return;
+        } catch (e) {
+            logToScreen("Error: Storage corrupted. Clearing. " + e.message);
+            localStorage.removeItem('fsbhoa_kiosk_identity');
+        }
+    }
+
+    // 5. Fallback: Display Setup Screen
+    logToScreen("Step 5: No identity found. Showing setup screen.");
+    showSetupScreen();
 }
 
-// --- AUTO-CONFIGURATION LOGIC ---
-(function checkAutoConfig() {
-    const params = new URLSearchParams(window.location.search);
-    
-    // Check if the startup script passed credentials
-    if (params.has('auto_id') && params.has('auto_name')) {
-        console.log("Auto-configuring Kiosk...");
-        
-        const config = {
-            id: parseInt(params.get('auto_id')),
-            name: params.get('auto_name'),
-            serial: '900000',
-            door: 1
-        };
+// --- HANDLERS ---
 
-        localStorage.setItem('fsbhoa_kiosk_identity', JSON.stringify(config));
+async function handleDirectLoad(params) {
+    const doorNum = params.get('door_number'); // This acts as the gate_id for connection
+    const cardId = params.get('cardholder_id');
+    
+    // We create a temporary identity for this session only.
+    // We do NOT save this to localStorage.
+    kioskIdentity = {
+        id: parseInt(doorNum, 10),
+        name: "Direct Load Session",
+        serial: "000000", // Default/Ignored for direct load
+        door: 1           // Default
+    };
+
+    isDirectLoad = true;
+    overrideDoorNumber = kioskIdentity.id;
+
+    logToScreen(`Direct Load: Cardholder ${cardId} at Gate ${doorNum}`);
+    
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('idle-screen').style.display = 'block';
+
+    connect(); 
+    // Connection logic in connect() will pick up the 'cardholder_id' from URL 
+    // and trigger the startSessionById event automatically.
+}
+
+async function handleAutoConfig(gateName) {
+    try {
+        logToScreen(`Attempting Auto-Config for Gate: '${gateName}'...`);
         
-        // Clean the URL so the params don't stick around forever
-        window.history.replaceState({}, document.title, "/");
+        // Fetch list of gates to find the ID that matches this name
+        const doors = await fetchGateList();
+        const match = doors.find(d => d.friendly_name === gateName);
+
+        if (match) {
+            saveIdentityToStorage(match);
+            logToScreen(`Auto-Config Success. ID derived: ${match.door_record_id}`);
+            
+            // Clean URL so a refresh doesn't trigger config again unnecessarily
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return true;
+        } else {
+            logToScreen(`Error: No gate found with name '${gateName}'`);
+            alert(`Auto-Config Failed: Gate '${gateName}' not found.`);
+            return false;
+        }
+    } catch (err) {
+        logToScreen("Auto-Config Network Error: " + err.message);
+        return false;
     }
-})();
+}
 
 function showSetupScreen() {
     document.getElementById('idle-screen').style.display = 'none';
     document.getElementById('setup-screen').style.display = 'block';
 
-    // Fetch available KIOSK doors from WordPress via your Go proxy.
-    const targetEndpoint = '/fsbhoa/v1/monitor/gates?role=KIOSK';
-    fetch(`/api/proxy?endpoint=${encodeURIComponent(targetEndpoint)}`)
-        .then(res => {
-            if (!res.ok) throw new Error(`Server returned ${res.status}`);
-            return res.json();
-        })
+    fetchGateList()
         .then(doors => {
             const select = document.getElementById('kiosk-location-select');
-            select.innerHTML = '';
+            select.innerHTML = '<option value="">-- Select Gate Location --</option>';
+            
             doors.forEach(door => {
+                // We create a value string that we can easily parse back into our identity object
+                const valObj = {
+                    id: door.door_record_id,         // The Gate ID used for WebSocket
+                    name: door.friendly_name,        // The readable name
+                    serial: door.uhppoted_device_id, // Controller Serial
+                    door: door.door_number_on_controller // Controller Door Port (1-4)
+                };
+                
                 const opt = document.createElement('option');
-                opt.value = JSON.stringify({
-                    serial: door.uhppoted_device_id,
-                    door: door.door_number_on_controller, // Physical ID (1-4)
-                    name: door.friendly_name,
-                    id: door.door_record_id,              // Global ID (e.g. 33)
-                });
+                opt.value = JSON.stringify(valObj);
                 opt.textContent = door.friendly_name;
                 select.appendChild(opt);
             });
         })
         .catch(err => {
-            logToScreen("Error fetching doors: " + err);
-            alert("Could not load Kiosk list. Check network.");
+            logToScreen("Error fetching gate list: " + err.message);
         });
 }
 
-// Global function for the button
+// Helper to fetch gates from PHP (Proxy)
+async function fetchGateList() {
+    const targetEndpoint = '/fsbhoa/v1/monitor/gates?role=KIOSK';
+    const response = await fetch(`/api/proxy?endpoint=${encodeURIComponent(targetEndpoint)}`);
+    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+    return await response.json();
+}
+
+// Helper to standardise saving identity
+function saveIdentityToStorage(doorRecord) {
+    const config = {
+        id: doorRecord.door_record_id,
+        name: doorRecord.friendly_name,
+        serial: doorRecord.uhppoted_device_id,
+        door: doorRecord.door_number_on_controller
+    };
+    localStorage.setItem('fsbhoa_kiosk_identity', JSON.stringify(config));
+    
+    // Update local variable immediately
+    kioskIdentity = config;
+}
+
+// Global function for the Manual Setup button (called from HTML)
 window.saveKioskIdentity = function() {
     const select = document.getElementById('kiosk-location-select');
     if (select.value) {
+        // The value is already a JSON string of our config object
         localStorage.setItem('fsbhoa_kiosk_identity', select.value);
+        
+        // Reload page to perform a clean startup with the new identity in Step 4
         location.reload();
+    } else {
+        alert("Please select a location.");
     }
 };
+
 // --- END KIOSK IDENTITY LOGIC ---
 
 
@@ -576,7 +649,6 @@ function cancelPressTimer(e) {
 
 
 // --- STARTUP ---
-// Call checkIdentity() instead of just connect() at the bottom of the file.
+// Call initializeKiosk() instead of just connect() at the bottom of the file.
 // connect() will be called after identity has been set.
-checkIdentity();
-
+initializeKiosk();
