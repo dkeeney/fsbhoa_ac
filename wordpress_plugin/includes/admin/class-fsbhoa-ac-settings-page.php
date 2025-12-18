@@ -67,6 +67,7 @@ class Fsbhoa_Ac_Settings_Page {
         $event_log_path   = get_option('fsbhoa_ac_event_log_path', '');
         $debug_mode       = get_option('fsbhoa_ac_debug_mode', 'on');
         $test_stub        = get_option('fsbhoa_ac_test_stub', 'on');
+        $kiosk_port       = get_option('fsbhoa_kiosk_port', 8080);
 
         // --- Build and write monitor_service.json ---
         $monitor_config = [
@@ -76,6 +77,7 @@ class Fsbhoa_Ac_Settings_Page {
             'tls_key_path'      => sanitize_text_field($tls_key_path),
             'event_service_url' => sprintf('%s://%s:%d', ($protocol === 'https' ? 'wss' : 'ws'), $wp_host, absint($websocket_port)),
             'photo_event_limit' => (int) get_option('fsbhoa_ac_monitor_photo_limit', 3),
+            'kiosk_service_url' => sprintf('%s://127.0.0.1:%d', $protocol, absint($kiosk_port)),
         ];
         $this->write_config_file($this->monitor_service_config_path, $monitor_config);
 
