@@ -64,7 +64,7 @@ type ValidationResponse struct {
 var config Config
 var kioskConfig KioskConfig
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-var clients = make(map[*websocket.Conn]bool)
+var clients = make(map[*websocket.Conn]int)
 var clientsMutex = sync.Mutex{}
 
 
@@ -289,7 +289,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientsMutex.Lock()
-	clients[ws] = true
+	clients[ws] = doorID
 	clientsMutex.Unlock()
         log.Printf("Client Connected. Received DoorID param: '%s'", doorIDStr)
 
@@ -577,6 +577,28 @@ func apiProxyHandler(w http.ResponseWriter, r *http.Request) {
     io.Copy(w, resp.Body)
 }
 
+// handleTriggerStatusReport forces the service to re-send the "Online" status
+// for every currently connected kiosk.
+func handleTriggerStatusReport(w http.ResponseWriter, r *http.Request) {
+    clientsMutex.Lock()
+    defer clientsMutex.Unlock()
+
+    count := 0
+    log.Println("Received trigger to report status for all connected kiosks.")
+
+    // Iterate through all active connections
+    for _, doorID := range clients {
+        if doorID > 0 {
+            // Re-use the existing notification logic
+            log.Printf("Reporting status for active Door %d", doorID)
+            notifyMonitorService(doorID, "intermediate")
+            count++
+        }
+    }
+
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprintf(w, "Reported status for %d active kiosks.", count)
+}
 
 // main is the application entry point.
 
@@ -587,6 +609,7 @@ func main() {
 
 
 	fs := http.FileServer(http.Dir("./web"))
+        http.HandleFunc("/api/internal/report-status", handleTriggerStatusReport)
         http.HandleFunc("/api/proxy", apiProxyHandler)
 	http.Handle("/", fs)
         http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { handleConnections(w, r) })
