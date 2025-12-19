@@ -114,9 +114,9 @@ class Fsbhoa_Access_Service {
             $guest_count = isset($log_data['guest_count']) ? $log_data['guest_count'] : 0;
             $amenity_name = isset($log_data['amenity_name']) ? $log_data['amenity_name'] : '';
 
-            // Query for a similar event for the same cardholder, door, and granted status
-            $query = $wpdb->prepare("
-             SELECT log.log_id, log.guest_count
+            // Query for a similar event for the same cardholder, door, and granted status, within time.
+            // --- DYNAMIC QUERY BUILDING ---
+            $sql = "SELECT log.log_id, log.guest_count
                 FROM ac_access_log log
                 INNER JOIN ac_cardholders card ON log.cardholder_id = card.id
                 WHERE log.cardholder_id = %d
@@ -124,20 +124,30 @@ class Fsbhoa_Access_Service {
                   AND log.door_number = %d
                   AND log.access_granted = %d
                   AND log.event_timestamp >= %s
-                  AND card.resident_type != 'System' /* EXCLUDE SYSTEM USERS */
-                  AND (log.amenity_name = %s OR (log.amenity_name IS NULL AND %s = ''))
-                ORDER BY log.event_timestamp DESC
-                LIMIT 1
-            ", 
+                  AND card.resident_type != 'System'";
+
+            $prepare_args = [
                 $log_data['cardholder_id'],
                 $log_data['controller_identifier'],
                 $log_data['door_number'],
                 $log_data['access_granted'],
-                $time_ago,
-                $amenity_name,
-                $amenity_name
-            );
-    
+                $time_ago
+            ];
+
+            // LOGIC FIX:
+            // 1. If this is a KIOSK swipe, we HAVE an amenity name (e.g. 'Pool'), so we must match it.
+            //    (Prevents a sign-in for 'Pool' from blocking a sign-in for 'Gym').
+            // 2. If this is a HARDWARE swipe, amenity is empty. We ignore the amenity column.
+            //    (We rely on the Door Number being the unique physical constraint).
+            if ( !empty($amenity_name) ) {
+                $sql .= " AND log.amenity_name = %s";
+                $prepare_args[] = $amenity_name;
+            }
+
+            $sql .= " ORDER BY log.event_timestamp DESC LIMIT 1";
+
+            // Run the query
+            $query = $wpdb->prepare($sql, $prepare_args);
             $recent_log = $wpdb->get_row( $query );
 
             if ($recent_log) {
@@ -253,12 +263,22 @@ class Fsbhoa_Access_Service {
 
                 // Check if the single amenity name from the preceding entry is in the INNER GATE's list of names
                 if ( in_array( $recent_entry->amenity_name, $inner_amenity_names ) ) { 
-
-                    // ACTION 1B/2B: Transfer amenity, clear preceding log (Amenity Match)
-                    $log_data['event_description'] = 'Amenity: ' . esc_html($recent_entry->amenity_name);
-                    $log_data['amenity_name'] = $recent_entry->amenity_name;
-                    $log_data['guest_count'] = $recent_entry->guest_count;
-                    self::clear_preceding_log($recent_entry->log_id, $door_info->friendly_name);
+                    //  Check the ROLE of the previous gate.
+                    // If the previous gate was ALSO an INNER_GATE, do not consume it.
+                    // We only consume "Provisional" entries (Entry Gates and Kiosks).
+                    if ( $recent_entry->previous_door_role === 'INNER_GATE' ) {
+                         // From one INNER_GATE to another.
+                         // Treat this as a standard, standalone entry (Same as Scenario 3 below)
+                         $log_data['event_description'] = 'Amenity: ' . esc_html($recent_entry->amenity_name);
+                         $log_data['amenity_name'] = $recent_entry->amenity_name;
+                         $log_data['guest_count'] = 0; // Usually 0 for re-entry/duplicate
+                    } else {
+                         // ACTION 1B/2B: Transfer amenity, clear preceding log (Amenity Match)
+                         $log_data['event_description'] = 'Amenity: ' . esc_html($recent_entry->amenity_name);
+                         $log_data['amenity_name'] = $recent_entry->amenity_name;
+                         $log_data['guest_count'] = $recent_entry->guest_count;
+                         self::clear_preceding_log($recent_entry->log_id, $door_info->friendly_name);
+                    }
 
                 } else {
                     // SCENARIO 1C: Mismatch (Concurrent Usage)
