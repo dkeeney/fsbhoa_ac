@@ -238,6 +238,20 @@ document.addEventListener('DOMContentLoaded', function () {
             existingRow = document.querySelector(`li[data-log-id="${uniqueId}"]`);
         }
 
+        if (existingRow) {
+            console.log("Monitor: Updating existing row for ID:", uniqueId);
+            
+            // Check if the current card is expanded so we don't collapse it on update
+            const wasExpanded = existingRow.classList.contains('is-expanded');
+            
+            // Create the new card with the updated data
+            const updatedCard = createEventCard(eventData, wasExpanded);
+            
+            // Swap them out in place
+            existingRow.replaceWith(updatedCard);
+            return; // Stop here, we are done.
+        }
+
         // 1. Check if the new event's timestamp is the same as the last one.
         if (eventData.timestamp === lastEventTimestamp) {
             return; // If it's the same, stop and ignore the event.
