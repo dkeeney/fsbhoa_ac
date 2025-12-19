@@ -120,14 +120,30 @@ func triggerPollHandler(u uhppote.IUHPPOTE, hub *Hub) http.HandlerFunc {
             log.Println("DEBUG: Received request on /trigger-poll endpoint.")
         }
 
-        // Consume and close the request body to prevent client timeout
+        // Consume and close request body
         io.Copy(io.Discard, r.Body)
         r.Body.Close()
 
-        // Run a single poll in the background
+        // 1. Poll Physical Hardware
         go runPoll(u)
 
-        // Immediately respond with success
+        // 2. Poll Kiosks via WebSocket
+        // We broadcast a message telling clients to report their status
+        msg := WebSocketMessage{
+            MessageType: "trigger_poll",
+            Payload:     nil,
+        }
+        
+        if jsonMsg, err := json.Marshal(msg); err == nil {
+            if config.Debug {
+                log.Println("DEBUG: Broadcasting 'trigger_poll' to WebSockets")
+            }
+            hub.broadcast <- jsonMsg
+        } else {
+            log.Printf("ERROR: Failed to marshal trigger_poll message: %v", err)
+        }
+
+        // Respond to Dashboard
         w.WriteHeader(http.StatusOK)
         fmt.Fprintln(w, "Poll triggered.")
     }

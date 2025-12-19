@@ -7,85 +7,75 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Detect who ran sudo so we configure the desktop for THEM
-REAL_USER=$(logname)
+REAL_USER="${SUDO_USER:-$USER}"
 USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 AUTOSTART_DIR="$USER_HOME/.config/autostart"
+WRAPPER_SCRIPT="$USER_HOME/fsbhoa_ac/start_kiosk.sh"
 
 echo "--- Configuring Kiosk Client for user: $REAL_USER ---"
 
-# 1. Install Firefox
-echo "[1/3] Installing Firefox..."
+# 1. Install Dependencies
+echo "[1/3] Installing Dependencies (jq, browser, unclutter)..."
 apt-get update
-# Ubuntu usually has firefox (snap), Pi has firefox-esr (apt). We try to ensure at least one exists.
-apt-get install -y firefox-esr || snap install firefox
+apt-get install -y jq unclutter
+
+# Ensure a browser exists (Prefer Firefox, fallback to Chromium if needed)
+if ! command -v firefox >/dev/null && ! command -v firefox-esr >/dev/null; then
+    apt-get install -y firefox-esr || snap install firefox
+fi
 
 # 2. Configure Autostart Launcher
-# This method works on both GNOME (Ubuntu) and Wayfire (Pi)
+# CRITICAL: Points to the start_kiosk.sh wrapper, not the browser directly.
 echo "[2/3] Creating Autostart Launcher..."
 mkdir -p "$AUTOSTART_DIR"
 
-# [UBUNTU/PI COMPATIBILITY]
-# The Exec line checks if 'firefox' exists. If not, it uses 'firefox-esr'.
 cat << EOF > "$AUTOSTART_DIR/fsbhoa_kiosk.desktop"
 [Desktop Entry]
 Type=Application
 Name=FSBHOA Kiosk
-Comment=Start Kiosk Browser
-Exec=sh -c "if command -v firefox >/dev/null; then firefox --kiosk --private-window https://access.fsbhoa.com; else firefox-esr --kiosk --private-window https://access.fsbhoa.com; fi"
+Comment=Start Kiosk Wrapper Script
+Exec=$WRAPPER_SCRIPT
 X-GNOME-Autostart-enabled=true
 EOF
 
+# Fix permissions
 chown -R "$REAL_USER":"$REAL_USER" "$AUTOSTART_DIR"
 
-# 3. Configure Auto-Login (The Branching Logic)
-echo "[3/3] Configuring Auto-Login..."
-
-# Check OS Type
-if command -v lsb_release >/dev/null; then
-    OS_ID=$(lsb_release -si)
+# Ensure the wrapper script is executable
+if [ -f "$WRAPPER_SCRIPT" ]; then
+    chmod +x "$WRAPPER_SCRIPT"
+    chown "$REAL_USER":"$REAL_USER" "$WRAPPER_SCRIPT"
 else
-    OS_ID="Unknown"
+    echo "WARNING: $WRAPPER_SCRIPT not found! Autostart will fail until this file exists."
 fi
 
-if [ "$OS_ID" == "Ubuntu" ]; then
-    echo ">> Detected Ubuntu. Configuring GDM3..."
-    CONF_FILE="/etc/gdm3/custom.conf"
-    
-    if [ ! -f "$CONF_FILE" ]; then
-        echo "ERROR: $CONF_FILE not found. Is Ubuntu Desktop installed?"
-        exit 1
-    fi
+# 3. Configure Auto-Login
+echo "[3/3] Configuring Auto-Login..."
 
-    # Edit the config file to enable auto-login
-    # Only append if the setting is completely missing from the file
-    if ! grep -q "AutomaticLoginEnable" "$CONF_FILE"; then
-        sed -i "/\[daemon\]/a AutomaticLoginEnable = true" "$CONF_FILE"
-    fi
-
-    if ! grep -q "AutomaticLogin =" "$CONF_FILE"; then
-        sed -i "/\[daemon\]/a AutomaticLogin = $REAL_USER" "$CONF_FILE"
-    fi
-    sed -i "s/AutomaticLoginEnable = false/AutomaticLoginEnable = true/" "$CONF_FILE"
-    sed -i "s/#\s*AutomaticLogin = .*/AutomaticLogin = $REAL_USER/" "$CONF_FILE"
-
-    # Ensure they are set correctly (idempotent replacement)
-    
-    # Safety: If lines didn't exist to uncomment, append them
-    if ! grep -q "AutomaticLogin = $REAL_USER" "$CONF_FILE"; then
-    fi
-    
-    echo "Ubuntu Auto-Login configured."
-
-elif command -v raspi-config >/dev/null; then
+if command -v raspi-config >/dev/null; then
     echo ">> Detected Raspberry Pi OS. Configuring via raspi-config..."
     # B4 = Boot to Desktop, Auto-Login
     raspi-config nonint do_boot_behaviour B4
     echo "Raspberry Pi Auto-Login configured."
 
+elif command -v lsb_release >/dev/null; then
+    OS_ID=$(lsb_release -si)
+    if [ "$OS_ID" == "Ubuntu" ]; then
+        echo ">> Detected Ubuntu. Configuring GDM3..."
+        CONF_FILE="/etc/gdm3/custom.conf"
+        if [ -f "$CONF_FILE" ]; then
+             sed -i "s/.*AutomaticLoginEnable =.*/AutomaticLoginEnable = true/" "$CONF_FILE"
+             sed -i "s/.*AutomaticLogin =.*/AutomaticLogin = $REAL_USER/" "$CONF_FILE"
+             
+             if ! grep -q "AutomaticLoginEnable = true" "$CONF_FILE"; then
+                 sed -i "/\[daemon\]/a AutomaticLoginEnable = true" "$CONF_FILE"
+                 sed -i "/\[daemon\]/a AutomaticLogin = $REAL_USER" "$CONF_FILE"
+             fi
+             echo "Ubuntu Auto-Login configured."
+        fi
+    fi
 else
-    echo "WARNING: Could not detect Ubuntu or Raspberry Pi OS. Auto-login skipped."
+    echo "WARNING: Could not detect OS type. Auto-login skipped."
 fi
 
 echo "--- Kiosk Setup Complete ---"
-echo "Reboot to test auto-login."
-

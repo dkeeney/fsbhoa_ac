@@ -184,4 +184,7 @@ echo "6. Enable and start the Go services using systemctl."
 echo ""
 echo "Refer to INSTALL.md for detailed instructions."
 
+# setup the local kiosk
+sudo apt-get update
+sudo apt-get install -y jq
 

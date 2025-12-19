@@ -6,10 +6,10 @@ class Fsbhoa_System_Status_Page {
     private $parent_slug = 'fsbhoa_ac_main_menu';
     private $page_slug = 'fsbhoa_system_status';
     public static $services = [
-        'event_service.service'       => 'Event Service',
-        'monitor_service.service'     => 'Monitor Service',
-        'zebra_print_service.service' => 'Print Service',
-        'kiosk.service'               => 'Kiosk Service',
+        'fsbhoa_events'       => 'Event Service',
+        'fsbhoa_monitor'      => 'Monitor Service',
+        'fsbhoa_printer'      => 'Print Service',
+        'fsbhoa_kiosk'        => 'Kiosk Service',
     ];
 
     public function __construct() {

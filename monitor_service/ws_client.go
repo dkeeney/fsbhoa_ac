@@ -1,6 +1,7 @@
 package main
 
 import (
+        "encoding/json"
 	"log"
 	"net/http"
 
@@ -30,15 +31,36 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	go client.readPump()
 }
 
+// IncomingMessage struct to match what the Dashboard JS sends
+type IncomingMessage struct {
+	MessageType string `json:"messageType"`
+	// Add other fields here if needed later
+}
+
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
 	for {
-		_, _, err := c.conn.ReadMessage()
+		_, message, err := c.conn.ReadMessage()
 		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("error: %v", err)
+			}
 			break
+		}
+
+		// Parse the incoming JSON message
+		var incoming IncomingMessage
+		if err := json.Unmarshal(message, &incoming); err != nil {
+			log.Printf("Error unmarshalling client message: %v", err)
+			continue
+		}
+
+		// If the Dashboard asks for a poll, signal the Hub
+		if incoming.MessageType == "request_status_poll" {
+			c.hub.commandC <- "request_status_poll"
 		}
 	}
 }

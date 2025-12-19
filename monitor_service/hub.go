@@ -6,12 +6,14 @@ import (
 	"log"
 	"net/http"
 	"sync"
+        "time"
 )
 
 // Hub maintains the set of active clients and broadcasts messages to them.
 type Hub struct {
 	clients         map[*Client]bool
 	broadcastC      chan []byte
+        commandC        chan string
 	register        chan *Client
 	unregister      chan *Client
 	mu              sync.Mutex
@@ -23,6 +25,7 @@ func NewHub(config *Config) *Hub { // Accept config
 	return &Hub{
 		clients:    make(map[*Client]bool),
 		broadcastC: make(chan []byte),
+                commandC:   make(chan string),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		config:     config, // Store config
@@ -84,6 +87,14 @@ type WSMessage struct {
                     }
                 }
                 h.mu.Unlock()
+            
+            //  Handle commands from clients (e.g. Dashboard refresh)
+            case cmd := <-h.commandC:
+		if cmd == "request_status_poll" {
+			log.Println("INFO: Processing status poll request.")
+			go h.triggerImmediatePoll()     // 1. Hardware Gates
+			go h.triggerKioskStatusReport() // 2. Kiosk Gates
+		}
             }
         }
     }
@@ -121,3 +132,29 @@ func (h *Hub) triggerImmediatePoll() {
 	}
 }
 
+
+// triggerKioskStatusReport tells the Kiosk Service to report connected gates.
+func (h *Hub) triggerKioskStatusReport() {
+    if h.config.KioskServiceURL == "" {
+        return
+    }
+
+    kioskURL := h.config.KioskServiceURL + "/api/internal/report-status"
+
+    // Create a client that skips verification if we are using localhost with a domain cert
+    tr := &http.Transport{
+        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+    }
+    client := &http.Client{
+        Transport: tr,
+        Timeout:   2 * time.Second,
+    }
+
+    resp, err := client.Get(kioskURL)
+    if err != nil {
+        log.Printf("WARN: Could not trigger Kiosk status report: %v", err)
+        return
+    }
+    defer resp.Body.Close()
+    log.Println("INFO: Triggered Kiosk Status Report.")
+}

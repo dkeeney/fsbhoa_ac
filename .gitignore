@@ -55,8 +55,7 @@ zebra_print_service/project-repo/
 zebra_print_service/db.properties
 
 # executables
-event_service/event_service
-kiosk/kiosk
-monitor_service/monitor_service
-zebra_print_service/zebra_print_service
-
+fsbhoa_monitor
+fsbhoa_kiosk
+fsbhoa_events
+fsbhoa_printer

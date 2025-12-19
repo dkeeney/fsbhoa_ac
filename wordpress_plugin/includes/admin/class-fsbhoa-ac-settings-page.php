@@ -60,7 +60,7 @@ class Fsbhoa_Ac_Settings_Page {
         $broadcast_addr   = get_option('fsbhoa_ac_broadcast_addr', '192.168.42.255:60000');
         $listen_port      = get_option('fsbhoa_ac_listen_port', 60002);
         $callback_host    = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
-        $wp_host          = get_option('fsbhoa_ac_wp_host', 'nas.fsbhoa.com');
+        $wp_host          = get_option('fsbhoa_ac_wp_host', 'access.fsbhoa.com');
         // Determine the correct protocol based on whether TLS is configured.
         $protocol         = (!empty($tls_cert_path) && !empty($tls_key_path)) ? 'https' : 'http';
         $wp_port          = get_option('fsbhoa_ac_wp_port', 443);
@@ -75,9 +75,10 @@ class Fsbhoa_Ac_Settings_Page {
             'wordpress_api'     => get_site_url() . '/wp-json/fsbhoa/v1/monitor/event',
             'tls_cert_path'     => sanitize_text_field($tls_cert_path),
             'tls_key_path'      => sanitize_text_field($tls_key_path),
-            'event_service_url' => sprintf('%s://%s:%d', ($protocol === 'https' ? 'wss' : 'ws'), $wp_host, absint($websocket_port)),
+            'event_service_url' => sprintf('%s://%s:%d', $protocol, $wp_host, absint($websocket_port)),
             'photo_event_limit' => (int) get_option('fsbhoa_ac_monitor_photo_limit', 3),
-            'kiosk_service_url' => sprintf('%s://127.0.0.1:%d', $protocol, absint($kiosk_port)),
+            'kiosk_service_url' => sprintf('%s://%s:%d', $protocol, $wp_host, absint($kiosk_port)),
+            'api_key'           => get_option('fsbhoa_ac_kiosk_api_key', ''),
         ];
         $this->write_config_file($this->monitor_service_config_path, $monitor_config);
 
@@ -94,7 +95,7 @@ class Fsbhoa_Ac_Settings_Page {
             'logFile'           => sanitize_text_field($event_log_path),
             'debug'             => ($debug_mode === 'on'),
             'enableTestStub'    => ($test_stub === 'on'),
-            'monitorServiceURL' => sprintf('%s://127.0.0.1:%d', $protocol, absint($monitor_port)),
+            'monitorServiceURL' => sprintf('%s://%s:%d', $protocol, $wp_host, absint($monitor_port)),
         ];
         $this->write_config_file($this->event_service_config_path, $event_config);
 
@@ -116,7 +117,8 @@ class Fsbhoa_Ac_Settings_Page {
 		'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
 		'log_file'               => sanitize_text_field(get_option('fsbhoa_kiosk_log_file', '/var/log/fsbhoa/kiosk.log')),
                 'max_guests'             => (int) get_option('fsbhoa_kiosk_max_guests', 8),
-                'monitor_service_url'    => sprintf('%s://127.0.0.1:%d', $protocol, absint($monitor_port)),
+                'monitor_service_url'    => sprintf('%s://%s:%d', $protocol, $wp_host, absint($monitor_port)),
+                'event_service_url'      => sprintf('%s://%s:%d', ($protocol === 'https' ? 'wss' : 'ws'), $wp_host, absint($websocket_port)),
 	];
 	$this->write_config_file($this->kiosk_config_path, $kiosk_config);
 

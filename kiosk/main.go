@@ -26,6 +26,7 @@ type Config struct {
 	LogFile             string `json:"log_file"`
         MaxGuests           int    `json:"max_guests"`
         MonitorServiceURL   string `json:"monitor_service_url"`
+        EventServiceURL     string `json:"event_service_url"`
 }
 
 type Amenity struct {
@@ -170,6 +171,8 @@ func logSignInToWordPress(rfid, amenity string, guests int, serial string, door 
 func notifyMonitorService(doorID int, status string) {
     // Run in background (fire-and-forget) so we don't block the Kiosk
     go func() {
+        log.Printf("DEBUG POLL: Sending status '%s' for DoorID %d to Monitor...", status, doorID)
+
         // URL of the Monitor Service (running on the same machine)
         // If you ever split servers, this would need to be in config.json
         targetURL := config.MonitorServiceURL
@@ -577,39 +580,103 @@ func apiProxyHandler(w http.ResponseWriter, r *http.Request) {
     io.Copy(w, resp.Body)
 }
 
-// handleTriggerStatusReport forces the service to re-send the "Online" status
-// for every currently connected kiosk.
-func handleTriggerStatusReport(w http.ResponseWriter, r *http.Request) {
-    clientsMutex.Lock()
-    defer clientsMutex.Unlock()
 
-    count := 0
-    log.Println("Received trigger to report status for all connected kiosks.")
 
-    // Iterate through all active connections
-    for _, doorID := range clients {
-        if doorID > 0 {
-            // Re-use the existing notification logic
-            log.Printf("Reporting status for active Door %d", doorID)
-            notifyMonitorService(doorID, "intermediate")
-            count++
-        }
-    }
+// ---  Event Service Listener ---
 
-    w.WriteHeader(http.StatusOK)
-    fmt.Fprintf(w, "Reported status for %d active kiosks.", count)
+// EventServiceMessage defines the structure of messages from the Event Service
+type EventServiceMessage struct {
+	MessageType string      `json:"messageType"`
+	Payload     interface{} `json:"payload"`
 }
+
+// listenToEventService maintains a persistent WebSocket connection to the Event Service
+// to listen for "trigger_poll" commands.
+func listenToEventService() {
+	for {
+		if config.EventServiceURL == "" {
+			log.Println("WARNING: No event_service_url configured. Polling listener disabled.")
+			return
+		}
+
+                targetURL := config.EventServiceURL
+		if !strings.HasSuffix(targetURL, "/ws") {
+			targetURL = fmt.Sprintf("%s/ws", strings.TrimRight(targetURL, "/"))
+		}
+                log.Printf("DEBUG POLL: Attempting connection to Event Service at %s...", targetURL)
+
+		// Create a custom dialer that skips SSL verification (internal traffic safety net)
+		dialer := websocket.Dialer{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+
+		conn, _, err := dialer.Dial(targetURL, nil)
+		if err != nil {
+			log.Printf("ERROR: Failed to connect to Event Service: %v. Retrying in 10s...", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		log.Println("SUCCESS: Connected to Event Service. Listening for commands.")
+
+		for {
+			var msg EventServiceMessage
+			// Read JSON message
+			err := conn.ReadJSON(&msg)
+			if err != nil {
+				log.Printf("ERROR: Connection to Event Service lost: %v", err)
+				break // Break inner loop to reconnect
+			}
+                        log.Printf("DEBUG POLL: Received message from Event Service. Type: '%s'", msg.MessageType)
+
+			// Check for the Poll Command
+			if msg.MessageType == "trigger_poll" {
+				log.Println("RECEIVED COMMAND: 'trigger_poll'. Reporting status for all connected kiosks...")
+				reportAllConnectedKiosks()
+			}
+		}
+		conn.Close()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+// reportAllConnectedKiosks iterates through connected browsers and sends their status to Monitor
+func reportAllConnectedKiosks() {
+	clientsMutex.Lock()
+	defer clientsMutex.Unlock()
+
+	count := 0
+        
+	for _, doorID := range clients {
+		if doorID > 0 {
+			// Reuse the existing notification logic
+			log.Printf("Reporting status for active Door %d", doorID)
+			notifyMonitorService(doorID, "intermediate")
+			count++
+		}
+	}
+	log.Printf("Reported status for %d active kiosk clients.", count)
+}
+
 
 // main is the application entry point.
 
 func main() {
 	loadConfiguration()
 	setupLogging()
+        // Signal the wrapper script to restart the browser
+        log.Println("SIGNAL: Touching trigger file to restart Kiosk Browser...")
+        triggerFile, err := os.Create("/tmp/restart_kiosk_browser")
+        if err != nil {
+            log.Printf("WARNING: Failed to create restart trigger: %v", err)
+        } else {
+            triggerFile.Close()
+        }
 	fetchKioskConfig()
+        go listenToEventService()
 
 
 	fs := http.FileServer(http.Dir("./web"))
-        http.HandleFunc("/api/internal/report-status", handleTriggerStatusReport)
         http.HandleFunc("/api/proxy", apiProxyHandler)
 	http.Handle("/", fs)
         http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) { handleConnections(w, r) })

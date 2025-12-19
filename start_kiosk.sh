@@ -1,13 +1,15 @@
 #!/bin/bash
 
 # --- Set Graphical Session Environment ---
-# Allows the script to launch a GUI app from SSH or a system service.
+# Detect the real user to set the correct Xauthority path
+REAL_USER="${USER:-$(whoami)}"
 export DISPLAY=:0
-export XAUTHORITY=/home/fsbhoa/.Xauthority
+export XAUTHORITY="/home/$REAL_USER/.Xauthority"
 
-# ADDED: This is the primary fix to prevent printer and other OS notification popups.
-# Run this on any computer that will serve as a dedicated kiosk display.
-gsettings set org.gnome.desktop.notifications show-banners false
+# Disable notification popups (Printer/Update warnings)
+if command -v gsettings >/dev/null; then
+    gsettings set org.gnome.desktop.notifications show-banners false 2>/dev/null
+fi
 
 # --- Read Configuration from JSON File ---
 CONFIG_FILE="/var/lib/fsbhoa/kiosk.json"
@@ -17,13 +19,19 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-# Use jq to parse the hostname and port from the config file.
-# This was your correct approach.
-HOSTNAME=$(jq -r '.wordpress_api_base_url' "$CONFIG_FILE")
-PORT=$(jq -r '.port' "$CONFIG_FILE" | sed 's/://g') # Read port and ensure no extra colons
+# 1. Get Base URL (e.g. "https://testbed.fsbhoa.com")
+# We strip a trailing slash just in case one was added by mistake.
+WP_URL=$(jq -r '.wordpress_api_base_url' "$CONFIG_FILE" | sed 's|/$||')
 
-# Combine them to create the full, correct network URL.
-KIOSK_URL="${HOSTNAME}:${PORT}/?auto_name=Lobby+Kiosk"
+# 2. Get Port (e.g. ":8080" -> "8080")
+# We strip the colon to ensure we don't end up with double colons later.
+PORT=$(jq -r '.port' "$CONFIG_FILE" | sed 's/://g')
+if [ -z "$PORT" ] || [ "$PORT" == "null" ]; then PORT="8080"; fi
+
+# 3. Construct URL
+KIOSK_URL="${WP_URL}:${PORT}/?auto_name=Lobby+Kiosk"
+
+echo "Launching Kiosk for: $KIOSK_URL"
 # --- End of Configuration ---
 
 
@@ -46,7 +54,8 @@ while true; do
       sleep 2 # Give the browser a moment to close completely
   fi
 
-  # Check if the Go service is running by connecting to the network URL.
+  # Check if the Go service is running by connecting to the LOCAL URL.
+  # We use -L to follow redirects if necessary.
   curl -s -k --head "$KIOSK_URL" > /dev/null
 
   if [ $? -eq 0 ]; then
