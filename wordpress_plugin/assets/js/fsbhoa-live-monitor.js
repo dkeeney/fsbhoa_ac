@@ -293,28 +293,42 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function initializeMap() {
         if (!mapContainer) return;
+
+        // CHECK 1: Do we have pre-loaded data from PHP?
+        if (fsbhoa_monitor_vars.preloaded_gates) {
+            console.log("Monitor: Using pre-loaded gate data.");
+            renderGates(fsbhoa_monitor_vars.preloaded_gates);
+            return; // Skip the network request!
+        }
+
+        // CHECK 2: Fallback to network request if pre-load failed
         try {
+            console.log("Monitor: Fetching gate data from API...");
             const response = await fetch(GATES_API_URL);
             if (!response.ok) {
                 throw new Error(`Failed to fetch gates: ${response.statusText}`);
             }
             const gatesData = await response.json();
-
-            gatesData.forEach(gate => {
-                gates[gate.door_record_id] = gate;
-
-                const light = document.createElement('div');
-                light.id = `gate-light-${gate.door_record_id}`;
-                light.className = 'gate-light status-down'; // Default to down
-                light.style.left = `${gate.map_x}%`;
-                light.style.top = `${gate.map_y}%`;
-                light.title = gate.friendly_name;
-                mapContainer.appendChild(light);
-            });
+            renderGates(gatesData);
         } catch (error) {
             console.error("Error initializing map:", error);
             mapContainer.innerHTML = '<p style="text-align:center; color:red; padding-top:20px;">Could not load gate map data.</p>';
         }
+    }
+
+    // Helper function to draw the dots (extracted to avoid code duplication)
+    function renderGates(gatesData) {
+        gatesData.forEach(gate => {
+            gates[gate.door_record_id] = gate;
+
+            const light = document.createElement('div');
+            light.id = `gate-light-${gate.door_record_id}`;
+            light.className = 'gate-light status-down'; // Default to down
+            light.style.left = `${gate.map_x}%`;
+            light.style.top = `${gate.map_y}%`;
+            light.title = gate.friendly_name;
+            mapContainer.appendChild(light);
+        });
     }
 
     async function loadRecentActivity() {

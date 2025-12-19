@@ -263,7 +263,7 @@ class Fsbhoa_Shortcodes {
         if ( has_shortcode( $post->post_content, 'fsbhoa_live_monitor' ) ) {
             wp_enqueue_style('tailwindcss-cdn', 'https://cdn.tailwindcss.com');
             wp_enqueue_style('fsbhoa-live-monitor-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-monitor.css', array(), FSBHOA_AC_PLUGIN_VERSION);
-            
+
             $script_handle = 'fsbhoa-live-monitor-script';
             wp_enqueue_script($script_handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-live-monitor.js', [], FSBHOA_AC_PLUGIN_VERSION, true);
 
@@ -273,6 +273,7 @@ class Fsbhoa_Shortcodes {
 
             wp_localize_script($script_handle, 'fsbhoa_monitor_vars', [ 'ws_url' => $ws_url, 'nonce' => wp_create_nonce('wp_rest') ]);
         }
+
 
         // ASSETS FOR: [fsbhoa_amenity_management]
         if ( has_shortcode( $post->post_content, 'fsbhoa_amenity_management' ) ) {
