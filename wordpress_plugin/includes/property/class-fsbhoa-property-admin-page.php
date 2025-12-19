@@ -76,7 +76,7 @@ class Fsbhoa_Property_Admin_Page {
      */
     public function render_property_list_page() {
         // We get the data using our static method from the old List Table class.
-        $properties = class_exists('Fsbhoa_Property_List_Table') ? Fsbhoa_Property_List_Table::get_properties(999, 1) : array();
+        $properties = self::get_properties(999, 1);
         $base_properties_url = add_query_arg('view', 'properties', get_permalink());
  
         $current_page_url = get_permalink();
@@ -227,6 +227,41 @@ class Fsbhoa_Property_Admin_Page {
             </form>
         </div>
         <?php
+    }
+
+
+    /**
+     * Fetch properties from the database.
+     * Moved here from the old List Table class.
+     */
+    public static function get_properties( $per_page = 20, $page_number = 1 ) {
+        global $wpdb;
+        $table_name = 'ac_property';
+
+        $sql = "SELECT property_id, house_number, street_name, notes FROM {$table_name}";
+
+        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'street_name';
+        $order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( $_REQUEST['order'] ) ) : 'ASC';
+
+        if ( 'street_address' === $orderby ) {
+            $sql .= ' ORDER BY street_name ' . $order . ', CAST(house_number AS UNSIGNED) ' . $order;
+        } else {
+            $allowed_orderby = array('property_id', 'street_name', 'house_number');
+            if ( !in_array(strtolower($orderby), $allowed_orderby) ) {
+                $orderby = 'street_name';
+            }
+            $sql .= ' ORDER BY ' . $orderby . ' ' . $order;
+        }
+
+        $sql .= " LIMIT $per_page";
+        $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
+
+        $result = $wpdb->get_results( $sql, 'ARRAY_A' );
+        if ( $wpdb->last_error ) {
+            error_log('FSBHOA DB Error (Get Properties): ' . $wpdb->last_error);
+            return [];
+        }
+        return $result;
     }
 } // end class Fsbhoa_Property_Admin_Page
 ?>

@@ -70,76 +70,75 @@ add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
 
 
 /*******************************************************
- * Load core plugin classes 
+ * Load core plugin classes
  */
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-shortcodes.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-ac-settings-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-test-suite-rest-api.php';
 
-// for System management
+// System Management (Stays in Admin)
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-status-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-system-actions.php';
 
-// For our Sync Banner
+// Sync Functions
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
 
-// For Cardholder and property
+// --- Cardholder Module (Moved) ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-cardholder-functions.php';
-// For Cardholder DISPLAY
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-admin-page.php'; 
-// For Cardholder ACTIONS (new)
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-cardholder-actions.php';
-// For Property Display & Actions (already refactored similarly)
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-admin-page.php'; 
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-property-actions.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-property-list-table.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/cardholder/class-fsbhoa-cardholder-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/cardholder/class-fsbhoa-cardholder-actions.php';
 
+// --- Property Module (Moved) ---
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/property/class-fsbhoa-property-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/property/class-fsbhoa-property-actions.php';
 
-// For Schedules
+// --- Archived Cardholder Module (Moved) ---
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/archived/class-fsbhoa-archived-cardholder-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/archived/class-fsbhoa-archived-cardholder-actions.php';
+
+// --- Controller Management (Moved) ---
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/class-fsbhoa-controller-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/class-fsbhoa-controller-actions.php';
+// Note: We moved the view, but usually views are included by the class, not required here.
+// However, preserving existing logic just in case:
+if (file_exists(FSBHOA_AC_PLUGIN_DIR . 'includes/controller/views/view-discovery-results.php')) {
+    require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/views/view-discovery-results.php';
+}
+
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-discovery.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
+
+// --- Schedules ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedules-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-tasks-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-groups-actions.php';
 
-// List Table classes
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/list-tables/class-fsbhoa-cardholder-list-table.php';
+// --- Import ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/class-fsbhoa-import-rest-api.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-print-actions.php';
-//
-// For Archive Cardholder screen
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-archived-cardholder-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-archived-cardholder-actions.php';
 
-// For Controller Management
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-controller-actions.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-discovery-results.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-discovery.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
+// --- Card Printing (Renamed to card-print) ---
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/card-print/class-fsbhoa-print-actions.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/card-print/class-fsbhoa-print-rest-api.php';
 
-
-// For Live Monitor
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-access-service-functions.php';       // also used by kiosk rest-api.
+// --- Live Monitor ---
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-access-service-functions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-api.php';
 
-// for test Suite
+// --- Test Suite ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-test-suite-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-test-suite-actions.php';
 
-
-// For Reporting
+// --- Reporting ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-rest-api.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-analytics-admin-page.php';
 
-// For Kiosk Management
+// --- Kiosk Management ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-kiosk-rest-api.php';
-
-// for Print Services
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/print/class-fsbhoa-print-rest-api.php';
 
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.

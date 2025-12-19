@@ -6,7 +6,7 @@ if ( ! defined( 'WPINC' ) ) { die; }
  */
 function fsbhoa_render_cardholder_list_view() {
     // We can still use the static method from our old List Table class to fetch the data
-    $cardholders = class_exists('Fsbhoa_Cardholder_List_Table') ? Fsbhoa_Cardholder_List_Table::get_cardholders(999, 1, 'last_name', 'asc') : array();
+    $cardholders =  Fsbhoa_Cardholder_Admin_Page::get_cardholders(999, 1, 'last_name', 'asc');
     $current_page_url = get_permalink(); 
     ?>
     <div id="fsbhoa-cardholder-management-wrap" class="fsbhoa-frontend-wrap" data-export-nonce="<?php echo wp_create_nonce('fsbhoa_export_nonce'); ?>">

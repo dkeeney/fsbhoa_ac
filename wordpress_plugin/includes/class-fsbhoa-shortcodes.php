@@ -375,7 +375,7 @@ class Fsbhoa_Shortcodes {
         }
 
         ob_start();
-        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-print-card.php';
+        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/card-print/views/view-print-card.php';
         fsbhoa_render_printable_card_view();
         return ob_get_clean();
     }
@@ -430,7 +430,7 @@ class Fsbhoa_Shortcodes {
         }
 
         ob_start();
-        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/view-live-monitor.php';
+        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/views/view-live-monitor.php';
         fsbhoa_render_live_monitor_view();
         return ob_get_clean();
     }

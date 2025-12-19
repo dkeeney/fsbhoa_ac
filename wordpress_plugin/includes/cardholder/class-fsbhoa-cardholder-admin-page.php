@@ -179,4 +179,42 @@ class Fsbhoa_Cardholder_Admin_Page {
         return wp_list_pluck($results, 'group_id');
     }
 
+
+    /**
+     * Fetch cardholders from the database.
+     * Moved here from the old List Table class.
+     */
+    public static function get_cardholders( $per_page = 20, $page_number = 1 ) {
+        global $wpdb;
+        $cardholders_table = 'ac_cardholders';
+        $properties_table = 'ac_property';
+
+        $sql = "SELECT c.*, p.house_number, p.street_name
+                FROM {$cardholders_table} c
+                LEFT JOIN {$properties_table} p ON c.property_id = p.property_id
+                WHERE c.card_status NOT IN ('archived', 'purged')";
+
+        $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'full_name';
+        $order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( $_REQUEST['order'] ) ) : 'ASC';
+
+        $allowed_orderby = array('last_name', 'first_name', 'street_address', 'resident_type', 'email', 'full_name', 'card_status');
+
+        $orderby_sql = '';
+        if ( $orderby === 'full_name') {
+            $orderby_sql = 'c.last_name ' . $order . ', c.first_name ' . $order;
+        } elseif ( $orderby === 'street_address') {
+            $orderby_sql = 'p.street_name ' . $order . ', CAST(p.house_number AS UNSIGNED) ' . $order;
+        } elseif (in_array(strtolower($orderby), $allowed_orderby) && $orderby !== 'full_name' ) {
+            $orderby_sql = 'c.' . $orderby . ' ' . $order;
+        } else {
+            $orderby_sql = 'c.last_name ASC, c.first_name ASC';
+        }
+        $sql .= ' ORDER BY ' . $orderby_sql;
+
+        $sql .= " LIMIT $per_page";
+        $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
+
+        return $wpdb->get_results( $sql, 'ARRAY_A' );
+    }
+
 }
