@@ -3,7 +3,6 @@
 
 if (!defined('WPINC')) { die; }
 
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-permission-compiler.php';
 
 add_action('fsbhoa_run_background_sync', 'fsbhoa_perform_delta_sync');
