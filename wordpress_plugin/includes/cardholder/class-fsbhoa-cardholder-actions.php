@@ -106,7 +106,7 @@ class Fsbhoa_Cardholder_Actions {
             }
         }
 
-        $view_path = FSBHOA_AC_PLUGIN_DIR . 'includes/admin/views/';
+        $view_path = FSBHOA_AC_PLUGIN_DIR . 'includes/cardholder/views/';
         require_once $view_path . 'view-cardholder-profile-section.php';
         require_once $view_path . 'view-cardholder-address-section.php';
         require_once $view_path . 'view-cardholder-photo-section.php';
