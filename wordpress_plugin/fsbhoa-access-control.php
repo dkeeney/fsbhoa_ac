@@ -112,6 +112,7 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedules-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-tasks-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-groups-actions.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-ajax-handler.php';
 
 // --- Import ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
@@ -225,6 +226,9 @@ function run_fsbhoa_action_handlers() {
     }
     if (class_exists('Fsbhoa_Schedule_Groups_Actions')) {
         new Fsbhoa_Schedule_Groups_Actions();
+    }
+    if (class_exists('Fsbhoa_Schedule_AJAX_Handler')) {
+        new Fsbhoa_Schedule_AJAX_Handler();
     }
 
     // The Print Actions handler is only needed on its own AJAX calls.

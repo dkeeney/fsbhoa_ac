@@ -59,3 +59,25 @@ function fsbhoa_archive_and_delete_cardholder( $cardholder_id ) {
     return true;
 }
 
+
+/**
+ * Fetches current group memberships for a cardholder.
+ * Moved to global scope so both Page and Action classes can use it.
+ */
+function get_cardholder_group_memberships($cardholder_id) {
+    global $wpdb;
+    $results = $wpdb->get_results($wpdb->prepare(
+        "SELECT group_id FROM ac_cardholder_groups WHERE cardholder_id = %d", 
+        $cardholder_id
+    ));
+    
+    if ($wpdb->last_error) {
+        return [];
+    }
+
+    $existing_groups = wp_list_pluck($results, 'group_id');
+    sort($existing_groups);
+    return $existing_groups;
+}
+
+

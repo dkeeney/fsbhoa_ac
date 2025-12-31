@@ -178,4 +178,81 @@ When a user is set to `Disabled` in the database:
 | **Delta Sync** | Button Press / Cron (5m) | Calculates Hashes. Updates only changed cards. usually completes in < 1 second. |
 | **High-Impact** | Controller/Schedule Change | Triggered automatically if a "Definition" changes (e.g., changing the hours of "Residents"). Forces a recalculation of all hashes, but only writes to hardware if necessary. |
 | **Nightly Rebuild** | Cron (3:00 AM) | A safety net. Wipes the internal "Persistent Map" to clear out unused Snowflake profiles (Garbage Collection) and ensures the controller is perfectly aligned with the DB. |
+k
 
+# UHPPOTE Time Profile & Permission Compiler Specification
+
+## 1. Overview
+This document defines the logic for mapping a high-level, group-based permission scheme onto the hardware-constrained UHPPOTE/uhppole controller environment using the `uhppole-cli` tool.
+
+The system flattens a hierarchy of schedules into a single permission set per card, utilizing **linked profiles** to bypass the hardware limit of 3 time slots per profile ID.
+
+---
+
+## 2. Hierarchy of Authority (Specificity Rule)
+Permissions are resolved at the **Gate level**. For any specific gate on a controller, the compiler must select the most specific schedule definition available for a given group. **Rules are never merged across levels; the most specific level "wins."**
+
+### Resolution Order:
+1. **Gate-Specific (Highest):** If segments exist specifically for "Gate X" (e.g., *TestEntry*), use these and ignore all others.
+2. **Controller-Specific:** If no Gate-specific segments exist, look for segments assigned to the parent controller (e.g., *Testbed Controller*).
+3. **Global (Lowest):** If neither of the above exists, use the "All Gates" segments.
+
+---
+
+## 3. Group Union Logic
+When a cardholder belongs to multiple groups, the system calculates the **Mathematical Union** of all resolved schedules for every gate.
+
+1. **Resolve:** For each group the user belongs to, resolve its schedule for Gate X using the **Hierarchy of Authority**.
+2. **Merge:** Combine all time spans and day-masks. 
+   * *Example:* Group A allows 05:00-08:00 (Mon-Fri). Group B allows 07:00-10:00 (Mon-Fri). The union is 05:00-10:00 (Mon-Fri).
+3. **Fragment Check:** If the resulting union contains more than 3 non-contiguous time segments or requires different day-masks that cannot fit in one profile, the system triggers **Chaining**.
+
+---
+
+## 4. Memory Allocation: "Heads & Tails"
+To prevent fragmentation, Profile IDs (2–254) are allocated from two ends of the memory map:
+
+* **Stable Profiles (Heads -> Grow Up):**
+    * Assigned to common group combinations (e.g., "Residents", "Staff").
+    * IDs start at **2** and increment upwards.
+    * These are persistent to minimize card updates.
+* **Dynamic Profiles (Tails -> Grow Down):**
+    * Assigned to "Snowflakes" (Unique individual combinations) or used as **overflow links**.
+    * IDs start at **254** and decrement downwards.
+    * These are volatile; cleared during Nightly Rebuild/Garbage Collection.
+
+### Profile Chaining (Linked Lists)
+Since `uhppole-cli set-time-profile` supports a `--linked` parameter:
+* If a schedule requires >3 slots, the "Head" profile ID (on the card) points to a "Tail" profile ID via the `linked` field.
+* The last profile in the chain must have a Link ID of `0`.
+
+---
+
+## 5. Overrides & Special States
+
+| State | Logic | Hardware Implementation |
+| :--- | :--- | :--- |
+| **Access All** | Any assigned group is marked "Access All" | Card permissions set to `1:Y, 2:Y, 3:Y, 4:Y`. Bypasses all profile memory. |
+| **Disabled** | User status is `Disabled` | Card permissions updated to `""` (empty). Card remains in memory but denies all access. |
+| **Ghost Doors** | Physical door added but unused | Ignored in permission hash calculation as long as access is `0`. Prevents mass rewrites. |
+
+---
+
+## 6. CLI Implementation Examples
+
+### Standard Profile (ID 2)
+```bash
+uhppole-cli set-time-profile --id 2 --start 2025-01-01 --end 2025-12-31 --monday --tuesday --slot1 05:00-10:00 --linked 0
+
+# Head (Profile 3): First 3 segments, links to overflow ID 254
+uhppole-cli set-time-profile --id 3 --start 2025-01-01 --end 2025-12-31 --monday --slot1 05:00-08:00 --slot2 12:00-13:00 --slot3 18:00-22:00 --linked 254
+
+# Tail (Profile 254): Remaining 2 segments, links to 0
+uhppole-cli set-time-profile --id 254 --start 2025-01-01 --end 2025-12-31 --monday --slot1 09:00-11:00 --slot2 23:00-23:59 --linked 0
+
+7. Sync Modes
+Delta Sync: Calculates hashes of current card permissions vs. DB. Updates only changed cards.
+
+High-Impact Sync: Triggered when a "Definition" changes. Forces recalculation of hashes and potential profile re-linking.
+
+Nightly Rebuild (3:00 AM): Wipes the internal "Persistent Map" to clear out unused Snowflake profiles and ensures alignment with the database.

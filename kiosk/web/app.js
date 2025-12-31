@@ -34,8 +34,8 @@ let kioskIdentity = null;
 
 // Main entry point for initialization
 async function initializeKiosk() {
-    logToScreen("Initializing Kiosk Logic...");
     const urlParams = new URLSearchParams(window.location.search);
+    logToScreen("Initializing Kiosk Logic...");
 
     // 1. Direct Load (PHP initiated with specific cardholder and door)
     if (urlParams.has('cardholder_id') && urlParams.has('door_number')) {
@@ -105,7 +105,8 @@ async function handleDirectLoad(params) {
         door: 1           // Default
     };
 
-    isDirectLoad = true;
+    // NOTE: Do not set isDirectLoad here. It must be set in the open 
+    //       after resetKiosk() has been called.
     overrideDoorNumber = kioskIdentity.id;
 
     logToScreen(`Direct Load: Cardholder ${cardId} at Gate ${doorNum}`);
@@ -218,6 +219,7 @@ function logToScreen(message) {
     // else, for when using the touchscreen
     const logContainer = document.getElementById('debug-log');
     if (logContainer) {
+        //logContainer.style.display = 'block';   // uncomment this to force log display
         const timestamp = new Date().toLocaleTimeString();
         const newMessage = document.createElement('div');
         newMessage.textContent = `${timestamp}: ${message}`;
@@ -262,11 +264,7 @@ function connect() {
     socket = new WebSocket(socketURL);
 
     socket.addEventListener('open', () => {
-        if (hasConnectedBefore) {
-            // The reload was causing a reconnect loop. A stable connection is sufficient.
-            // location.reload(true); 
-            resetKiosk(); // Reset to the idle screen on reconnect
-        } else {
+        if (!hasConnectedBefore) {
             hasConnectedBefore = true;
             resetKiosk();
         }
@@ -298,8 +296,14 @@ function connect() {
 
     socket.addEventListener('message', (event) => {
         try {
-            const message = JSON.parse(event.data);
-            logToScreen("Received message object:", message);
+            let message = JSON.parse(event.data);
+        
+            // Create a loggable version that doesn't contain the massive photo string
+            let loggable = JSON.parse(JSON.stringify(message)); 
+            if (loggable.payload && loggable.payload.cardholder && loggable.payload.cardholder.photo) {
+                loggable.payload.cardholder.photo = "[IMAGE DATA TRUNCATED]";
+            }
+            logToScreen("Received: " + JSON.stringify(loggable));
 
             if (message.event === 'kioskConfig') {
                 kioskConfig = message.payload;
@@ -504,7 +508,7 @@ function createAmenityButtons(amenities) {
 }
 
 function handleIdleTimeout() {
-logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeString()}`);
+        logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeString()}`);
         if (!sessionActive) { return; }
         sessionActive = false;
         idleTimerFired = true;
@@ -535,6 +539,7 @@ logToScreen(`TIMER: 30-second idle timeout FIRED at ${new Date().toLocaleTimeStr
 function resetKiosk() {
         // If this session was started from WordPress direct login icon, just close the tab.
         if (isDirectLoad) {
+            logToScreen(`resetKiosk() called with isDirectLoad set.`);
             // We set the flag to false first as a safeguard
             isDirectLoad = false;
             window.close();
@@ -611,9 +616,9 @@ function stopFocusCapture() {
 function toggleLogVisibility() {
     const logContainer = document.getElementById('debug-log');
     if (window.getComputedStyle(logContainer).display === 'none') {
-    logContainer.style.display = 'block';
-    localStorage.setItem('kioskLogVisible', 'true');
-    logToScreen('Debug log enabled.');
+        logContainer.style.display = 'block';
+        localStorage.setItem('kioskLogVisible', 'true');
+        logToScreen('Debug log enabled.');
     } else {
         logContainer.style.display = 'none';
         localStorage.setItem('kioskLogVisible', 'false');

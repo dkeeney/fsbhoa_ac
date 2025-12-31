@@ -67,7 +67,7 @@ class Fsbhoa_Cardholder_Admin_Page {
 
             if ($cardholder_to_edit) {
                 // Prepare the group data for the view.
-                $cardholder_groups = $this->get_cardholder_group_memberships($cardholder_to_edit['id']);
+                $cardholder_groups = get_cardholder_group_memberships($cardholder_to_edit['id']);
 
                 $form_data = array_merge($form_data, $cardholder_to_edit);
                 if (!empty($cardholder_to_edit['photo'])) {
@@ -159,24 +159,6 @@ class Fsbhoa_Cardholder_Admin_Page {
 //error_log("GROUP ASSIGN DEBUG: 3. Query returned " . count($groups) . " rows.");
 //error_log("GROUP ASSIGN DEBUG: 4. Full result: " . var_export($groups, true));
         return $groups;
-    }
-
-    /**
-     * Fetches the current group memberships for a specific cardholder.
-     *
-     * @global wpdb $wpdb
-     * @param int $cardholder_id The ID of the cardholder.
-     * @return array A simple array of group IDs.
-     */
-    public function get_cardholder_group_memberships($cardholder_id) {
-        global $wpdb;
-        $results = $wpdb->get_results($wpdb->prepare("SELECT group_id FROM ac_cardholder_groups WHERE cardholder_id = %d", $cardholder_id));
-        if ($wpdb->last_error) {
-            // Handle or log the error appropriately
-            return [];
-        }
-        // Flatten the array of objects into a simple array of IDs for easier checking.
-        return wp_list_pluck($results, 'group_id');
     }
 
 

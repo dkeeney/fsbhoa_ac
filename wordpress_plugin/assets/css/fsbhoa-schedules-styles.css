@@ -38,3 +38,225 @@
     vertical-align: middle;
 }
 
+/* Schedule Grid & Rows */
+.permission-row.row-disabled td { 
+    background-color: #f9f9f9; 
+}
+
+.permission-row.row-disabled input, 
+.permission-row.row-disabled select { 
+    color: #999; 
+    opacity: 0.6; 
+}
+
+/* Visualizer Timeline */
+.schedule-visualizer { margin-top: 1.5em; border-top: 1px solid #ddd; padding-top: 1em; }
+.schedule-gate-row { margin-bottom: 1.5em; }
+.schedule-gate-row h4 { margin: 0 0 0.5em 0; font-size: 14px; }
+.schedule-day-row { display: flex; align-items: center; margin-bottom: 4px; font-size: 12px; }
+.schedule-day-label { flex-basis: 40px; font-weight: bold; color: #555; text-transform: capitalize; flex-shrink: 0; }
+.timeline { flex-grow: 1; position: relative; background-color: #f0f0f0; border: 1px solid #ccc; height: 20px; box-sizing: border-box; min-width: 200px; }
+.timeline-segment { position: absolute; background-color: #2271b1; height: 100%; box-sizing: border-box; border-right: 1px solid #fff; }
+.timeline-segment:hover { background-color: #0a4b78; }
+.timeline-segment .segment-tooltip { visibility: hidden; background: #333; color: #fff; text-align: center; padding: 4px 8px; border-radius: 4px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -40px; width: 80px; opacity: 0; transition: opacity 0.3s; }
+.timeline-segment:hover .segment-tooltip { visibility: visible; opacity: 1; }
+
+/* Status Animations */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.spin { animation: spin 2s linear infinite; display: inline-block; }
+
+
+/* Timeline Ruler Styles */
+.timeline-ruler-wrapper {
+    display: flex;
+    margin-bottom: 10px;
+    align-items: flex-end;
+}
+
+.ruler-spacer {
+    flex-basis: 40px; /* Must match .schedule-day-label width */
+    flex-shrink: 0;
+}
+
+.timeline-ruler {
+    flex-grow: 1;
+    position: relative;
+    height: 25px; /* Space for labels */
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 5px;
+}
+
+.ruler-tick {
+    position: absolute;
+    bottom: 0;
+    width: 1px;
+    background: #ccc;
+}
+
+.ruler-tick.hour {
+    height: 5px;
+}
+
+.ruler-tick.quarter-day {
+    height: 10px;
+    background: #999;
+}
+
+.ruler-label {
+    position: absolute;
+    bottom: 12px;
+    font-size: 10px;
+    color: #666;
+    white-space: nowrap;
+}
+
+
+/* Disable the legacy PNG background images  */
+/* Target the header cells specifically to kill the background-image 404 */
+table.dataTable thead th.dt-orderable-asc,
+table.dataTable thead th.dt-orderable-desc,
+table.dataTable thead th.dt-ordering-asc,
+table.dataTable thead th.dt-ordering-desc,
+table.dataTable thead th.sorting,
+table.dataTable thead td.sorting {
+    background-image: none !important;
+}
+
+
+/*    Permission Rows  */
+/* Tighten the table rows */
+#group-permissions-table td {
+    padding: 4px 10px; /* Highly compressed padding */
+    vertical-align: middle;
+}
+
+/*  ACTION BUTTONS  */
+/* ACTION BUTTONS (Matching Groups List View) */
+.fsbhoa-action-icon {
+    text-decoration: none !important;
+    box-shadow: none !important;
+    display: inline-block;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+/* Enable: The Blue Circle */
+.toggle-permission-status .dashicons-yes {
+    background-color: #2271b1 !important;
+    color: #fff !important;
+    border-radius: 50%;
+    width: 18px !important;
+    height: 18px !important;
+    font-size: 14px !important;
+    line-height: 18px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Disabled/Delete: Red Icons */
+.toggle-permission-status .dashicons-no-alt,
+.remove-permission-rule .dashicons-trash {
+    color: #d63638 !important;
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
+    background: transparent !important;
+}
+
+/* Hover States */
+.toggle-permission-status:hover .dashicons-yes {
+    background-color: #135e96 !important;
+}
+.remove-permission-rule:hover .dashicons-trash {
+    color: #9b2021 !important;
+}
+
+/* Ensure Row Actions wrapper doesn't add height */
+.action-buttons-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+/* Force Time inputs to be slim */
+input.small-time {
+    padding: 2px 5px;
+    height: 28px;
+    width: 100%;
+}
+
+/* Compact Day Picker - Stops the wrapping */
+.day-picker-compact {
+    display: flex;
+    gap: 2px;
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+.day-label {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background: #f0f0f1;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    text-align: center;
+    line-height: 22px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.day-label input { display: none; } /* Hide the actual checkbox */
+
+.day-label.active {
+    background: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+}
+
+.day-label:hover { background: #dcdcde; }
+.day-label.active:hover { background: #135e96; }
+
+/* Ensure the Gate column doesn't push the table too wide */
+.column-gate {
+    min-width: 180px;
+}
+
+/* Slim down the selects and inputs to match the "Small Button" height */
+.compact-select, 
+.compact-input {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 2px 6px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+}
+
+/* Table layout tweaks */
+#group-permissions-table {
+    border-collapse: collapse;
+}
+
+#group-permissions-table th {
+    padding: 8px 10px;
+    font-weight: 600;
+    background: #f8f9fa;
+}
+
+#group-permissions-table td {
+    padding: 4px 10px;
+    vertical-align: middle;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+/* Day labels: prevent text selection while clicking fast */
+.day-label {
+    user-select: none;
+    -webkit-user-select: none;
+}

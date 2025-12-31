@@ -140,7 +140,6 @@ class Fsbhoa_Shortcodes {
 
             $handle = 'fsbhoa-archived-cardholder-script';
             wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-archived-cardholder.js', ['jquery', 'jquery-ui-autocomplete', 'datatables-script', 'jquery-ui-dialog'], FSBHOA_AC_PLUGIN_VERSION, true);
-            wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-archived-cardholder.js', ['jquery', 'jquery-ui-autocomplete', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
 
             // Localize settings to OUR new handle
             $ajax_settings = array(
@@ -311,14 +310,14 @@ class Fsbhoa_Shortcodes {
                 filemtime($css_path)
             );
 
-            $js_path = FSBHOA_AC_PLUGIN_DIR . 'assets/js/groups-admin.js';
-            wp_enqueue_script(
-                'fsbhoa-groups-admin-js',
-                FSBHOA_AC_PLUGIN_URL . 'assets/js/groups-admin.js',
-                ['jquery'],
-                filemtime($js_path),
-                true
-            );
+            //$js_path = FSBHOA_AC_PLUGIN_DIR . 'assets/js/groups-admin.js';
+            //wp_enqueue_script(
+            //    'fsbhoa-groups-admin-js',
+            //    FSBHOA_AC_PLUGIN_URL . 'assets/js/groups-admin.js',
+            //    ['jquery'],
+            //    filemtime($js_path),
+            //    true
+            //);
         }
 
         // ASSETS FOR: [fsbhoa_schedules_page]

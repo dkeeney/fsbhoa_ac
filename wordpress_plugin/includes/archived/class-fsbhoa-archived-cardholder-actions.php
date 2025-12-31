@@ -176,11 +176,35 @@ class Fsbhoa_Archived_Cardholder_Actions {
             wp_die( 'Could not find or lock the archived source record to merge.', 'Error', ['back_link' => true] );
         }
 
+        // ---  Fetch Destination to compare ---
+        $dest_record = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table_cardholders} WHERE id = %d FOR UPDATE", $destination_id ), ARRAY_A );
+        if ( ! $dest_record ) {
+            error_log("[MERGE ACTION ERROR] Could not find or lock destination record ID: {$destination_id}. Rolling back.");
+            $wpdb->query( 'ROLLBACK' );
+            wp_die( 'Could not find or lock the destination record to merge into.', 'Error', ['back_link' => true] );
+        }
+
+        // --- LOGIC: Prioritize Destination for RFID and Photo ---
+        // If Destination has an RFID, keep it. Otherwise, take the one from Source.
+        $final_rfid = !empty($dest_record['rfid_id']) ? $dest_record['rfid_id'] : $source_record['rfid_id'];
+    
+        // If Destination has a Photo, keep it. Otherwise, take the one from Source.
+        $final_photo = !empty($dest_record['photo']) ? $dest_record['photo'] : $source_record['photo'];
+
+        // --- LOGIC: Auto-Activate ---
+        // If the resulting record has an RFID, it should be 'active'.
+        $new_status = !empty($final_rfid) ? 'active' : 'inactive';
+
+        error_log("[MERGE LOGIC] Resulting RFID: $final_rfid | Resulting Status: $new_status");
+
+
         // Get the property ID from the source record before we do anything else.
         $manual_property_id = !empty($source_record['property_id']) ? absint($source_record['property_id']) : 0;
         error_log("[MERGE ACTION INFO] Source record property ID is: {$manual_property_id}");
 
+
         // --- STEP 1: Update all simple text/numeric data using a prepared statement. ---
+        $new_status = 
         $text_sql = $wpdb->prepare(
             "UPDATE {$table_cardholders} SET
                 rfid_id = %s, first_name = %s, last_name = %s, title = %s,
@@ -188,11 +212,19 @@ class Fsbhoa_Archived_Cardholder_Actions {
                 card_status = %s, notes = %s, card_issue_date = %s,
                 card_expiry_date = %s, resident_type = %s
             WHERE id = %d",
-            $source_record['rfid_id'], $source_record['first_name'], $source_record['last_name'], $source_record['title'],
-            $source_record['email'], $source_record['email_used'], $source_record['phone'], $source_record['phone_type'],
-            'inactive', // Set to inactive after merge
-            $source_record['notes'], $source_record['card_issue_date'],
-            $source_record['card_expiry_date'], $source_record['resident_type'],
+            $final_rfid, 
+            $source_record['first_name'], 
+            $source_record['last_name'], 
+            $source_record['title'],
+            $source_record['email'], 
+            $source_record['email_used'], 
+            $source_record['phone'], 
+            $source_record['phone_type'],
+            $new_status,
+            $source_record['notes'], 
+            $source_record['card_issue_date'],
+            $source_record['card_expiry_date'], 
+            $source_record['resident_type'],
             $destination_id
         );
         $updated_text = $wpdb->query($text_sql);
@@ -207,7 +239,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
         if (!empty($source_record['photo'])) {
             $photo_sql = $wpdb->prepare(
                 "UPDATE {$table_cardholders} SET photo = %s WHERE id = %d",
-                $source_record['photo'],
+                $final_photo,
                 $destination_id
             );
             $updated_photo = $wpdb->query($photo_sql);
@@ -263,7 +295,14 @@ class Fsbhoa_Archived_Cardholder_Actions {
         }
 
         $wpdb->query( 'COMMIT' );
-        fsbhoa_log_pending_change('cardholder', $destination_id);
+
+        // NOTE: if both source and destination had non-null but different rfid's then we 
+        //       use the one from the destination.  Otherwise we would need to add code
+        //       to remove the overwitten active rfid on the destination.
+        if ($new_status == 'active') {
+            fsbhoa_log_pending_change('cardholder', $destination_id);
+        }
+
         error_log("[MERGE ACTION END] Commit successful. Redirecting.");
 
         $redirect_url = get_permalink(get_page_by_path('archived-cardholders'));

@@ -1,6 +1,8 @@
 <?php
 if ( ! defined( 'WPINC' ) ) { die; }
 
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
+
 class Fsbhoa_Ac_Settings_Page {
     private const DEFAULT_PRINT_API_TOKEN = 'eZdaPzde/0JGMirn6DV4VPSErRerexAiqZBCQj/T3Vg=';
 
@@ -692,7 +694,6 @@ class Fsbhoa_Ac_Settings_Page {
         update_option('fsbhoa_ac_monitor_photo_limit', $photo_limit);
 
         // Trigger Cache Rebuild Immediately so the monitor updates instantly
-        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
         if (function_exists('fsbhoa_rebuild_monitor_status_cache')) {
             fsbhoa_rebuild_monitor_status_cache();
         }

@@ -8,10 +8,15 @@ if ( ! defined( 'WPINC' ) ) { die; }
  * (Time Profiles & Card Permissions).
  * * STRATEGY:
  * 1. "Snowflake" Allocation: IDs assigned by User Group Combo (Source), not Schedule (Content).
+ *    Objective is to make these indexes stable even if schedule changes.
  * 2. "Meet-in-the-Middle" Memory: Heads (Stable) grow UP from 2. Tails (Dynamic) grow DOWN from 254.
  * 3. "Specificity Wins": Door > Controller > Global rules override each other.
  */
 class Fsbhoa_Permission_Compiler {
+
+    public function __construct($schedule_id) {
+        $this->schedule_id = $schedule_id;
+    }
 
     // --- CONFIGURATION ---
     const BASE_ID = 2;           // Start Stable IDs here (0 & 1 are reserved)
@@ -21,6 +26,7 @@ class Fsbhoa_Permission_Compiler {
     private $schedule_id;
     private $raw_data = [];      // DB Data
     private $controllers = [];   // [device_id][door_num] => door_record_id
+    private $controller_serial_to_id = []; // [serial] => record_id
     
     // --- STATE ---
     private $used_signatures = []; // ['1,5' => [1, 5]] (Unique combos found in active cards)
@@ -39,14 +45,22 @@ class Fsbhoa_Permission_Compiler {
      * MAIN ENTRY POINT
      * @param bool $force_rebuild If true, ignores persistent map (Nightly Sync behavior)
      */
-    public function generate_sync_data( $force_rebuild = false, $is_dry_run = false ) {
+    public function generate_sync_data( $wipe_memory, $is_dry_run = false ) {
         $this->load_data();
         $this->discover_signatures();     
         
-        if ($force_rebuild) {
+        $blob = get_option('fsbhoa_profile_persistent_maps', []);
+        $last_schedule_id = isset($blob['schedule_id']) ? (int)$blob['schedule_id'] : 0;
+    
+        // DECISION: Wipe if forced OR if schedule_id mismatch OR there is no map.
+        if (($last_schedule_id !== (int)$this->schedule_id) || !isset($blob['maps'])) {
+            $wipe_memory = true;
+        }
+
+        if ($wipe_memory) {
             $this->persistent_maps = []; // Start fresh (Garbage Collection)
         } else {
-            $this->load_persistent_maps();
+            $this->persistent_maps = $blob['maps'];
         }
 
         // Attempt Allocation
@@ -55,11 +69,11 @@ class Fsbhoa_Permission_Compiler {
         } catch (Exception $e) {
             // COLLISION HANDLING: If we ran out of memory using the "Dirty" map,
             // try a Full Rebuild (Defrag) before giving up.
-            if (!$force_rebuild && !$this->is_retry_mode) {
+            if (!$wipe_memory && !$this->is_retry_mode) {
                 error_log("PERMISSION COMPILER: Memory Collision detected. Attempting Defrag (Full Rebuild)...");
                 $this->is_retry_mode = true;
                 $this->reset_state();
-                return $this->generate_sync_data(true, $is_dry_run); // Recursion with force_rebuild
+                return $this->generate_sync_data(true, $is_dry_run); // Recursion with wipe_memory
             } else {
                 // If we collide even after a fresh rebuild, we are truly out of memory.
                 error_log("CRITICAL PERMISSION COMPILER ERROR: " . $e->getMessage());
@@ -68,11 +82,19 @@ class Fsbhoa_Permission_Compiler {
         }
 
         $this->assign_card_permissions(); 
-        $this->save_persistent_maps($is_dry_run);    
+        if (!$is_dry_run) {
+            $blob = [
+                'schedule_id' => $this->schedule_id,
+                'maps'        => $this->persistent_maps,
+                'updated_at'  => current_time('mysql') // Useful for debugging
+            ];
+            update_option('fsbhoa_profile_persistent_maps', $blob, false);
+        }
         
         return [
             'profiles' => $this->controller_profiles,
-            'cards'    => $this->card_permissions
+            'cards'    => $this->card_permissions,
+            'was_wiped'=> $wipe_memory
         ];
     }
 
@@ -90,17 +112,17 @@ class Fsbhoa_Permission_Compiler {
      */
     private function load_data() {
         global $wpdb;
-        $this->schedule_id = fsbhoa_get_active_schedule_id(); 
 
         // Controllers & Doors
         $doors = $wpdb->get_results("
-            SELECT d.door_record_id, d.door_number_on_controller, c.uhppoted_device_id 
+            SELECT d.door_record_id, d.door_number_on_controller, c.uhppoted_device_id, c.controller_record_id
             FROM ac_doors d 
             JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id 
             WHERE c.type = 'UHPPOTE'
         ");
         foreach ($doors as $d) {
             $this->controllers[$d->uhppoted_device_id][$d->door_number_on_controller] = $d->door_record_id;
+            $this->controller_serial_to_id[$d->uhppoted_device_id] = $d->controller_record_id;
             
             // Initialize counters if not set
             if (!isset($this->dynamic_counters[$d->uhppoted_device_id])) {
@@ -142,18 +164,9 @@ class Fsbhoa_Permission_Compiler {
         }
     }
 
-    /**
-     * 3. Load Persistence
-     */
-    private function load_persistent_maps() {
-        foreach ($this->controllers as $device_id => $doors) {
-            $option_name = 'fsbhoa_profile_map_' . $device_id;
-            $this->persistent_maps[$device_id] = get_option($option_name, []);
-        }
-    }
 
     /**
-     * 4. Allocate IDs and Generate Content
+     * 3. Allocate IDs and Generate Content
      */
     private function allocate_and_generate() {
         foreach ($this->controllers as $device_id => $doors) {
@@ -191,67 +204,64 @@ class Fsbhoa_Permission_Compiler {
     }
 
     /**
-     * 5. Assign Permissions to Cards
+     * 4. Assign Permissions to Cards
+     * Maps the calculated Profile IDs to specific RFID cards.
      */
     private function assign_card_permissions() {
         foreach ($this->raw_data['cards'] as $card) {
-            // LOGIC FOR DISABLED CARDS
+            $rfid = $card->rfid_id;
+            
+            // LOGIC FOR DISABLED CARDS: Soft Revocation
             if ($card->card_status === 'disabled') {
-                // Force empty permissions for all controllers
                 foreach ($this->controllers as $device_id => $d) {
-                    $this->card_permissions[$card->rfid_id][$device_id] = "";
-                }
-                continue; // Skip the rest of the logic for this card
-            }
-            $group_ids = $this->raw_data['memberships'][$card->id] ?? [];
-            if (empty($group_ids)) continue;
-            
-            sort($group_ids);
-            $sig = implode(',', $group_ids);
-            
-            // Case 1: All Access
-            if ($this->has_global_access($group_ids)) {
-                foreach ($this->controllers as $device_id => $d) {
-                    $this->card_permissions[$card->rfid_id][$device_id] = "1:Y,2:Y,3:Y,4:Y";
+                    $this->card_permissions[$rfid][$device_id] = "";
                 }
                 continue;
             }
 
-            // Case 2: Restricted (Use Profile IDs)
+            $group_ids = $this->raw_data['memberships'][$card->id] ?? [];
+
+            // LOGIC FOR ORPHANED CARDS: Active status but no groups assigned
+            if (empty($group_ids)) {
+                foreach ($this->controllers as $device_id => $d) {
+                    $this->card_permissions[$rfid][$device_id] = "";
+                }
+                continue;
+            }
+
+            sort($group_ids);
+            $sig = implode(',', $group_ids);
+
+            // Case 1: All Access Override (Profile 1 logic)
+            if ($this->has_global_access($group_ids)) {
+                foreach ($this->controllers as $device_id => $d) {
+                    $this->card_permissions[$rfid][$device_id] = "1:Y,2:Y,3:Y,4:Y";
+                }
+                continue;
+            }
+
+            // Case 2: Restricted (Mapping Doors to Profile IDs)
             foreach ($this->controllers as $device_id => $doors) {
                 $perms = [];
                 foreach ($doors as $door_num => $d_id) {
                     $map_key = $sig . '|' . $door_num;
                     if (isset($this->persistent_maps[$device_id][$map_key])) {
                         $pid = $this->persistent_maps[$device_id][$map_key];
-                        // OPTIMIZATION: Only add if Profile ID > 0
-                        // Omitting '0' ensures that adding a new door to the system 
-                        // (which starts as 0) doesn't force a card rewrite.
+                        
+                        // We only include profiles > 0. 
+                        // If a door has no rule, it is omitted from the string.
                         if ($pid > 0) {
                             $perms[] = $door_num . ':' . $pid;
                         }
                     }
                 }
                 sort($perms);
-                // If $perms is empty, this results in "" (Blank String).
-                // This is valid! It tells the controller "Card exists, but no doors open."
-                $this->card_permissions[$card->rfid_id][$device_id] = implode(',', $perms);
+                // Result is "1:2,2:5" or "" if no doors are allowed.
+                $this->card_permissions[$rfid][$device_id] = implode(',', $perms);
             }
         }
     }
 
-    /**
-     * 6. Save Persistence
-     */
-    private function save_persistent_maps($is_dry_run) {
-        if ($is_dry_run) {
-            // error_log("COMPILER: Dry Run - Skipping map save.");
-            return;
-        }
-        foreach ($this->controllers as $device_id => $doors) {
-            update_option('fsbhoa_profile_map_' . $device_id, $this->persistent_maps[$device_id], false);
-        }
-    }
 
     // --- LOGIC HELPERS ---
 
@@ -290,59 +300,72 @@ class Fsbhoa_Permission_Compiler {
 
     /**
      * THE RULE ENGINE: Specificity + Union + Consolidation
+     * Updated to support multiple segments at the highest specificity level.
      */
     private function resolve_rules_for_door($group_ids, $device_id, $door_record_id) {
-        $final_segments = []; 
+        $final_segments = [];
+        $db_controller_id = $this->controller_serial_to_id[$device_id] ?? 0;
 
-        // We process each Group independently first (to find its "Winning" rule for this door)
-        // Then we merge the winners.
+        // Process each Group independently to find its "Winning" level of authority
         foreach ($group_ids as $gid) {
-            // Find ALL rules for this group
             $group_rules = [];
             foreach ($this->raw_data['permissions'] as $perm) {
-                if ($perm->group_id == $gid) $group_rules[] = $perm;
+                if ($perm->group_id == $gid) {
+                    $group_rules[] = $perm;
+                }
             }
 
-            // Apply Specificity Logic (Door > Controller > Global)
-            $best_rule = null;
-            $best_specificity = 0;
-
+            // 1. Determine the Highest Level of Authority available for this group on this gate
+            $max_spec_found = 0;
             foreach ($group_rules as $rule) {
                 $spec = 0;
                 if ($rule->door_id == $door_record_id) {
-                    $spec = 3; // Exact Match
-                } elseif ($rule->controller_id == $device_id && $rule->door_id == 0) { // Note: device_id check implies we map record ID to device ID correctly? 
-                    // Actually raw_data['permissions'] has controller_id (Record ID). 
-                    // $device_id passed here is usually Serial Number. 
-                    // We need Controller Record ID. 
-                    // Optimization: Assume Controller ID 0 = Global.
-                    // For Controller Specific, we need a lookup. Let's assume passed ID is Record ID or we handle it.
-                    // To be safe: Global (0,0) is spec 1.
-                    $spec = 2; 
+                    $spec = 3; // Level 1: Gate Specific
+                } elseif ($rule->controller_id == $db_controller_id && $rule->door_id == 0) {
+                    $spec = 2; // Level 2: Controller Specific
                 } elseif ($rule->controller_id == 0 && $rule->door_id == 0) {
-                    $spec = 1; // Global
+                    $spec = 1; // Level 3: Global
                 }
-
-                if ($spec > $best_specificity) {
-                    $best_specificity = $spec;
-                    $best_rule = $rule;
+                
+                if ($spec > $max_spec_found) {
+                    $max_spec_found = $spec;
                 }
             }
 
-            if ($best_rule) {
-                $final_segments[] = $best_rule;
+            // 2. Collect ALL rules that match that specific highest level
+            // This prevents a single gate-specific rule from overwriting other gate-specific rules.
+            foreach ($group_rules as $rule) {
+                $current_spec = 0;
+                if ($rule->door_id == $door_record_id) { $current_spec = 3; }
+                elseif ($rule->controller_id == $db_controller_id && $rule->door_id == 0) { $current_spec = 2; }
+                elseif ($rule->controller_id == 0 && $rule->door_id == 0) { $current_spec = 1; }
+
+                if ($current_spec === $max_spec_found && $max_spec_found > 0) {
+                    $final_segments[] = $rule;
+                }
             }
         }
 
         if (empty($final_segments)) return [];
 
-        // Normalize and Merge Time Windows (Consolidation)
+        // Normalize and Merge Time Windows (The Mathematical Union)
         return $this->normalize_rules_to_schedule($final_segments);
     }
 
     private function generate_profile_chain($device_id, $head_id, $schedule) {
-        // Chunk (3 spans per profile)
-        $chunks = []; 
+        // 1. Flatten the schedule into individual "Job Units"
+        // Each unit is: [Days, Span]
+        $flat_units = [];
+        foreach ($schedule as $day_sig => $windows) {
+            foreach ($windows as $span) {
+                $flat_units[] = ['days' => $day_sig, 'span' => $span];
+            }
+        }
+
+        // 2. Chunk these units into groups of 3 (Hardware limit)
+        // Note: To be perfectly safe, we chunk by 3 spans that share the SAME day mask.
+        // If different days have different spans, they must be in separate profiles.
+        $chunks = [];
         foreach ($schedule as $day_sig => $windows) {
             $window_chunks = array_chunk($windows, 3);
             foreach ($window_chunks as $wc) {
@@ -351,37 +374,47 @@ class Fsbhoa_Permission_Compiler {
         }
 
         $next_link = 0;
-        
-        // Iterate backwards
+    
+        // 3. Iterate backwards to build the linked list (Tail -> Head)
         for ($i = count($chunks) - 1; $i >= 0; $i--) {
             $chunk = $chunks[$i];
             $is_head = ($i === 0);
-            
+
+            // Content format for the sync service: "Mon,Tue|08:00-10:00,12:00-14:00"
             $content = $chunk['sig'] . '|' . implode(',', $chunk['spans']);
-            
-            $pid = 0;
+
             if ($is_head) {
-                $pid = $head_id; 
+                $pid = $head_id;
             } else {
-                // Dynamic Tail (Grow DOWN)
+                // Dynamic Tail (Grow DOWN from 254)
                 $pid = $this->dynamic_counters[$device_id]--;
-                
+
+                // CRITICAL: Mark this Tail ID as claimed so the Head allocator 
+                // doesn't bump into it from the other side.
+                $this->ids_claimed[$device_id][] = $pid;
+
                 // Collision Check
-                if (in_array($pid, $this->ids_claimed[$device_id])) {
-                    throw new Exception("Memory Collision on Device $device_id (Dynamic hit Stable $pid)");
+                if ($pid <= self::BASE_ID) {
+                     throw new Exception("Memory Exhausted on $device_id: Tails hit the Base ID limit.");
                 }
             }
-
+    
             $this->controller_profiles[$device_id][$pid] = [
                 'content' => $content,
                 'link'    => $next_link
             ];
+    
+            // The current PID becomes the 'link' for the next profile in the loop
             $next_link = $pid;
         }
     }
 
+
+    /**
+     * Group days with identical spans and merge overlaps.
+     */
     private function normalize_rules_to_schedule($rules) {
-        $by_day = []; 
+        $by_day = [];
         foreach ($rules as $r) {
             $days = [];
             if ($r->on_sun) $days[] = 'Sun';
@@ -391,25 +424,39 @@ class Fsbhoa_Permission_Compiler {
             if ($r->on_thu) $days[] = 'Thu';
             if ($r->on_fri) $days[] = 'Fri';
             if ($r->on_sat) $days[] = 'Sat';
-            
-            $span = [strtotime($r->start_time), strtotime($r->end_time)];
-            foreach ($days as $d) { $by_day[$d][] = $span; }
+
+            // Convert to timestamps for math
+            $start = strtotime($r->start_time);
+            $end = strtotime($r->end_time);
+
+            // Validation for Midnight Overlap (GUI should catch this, but we verify here)
+            if ($end < $start) {
+                throw new Exception("Compiler Error: Time span {$r->start_time}-{$r->end_time} spans midnight or is invalid.");
+            }
+
+            $span = [$start, $end];
+            foreach ($days as $d) { 
+                $by_day[$d][] = $span; 
+            }
         }
 
         $final_schedule = [];
         $all_days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-        
-        // Group days with identical spans
-        $day_groups = []; 
+
+        // Group days with identical merged spans to save profile slots
+        $day_groups = [];
 
         foreach ($all_days as $d) {
             if (empty($by_day[$d])) continue;
+            
             $merged = $this->merge_timestamps($by_day[$d]);
-            
+
             $span_strings = [];
-            foreach ($merged as $m) { $span_strings[] = date('H:i',$m[0]).'-'.date('H:i',$m[1]); }
+            foreach ($merged as $m) { 
+                $span_strings[] = date('H:i', $m[0]) . '-' . date('H:i', $m[1]); 
+            }
             $span_sig = implode(',', $span_strings);
-            
+
             $day_groups[$span_sig][] = $d;
         }
 
@@ -420,15 +467,25 @@ class Fsbhoa_Permission_Compiler {
         return $final_schedule;
     }
 
+    /**
+     * Mathematical Union of time ranges.
+     */
     private function merge_timestamps($ranges) {
-        usort($ranges, function($a, $b) { return $a[0] <=> $b[0]; });
-        $merged = [];
         if (empty($ranges)) return [];
         
+        // Sort by start time
+        usort($ranges, function($a, $b) { 
+            return $a[0] <=> $b[0]; 
+        });
+
+        $merged = [];
         $curr = $ranges[0];
-        for ($i=1; $i < count($ranges); $i++) {
+
+        for ($i = 1; $i < count($ranges); $i++) {
             $next = $ranges[$i];
-            if ($next[0] <= $curr[1]) {
+            
+            // If the next span starts before/at the current span ends, merge them
+            if ($next[0] <= $curr[1] +60) {
                 $curr[1] = max($curr[1], $next[1]);
             } else {
                 $merged[] = $curr;
@@ -438,5 +495,40 @@ class Fsbhoa_Permission_Compiler {
         $merged[] = $curr;
         return $merged;
     }
-}
+
+
+    /**
+     * Generates a permission set for a single group, ignoring membership.
+     * Used for GUI Visualizers and Previews.
+     */
+    public function get_preview_for_group($group_id) {
+        $this->load_data();
+        // Check if permissions exist now
+        if (!isset($this->raw_data['permissions'])) {
+            error_log("COMPILER PREVIEW: load_data failed to populate permissions.");
+            return [];
+        }
+        
+        // Find rules specifically for this group in memory
+        $group_matches = array_filter($this->raw_data['permissions'], function($p) use ($group_id) {
+            return (int)$p->group_id === (int)$group_id;
+        });
+        // error_log("COMPILER PREVIEW: Found " . count($group_matches) . " raw rules for Group " . $group_id);
+
+        $group_ids = [(int)$group_id];
+        $results = [];
+
+        foreach ($this->controllers as $device_id => $doors) {
+            foreach ($doors as $door_num => $door_record_id) {
+                $final_schedule = $this->resolve_rules_for_door($group_ids, $device_id, $door_record_id);
+                if (!empty($final_schedule)) {
+                    $results[$door_record_id] = $final_schedule;
+                }
+            }
+        }
+        return $results;
+    }
+
+
+} // end of class
 

@@ -59,17 +59,21 @@
             position: fixed;
             bottom: 10px;
             right: 10px;
-            width: 400px;
-            height: 200px;
-            background-color: rgba(0, 0, 0, 0.7);
+            width: 450px; /* Slightly wider for better readability */
+            height: 300px; /* Taller */
+            background-color: rgba(0, 0, 0, 0.85); /* Darker for better contrast */
             color: #0f0;
-            font-family: monospace;
-            font-size: 12px;
-            border: 1px solid #333;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border: 2px solid #444;
             overflow-y: scroll;
-            padding: 5px;
-            z-index: 9999;
+            padding: 10px;
+            z-index: 100000; /* Ensure it stays above everything */
             display: none;
+            text-align: left; /* FORCE LEFT JUSTIFICATION */
+            white-space: pre-wrap; /* Preserve spaces and wrap lines */
+            user-select: text; /* Explicitly allow text selection/copying */
+            pointer-events: auto; /* Ensure clicks/drags are captured */
         }
     </style>
     <div id="debug-log"></div>

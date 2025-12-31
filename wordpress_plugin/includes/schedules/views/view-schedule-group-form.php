@@ -20,8 +20,22 @@ if (!$is_new) {
 }
 
 $all_groups = $wpdb->get_results( $is_new ? "SELECT group_id, group_name FROM ac_groups ORDER BY group_name ASC" : $wpdb->prepare("SELECT group_id, group_name FROM ac_groups WHERE group_id != %d ORDER BY group_name ASC", $group_id) );
-$all_doors = $wpdb->get_results("SELECT door_record_id, friendly_name FROM ac_doors ORDER BY friendly_name ASC");
-$all_controllers = $wpdb->get_results("SELECT controller_record_id, friendly_name FROM ac_controllers ORDER BY friendly_name ASC");
+// 1. Get only doors attached to non-kiosk controllers
+$all_doors = $wpdb->get_results("
+    SELECT d.door_record_id, d.friendly_name
+    FROM ac_doors d
+    JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
+    WHERE c.type != 'VIRTUAL_KIOSK'
+    ORDER BY d.friendly_name ASC
+");
+
+// 2. Get only controllers that are not virtual kiosks
+$all_controllers = $wpdb->get_results("
+    SELECT controller_record_id, friendly_name
+    FROM ac_controllers
+    WHERE type != 'VIRTUAL_KIOSK'
+    ORDER BY friendly_name ASC
+");
 
 $has_all_access = isset($group->has_all_access) && $group->has_all_access;
 ?>
@@ -46,7 +60,7 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
         </div>
         <div class="form-field-group is-flexible">
             <label for="group_description"><?php _e('Description (Notes)', 'fsbhoa-ac'); ?></label>
-            <input type="text" id="group_description" name="group_description" value="<?php echo esc_attr($group->group_description ?? ''); ?>" <?php disabled(!$is_default_schedule); ?>>
+    <textarea id="group_description" name="group_description" rows="1" style="width: 100%; min-height: 30px; vertical-align: middle;" <?php disabled(!$is_default_schedule); ?>><?php echo esc_textarea($group->group_description ?? ''); ?></textarea>
         </div>
     </div>
 
@@ -94,32 +108,40 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
             </tbody>
         </table>
         <p style="margin-top: 1em;">
-            <button type="button" class="button" id="add-permission-rule" <?php disabled($has_all_access); ?>><?php _e('Add Permission Rule', 'fsbhoa-ac'); ?></button>
+            <button type="button" class="button" id="add-permission-rule" <?php disabled($has_all_access); ?>>
+                <?php _e('Add Permission Rule', 'fsbhoa-ac'); ?>
+            </button>
         </p>
     </div>
 
     <div class="form-actions-bar">
-        <input type="submit" name="submit" id="submit" class="button button-primary" value="Save Schedule Rules">
-        <a href="<?php echo esc_url(remove_query_arg(['action', 'group_id'])); ?>" class="button button-secondary"><?php _e('Cancel', 'fsbhoa-ac'); ?></a>
+    <a href="<?php echo esc_url(remove_query_arg(['action', 'group_id'])); ?>" class="button button-primary" id="exit-editor-btn">
+        <?php _e('Exit & Return to List', 'fsbhoa-ac'); ?>
+    </a>
+    <span id="sync-status-indicator" style="margin-left: 15px; color: #666; font-style: italic; font-size: 12px;">
+    <span class="dashicons dashicons-saved" style="font-size: 16px; vertical-align: middle;"></span> All changes automatically saved
+</span>
     </div>
 </form>
 
-<table style="display: none;">
-    <tbody id="permission-row-template">
-        <?php
-            $index = '{{INDEX}}';
-            $perm = null;
-            include FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-permission-row.php';
-        ?>
-    </tbody>
-</table>
-<?php
+<div style="display: none;" id="permission-template-wrapper">
+    <table>
+        <tbody id="permission-row-template">
+            <?php
+                $index = '{{INDEX}}';
+                $perm = null;
+                include FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-permission-row.php';
+            ?>
+        </tbody>
+    </table>
+</div>
+
+<?php if (!$is_new) :
 // Only show the visualizer when editing an existing group that is NOT "All Access"
-if (!$is_new && isset($group->has_all_access) && !$group->has_all_access) :
+// But we need to render it so it can be shown.
+// The visualizer uses the $group_id and $schedule_id variables defined in this file's context.
 ?>
-    <hr>
-    <?php 
-    // The visualizer uses the $group_id and $schedule_id variables defined in this file's context.
-    include_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-schedule-visualizer.php'; 
-    ?>
+    <div id="fsbhoa-visualizer-wrapper" style="<?php echo ($has_all_access) ? 'display: none;' : ''; ?>">
+        <?php include_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-schedule-visualizer.php'; ?>
+    </div>
 <?php endif; ?>

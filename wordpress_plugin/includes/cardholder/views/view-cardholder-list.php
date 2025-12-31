@@ -5,6 +5,17 @@ if ( ! defined( 'WPINC' ) ) { die; }
  * Renders the front-end list of cardholders using a custom HTML table enhanced by DataTables.
  */
 function fsbhoa_render_cardholder_list_view() {
+    // 1. INJECT CSS FIX TO KILL 404s
+    ?>
+    <style>
+        /* Override vendor CSS to stop looking for missing PNGs */
+        table.dataTable thead th, 
+        table.dataTable thead td {
+            background-image: none !important;
+        }
+        /* DataTables 2.0+ uses SVG/pseudo-elements now anyway, so this is safe */
+    </style>
+    <?php
     // We can still use the static method from our old List Table class to fetch the data
     $cardholders =  Fsbhoa_Cardholder_Admin_Page::get_cardholders(999, 1, 'last_name', 'asc');
     $current_page_url = get_permalink(); 

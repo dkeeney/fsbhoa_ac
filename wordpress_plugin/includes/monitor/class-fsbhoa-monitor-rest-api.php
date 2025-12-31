@@ -7,6 +7,7 @@
 if ( ! defined( 'WPINC' ) ) {
     die;
 }
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
 
 class Fsbhoa_Monitor_REST_API {
 
@@ -329,7 +330,6 @@ class Fsbhoa_Monitor_REST_API {
         
         // Safety: If cache is stale or missing (e.g., missed cron), rebuild it now.
         if (empty($cache) || $cache_date !== current_time('Y-m-d')) {
-            require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-permission-functions.php';
             fsbhoa_rebuild_monitor_status_cache();
             $cache = get_option('fsbhoa_monitor_daily_cache', []);
         }

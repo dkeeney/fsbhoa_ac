@@ -51,6 +51,7 @@ class Fsbhoa_Cardholder_Actions {
     }
 
     public function handle_delete_cardholder_action() {
+        global $wpdb;
         if ( ! isset($_GET['cardholder_id']) || ! is_numeric($_GET['cardholder_id']) ) {
             wp_die( esc_html__( 'Invalid cardholder ID specified.', 'fsbhoa-ac' ), esc_html__( 'Error', 'fsbhoa-ac' ), array( 'response' => 400, 'back_link' => true ) );
         }
@@ -58,9 +59,12 @@ class Fsbhoa_Cardholder_Actions {
         $item_id_to_delete = absint( $_GET['cardholder_id'] );
         $nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
+
         if ( ! wp_verify_nonce( $nonce, 'fsbhoa_delete_cardholder_nonce_' . $item_id_to_delete ) ) {
             wp_die( esc_html__( 'Security check failed. Could not archive cardholder.', 'fsbhoa-ac' ), esc_html__( 'Error', 'fsbhoa-ac' ), array( 'response' => 403, 'back_link' => true ) );
         }
+
+        $rfid_id = $wpdb->get_var($wpdb->prepare("SELECT rfid_id FROM ac_cardholders WHERE id = %d", $item_id_to_delete));
 
         $result = fsbhoa_archive_and_delete_cardholder( $item_id_to_delete );
 
@@ -76,7 +80,8 @@ class Fsbhoa_Cardholder_Actions {
             $error_string = $result->get_error_message();
             $redirect_url = add_query_arg( array( 'message' => 'cardholder_archive_error', 'error' => urlencode($error_string) ), $redirect_url );
         } else {
-            fsbhoa_log_pending_change('cardholder', $item_id_to_delete );
+            $log_data = json_encode(['rfid_id' => $rfid_id, 'action' => 'delete']);
+            fsbhoa_log_pending_change('cardholder', $item_id_to_delete, $log_data );
             $redirect_url = add_query_arg( array( 'message' => 'cardholder_archived_successfully' ), $redirect_url );
         }
 
@@ -96,6 +101,7 @@ class Fsbhoa_Cardholder_Actions {
         check_admin_referer($nonce_action, '_wpnonce');
 
         $existing_data = array();
+        $submitted_groups = array();
         if ($is_update) {
             $existing_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_name} WHERE id = %d", $item_id), ARRAY_A);
             if ($wpdb->last_error) {
@@ -104,6 +110,8 @@ class Fsbhoa_Cardholder_Actions {
             if ($existing_data === null) {
                  wp_die(esc_html__('Error: The cardholder you are trying to edit could not be found. It may have been deleted.'), 'Not Found', array('back_link' => true));
             }
+            $existing_groups = get_cardholder_group_memberships($item_id);
+            $existing_data['groups_csv'] = implode(',', $existing_groups);
         }
 
         $view_path = FSBHOA_AC_PLUGIN_DIR . 'includes/cardholder/views/';
@@ -120,23 +128,45 @@ class Fsbhoa_Cardholder_Actions {
         $errors = array_merge($profile_results['errors'], $address_results['errors'], $photo_results['errors'], $rfid_results['errors']);
         $data_to_save = array_merge($existing_data, $profile_results['data'], $address_results['data'], $photo_results['data'], $rfid_results['data']);
 
+
         // Unset the 'active_rfid' key before saving. We cannot explicitly set the
         // value of a generated column, the database calculates it automatically.
         unset($data_to_save['active_rfid']);
 
+        $sync_needed = false;
         if ( empty($errors) ) {
+            // Note: when a cardholder is Live the values in ac_cardholder_groups table is authoritative.
+            //       But when cardholder is archived, the 'groups_csv' is authoritative.
+            $submitted_groups = isset($_POST['cardholder_groups']) ? (array) array_map('absint', $_POST['cardholder_groups']) : [];
+            sort($submitted_groups);
+            $data_to_save['groups_csv'] = implode(',', $submitted_groups);
+
             if ( $is_update ) {
+                // Update condition
+                // ---  RFID OVERWRITE DETECTION ---
+                $new_rfid = (string) $data_to_save['rfid_id'];
+                $old_rfid = (string) $existing_data['rfid_id'];
+
+                if ( ! empty($old_rfid) && $old_rfid !== $new_rfid ) {
+                    // Log the OLD RFID to be removed from the controller
+                    $old_data = json_encode(['rfid_id' => $old_rfid, 'action' => 'delete']);
+                    fsbhoa_log_pending_change('cardholder', $item_id, $old_data);
+                }
+                // Changes affect sync?  Compare strings for efficiency
+                if ($new_rfid !== $old_rfid || 
+                    $data_to_save['card_status'] !== $existing_data['card_status'] ||
+                    $data_to_save['groups_csv'] !== $existing_data['groups_csv'])
+                {
+                    $sync_needed = true;
+                }
+
                 $result = $wpdb->update( $table_name, $data_to_save, array('id' => $item_id) );
                 if ($result === false) {
                     $errors['db_error'] = 'A database error occurred while updating. Please try again. Error: ' . $wpdb->last_error;
                     error_log('FSBHOA DB Update Error: ' . $wpdb->last_error);
                 }
-                $existing_groups = $wpdb->get_col($wpdb->prepare("SELECT group_id FROM ac_cardholder_groups WHERE cardholder_id = %d", $item_id));
-                if ($wpdb->last_error) {
-                    wp_die('Database error: Could not retrieve existing groups. ' . esc_html($wpdb->last_error), 'Database Error', ['back_link' => true]);
-                }
-                sort($existing_groups);
             } else {
+                // Add Condition
                 $result = $wpdb->insert( $table_name, $data_to_save );
                 if ($result === false) {
                     $errors['db_error'] = 'A database error occurred while adding. Error: ' . $wpdb->last_error;
@@ -144,9 +174,11 @@ class Fsbhoa_Cardholder_Actions {
                 } else {
                     $item_id = $wpdb->insert_id;
                 }
+                if (isset($data_to_save['rfid_id']) && !empty($data_to_save['rfid_id'])) {
+                    $sync_needed = true;
+                }
             }
             if (empty($errors)) {
-                $submitted_groups = isset($_POST['cardholder_groups']) ? (array) $_POST['cardholder_groups'] : [];
                 $this->save_cardholder_groups($item_id, $submitted_groups);
             }
         }
@@ -160,21 +192,6 @@ class Fsbhoa_Cardholder_Actions {
         }
 
         $message_code = $is_update ? 'cardholder_updated' : 'cardholder_added';
-        $sync_needed = false;
-        if (!$is_update) {
-            $sync_needed = true;
-        } else {
-            $submitted_groups = isset($_POST['cardholder_groups']) ? (array) array_map('absint', $_POST['cardholder_groups']) : [];
-            sort($submitted_groups);
-
-            if ( (string) $data_to_save['rfid_id'] !== (string) $existing_data['rfid_id'] ||
-                 $data_to_save['card_status'] !== $existing_data['card_status'] ||
-                 $submitted_groups !== $existing_groups )
-            {
-                $sync_needed = true;
-            }
-        }
-
         if ($sync_needed) {
             fsbhoa_log_pending_change('cardholder', $item_id);
         }
