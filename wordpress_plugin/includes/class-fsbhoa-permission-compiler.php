@@ -177,6 +177,16 @@ class Fsbhoa_Permission_Compiler {
 
                 // Process Each Door
                 foreach ($doors as $door_num => $door_record_id) {
+
+                    // If Global All Access, map it to the Hardcoded Hardware Profile 1 (Always accessable)
+                    if ($this->has_global_access($group_ids)) {
+                        foreach ($doors as $door_num => $door_record_id) {
+                            $map_key = $sig . '|' . $door_num;
+                            $this->persistent_maps[$device_id][$map_key] = 1; 
+                        }
+                        // Don't  build a hardware profile for ID 1
+                        continue; 
+                    }
                     
                     // A. Resolve Rules (Specificity + Union + Merging)
                     $final_schedule = $this->resolve_rules_for_door($group_ids, $device_id, $door_record_id);
@@ -529,6 +539,16 @@ class Fsbhoa_Permission_Compiler {
         return $results;
     }
 
+    /**
+     * Translates a Hardware Serial and Door Number into a WordPress Door Record ID.
+     * Used by the Monitor REST API to identify which dot to throb.
+     */
+    public function get_door_id_from_hardware($serial, $door_num) {
+        if (isset($this->controllers[$serial][$door_num])) {
+            return (int)$this->controllers[$serial][$door_num];
+        }
+        return false;
+    }
 
 } // end of class
 

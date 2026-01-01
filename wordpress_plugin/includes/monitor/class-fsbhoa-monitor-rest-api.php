@@ -8,6 +8,7 @@ if ( ! defined( 'WPINC' ) ) {
     die;
 }
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-permission-compiler.php';
 
 class Fsbhoa_Monitor_REST_API {
 
@@ -324,51 +325,63 @@ class Fsbhoa_Monitor_REST_API {
     
 
     public function get_group_status_callback(WP_REST_Request $request) {
-        // 1. Load Cache
-        $cache = get_option('fsbhoa_monitor_daily_cache', []);
-        $cache_date = get_option('fsbhoa_monitor_cache_date', '');
-        
-        // Safety: If cache is stale or missing (e.g., missed cron), rebuild it now.
-        if (empty($cache) || $cache_date !== current_time('Y-m-d')) {
-            fsbhoa_rebuild_monitor_status_cache();
-            $cache = get_option('fsbhoa_monitor_daily_cache', []);
-        }
+    // 1. Initialize
+    $target_group_id = get_option('fsbhoa_monitor_status_group_id', 0);
+    $active_schedule_id = fsbhoa_get_active_schedule_id();
+    $blob = get_option('fsbhoa_profile_persistent_maps', []);
 
-        if (empty($cache)) {
-            return rest_ensure_response([]); // No config or no doors
-        }
-
-        // 2. Compare against Current Time
-        $now = current_time('H:i'); // e.g. '14:30'
-        $status_map = [];
-
-        foreach ($cache as $door_id => $rule) {
-            if ($rule === 'ALWAYS') {
-                $status_map[$door_id] = true;
-                continue;
-            }
-
-            if ($rule === null) {
-                $status_map[$door_id] = false;
-                continue;
-            }
-
-            // Time comparison
-            $start = $rule['start'];
-            $end   = $rule['end'];
-
-            if ($end <= $start) {
-                // Overnight rule (e.g. 22:00 to 05:00)
-                // Open if NOW > Start OR NOW < End
-                $status_map[$door_id] = ($now >= $start || $now <= $end);
-            } else {
-                // Normal rule (e.g. 08:00 to 20:00)
-                $status_map[$door_id] = ($now >= $start && $now <= $end);
-            }
-        }
-
-        return rest_ensure_response($status_map);
+    // 2. Quick Exit: No target or map out of sync with hardware schedule
+    if (!$target_group_id || !isset($blob['schedule_id']) || (int)$blob['schedule_id'] !== $active_schedule_id) {
+        return rest_ensure_response([]); 
     }
+
+    // 3. Prepare the Compiler (Loads translation maps into memory)
+    $compiler = new Fsbhoa_Permission_Compiler($active_schedule_id);
+    $preview = $compiler->get_preview_for_group($target_group_id);
+
+    $now = current_time('H:i');
+    $today = current_time('D');
+    $status_map = [];
+
+    // 4. Loop through the Map Blob (The "Hardware Truth")
+    foreach ($blob['maps'] as $serial => $mappings) {
+        foreach ($mappings as $key => $pid) {
+            // Key is "GroupID|DoorNum" (e.g., "3|1")
+            list($sig, $door_num) = explode('|', $key);
+
+            // We only process the group configured for the monitor
+            if ($sig != $target_group_id) continue;
+
+            // Translate hardware address to dot ID
+            $door_id = $compiler->get_door_id_from_hardware($serial, $door_num);
+            if (!$door_id) continue;
+
+            if ($pid === 1) {
+                // Hardcoded Profile 1 = All Access
+                $status_map[$door_id] = true;
+            } elseif ($pid > 1 && isset($preview[$door_id])) {
+                // Scheduled Profile logic
+                $is_open = false;
+                foreach ($preview[$door_id] as $days => $windows) {
+                    if (strpos($days, $today) !== false) {
+                        foreach ($windows as $window) {
+                            list($start, $end) = explode('-', $window);
+                            if ($now >= $start && $now <= $end) { 
+                                $is_open = true; 
+                                break 2; 
+                            }
+                        }
+                    }
+                }
+                $status_map[$door_id] = $is_open;
+            } else {
+                $status_map[$door_id] = false;
+            }
+        }
+    }
+
+    return rest_ensure_response($status_map);
+}
 
 
 } // end of class
