@@ -6,31 +6,81 @@ if ( ! defined( 'WPINC' ) ) { die; }
  */
 function fsbhoa_render_live_monitor_view() {
     ?>
-    <div class="fsbhoa-center-button-container">
+<div class="fsbhoa-center-button-container">
        <button id="fsbhoa-toggle-map-btn" class="button">Hide Map</button>
     </div>
+
     <div class="fsbhoa-frontend-wrap monitor-page-override">
 
-        <!-- Top Section: Live Map -->
         <div id="fsbhoa-map-section">
-            <div class="bg-white rounded-xl shadow-md p-6 mb-8 max-w-2xl mx-auto">
-		<h2 class="text-xl font-semibold mb-4">Community Status Map</h2>
-		<div id="map-container" class="relative">
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8 max-w-4xl mx-auto">
+                <h2 class="text-xl font-semibold mb-4">Community Status Map</h2>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+                    
+                    <div id="map-container" class="relative" style="flex: 1; min-width: 300px;">
+                        <img src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" alt="Community Map" style="display: block; width: 100%; height: auto; border-radius: 0.5rem;">
 
-	            <img src="<?php echo esc_url(get_option('fsbhoa_monitor_map_url', '')); ?>" alt="Community Map" style="display: block; width: 100%; height: auto; border-radius: 0.5rem;">
+                        <div id="connection-status" class="flex items-center space-x-2 px-3 py-1 rounded-full bg-yellow-200 text-yellow-800 text-sm font-medium">
+                            <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                            <span>Connecting...</span>
+                        </div>
+                    </div>
 
-				<div id="connection-status" class="flex items-center space-x-2 px-3 py-1 rounded-full bg-yellow-200 text-yellow-800 text-sm font-medium" >
-					<div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
-					<span>Connecting...</span>
-	 	    </div>
+                    <div id="fsbhoa-gate-legend" style="width: 220px; flex-shrink: 0; border-radius: 8px; background: #f9f9f9; padding: 15px; border: 1px solid #ddd;">
+                        <h3 class="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4" style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 5px;">Status Key</h3>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            
+                            <div class="flex items-center">
+                                <div style="width: 30px; display: flex; justify-content: center; position: relative;">
+                                    <div class="gate-light status-unlocked" style="position: static; transform: none; background-color: #22c55e; color: #22c55e;"></div>
+                                </div>
+                                <span class="text-sm font-medium text-gray-700 ml-2">Open</span>
+                            </div>
+                    
+                            <div class="flex items-center">
+                                <div style="width: 30px; display: flex; justify-content: center; position: relative;">
+                                    <div class="gate-light status-locked" style="position: static; transform: none; background-color: #ef4444; color: #ef4444;"></div>
+                                </div>
+                                <span class="text-sm font-medium text-gray-700 ml-2">Closed</span>
+                            </div>
+                    
+                            <div class="flex items-center">
+                                <div style="width: 30px; display: flex; justify-content: center; position: relative;">
+                                    <div class="gate-light status-intermediate" style="position: static; transform: none; background-color: #f59e0b; color: #f59e0b;"></div>
+                                </div>
+                                <span class="text-sm font-medium text-gray-700 ml-2">Controlled</span>
+                            </div>
+                    
+                            <div class="flex items-center">
+                                <div style="width: 30px; display: flex; justify-content: center; position: relative; height: 30px; align-items: center;">
+                                    <div class="gate-light status-intermediate-throb" 
+                                         style="position: relative; 
+                                                display: block; 
+                                                width: 14px;   /* Shrink base to compensate for pulse */
+                                                height: 14px;  /* Shrink base to compensate for pulse */
+                                                background-color: #f59e0b; 
+                                                color: #f59e0b; 
+                                                animation: pulse 2s infinite; 
+                                                box-shadow: 0 0 5px #f59e0b;">
+                                    </div>
+                                </div>
+                                <span class="text-sm font-medium text-gray-700 ml-2">Resident Access</span>
+                            </div>
 
-		</div>
-	    </div>
+                            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+                            <p style="font-size: 10px; color: #999; line-height: 1.2; font-style: italic;">
+                                Note: Throbbing indicates the gate is currently following a resident access schedule.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
        </div>
 
-       <!-- Bottom Section: Event Log -->
        <div id="activity-log-section">
-           <div class="max-w-2xl mx-auto"> 
+           <div class="max-w-2xl mx-auto">
                <h2 class="text-xl font-semibold mb-4">Today's Activity Log</h2>
                <div class="bg-white rounded-xl shadow-md overflow-hidden">
                    <div id="event-log-container" class="h-[36rem] overflow-y-auto">
@@ -46,4 +96,3 @@ function fsbhoa_render_live_monitor_view() {
     </div>
     <?php
 }
-
