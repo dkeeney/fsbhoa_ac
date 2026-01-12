@@ -350,7 +350,9 @@ function fsbhoa_execute_task_sync($device_id, $controller_id, $active_schedule_i
     if (!$is_dry_run) {
         $output_clear_tasks = shell_exec($clear_task_list_command);
         if (strpos($output_clear_tasks, 'false') !== false || strpos($output_clear_tasks, 'ERROR') !== false) {
-             error_log("SYNC WARNING (CLEAR TASKS) for $device_id: $output_clear_tasks");
+            error_log("SYNC WARNING (CLEAR TASKS) for $device_id: $output_clear_tasks");
+        } else {
+            error_log("SYNC Clearing Tasks: " . $clear_task_list_command);
         }
     } else {
         error_log("DRY RUN: Would execute: " . $clear_task_list_command);
@@ -402,7 +404,7 @@ function fsbhoa_execute_task_sync($device_id, $controller_id, $active_schedule_i
         if (strpos($output_refresh_tasks, 'false') !== false || strpos($output_refresh_tasks, 'ERROR') !== false) {
              error_log("SYNC FAILED (REFRESH TASKS) for $device_id: $output_refresh_tasks");
         } else {
-             error_log("SYNC (REFRESH TASKS) for $device_id: $output_refresh_tasks");
+             error_log("SYNC Refresh Tasks: " . $refresh_task_list_command);
         }
     } else {
         error_log("DRY RUN (REFRESH TASKS) for $device_id: $output_refresh_tasks");
