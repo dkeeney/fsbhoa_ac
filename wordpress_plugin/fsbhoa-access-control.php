@@ -151,6 +151,9 @@ if ( ! function_exists( 'get_screen_option' ) ) {
     require_once ABSPATH . 'wp-admin/includes/screen.php';
 }
 
+//   -- API ---
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/api/class-fsbhoa-verification-rest-api.php';
+
 /**
  * Begins execution of the plugin's admin parts.
  * Initializes admin menu and action handlers.
@@ -242,6 +245,7 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_Amenity_Actions();
     }
 
+
     // Note: Fsbhoa_Cardholder_Admin_Page is instantiated by the menu callback in Fsbhoa_Admin_Menu
     // when its specific page is loaded. If it were missing, the callback would show an error.
     // We don't need to instantiate it here just for its hooks if its constructor is now empty of hooks.
@@ -288,6 +292,10 @@ function fsbhoa_ac_api_init() {
     if (class_exists('Fsbhoa_Import_REST_API')) {
         $import_api = new Fsbhoa_Import_REST_API();
         $import_api->register_routes();
+    }
+    if (class_exists('Fsbhoa_Verification_REST_API')) {
+        $verification_api = new Fsbhoa_Verification_REST_API();
+        $verification_api->register_routes();
     }
     
     // Any other true REST API handlers would be initialized here in the future.
