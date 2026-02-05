@@ -157,3 +157,10 @@ body {
     max-height: 100%;
     object-fit: contain;
 }
+
+
+#card-reader-input:focus {
+    outline: none !important;
+    border: none !important;
+    caret-color: transparent !important;
+}

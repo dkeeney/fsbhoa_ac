@@ -394,6 +394,7 @@ function fsbhoa_execute_task_sync($device_id, $controller_id, $active_schedule_i
                         usleep($retry_wait);
                     }
                 }
+                usleep(100000); // 0.1 Seconds
             }
         }
     }

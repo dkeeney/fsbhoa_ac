@@ -601,9 +601,26 @@ function forceFocus() {
     cardReaderInput.focus();
 }
 
+//function startFocusCapture() {
+//    cardReaderInput.addEventListener('blur', forceFocus);
+//    cardReaderInput.addEventListener('input', handleCardInput);
+//    forceFocus();
+//}
 function startFocusCapture() {
+    // Ensure the field is readOnly before focusing to prevent OSK
+    cardReaderInput.readOnly = true; 
+    
     cardReaderInput.addEventListener('blur', forceFocus);
     cardReaderInput.addEventListener('input', handleCardInput);
+    
+    // This allows the physical RFID reader (keyboard) to type 
+    // even though the field is 'readOnly' for the touch OS
+    cardReaderInput.addEventListener('keydown', (e) => {
+        cardReaderInput.readOnly = false;
+        // The character will be allowed through
+        setTimeout(() => { cardReaderInput.readOnly = true; }, 1);
+    });
+
     forceFocus();
 }
 
