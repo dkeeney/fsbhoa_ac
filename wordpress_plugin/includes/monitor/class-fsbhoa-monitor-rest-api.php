@@ -128,23 +128,45 @@ class Fsbhoa_Monitor_REST_API {
 
         error_log('[RAW EVENT DATA] ' . print_r($params, true));
 
-        if ( !isset($params['SerialNumber']) || !isset($params['Door']) ) {
+        $serial = strval($params['SerialNumber'] ?? '');
+        $provided_door = absint($params['Door'] ?? 0);
+        $zone_name = sanitize_text_field($params['ZoneName'] ?? '');
+
+        // If this is our virtual lighting controller, QR scan. let's find the "Real" Door ID by name
+        // NOTE: For this to work, the Zone name must match the door name.
+        if ( $serial === '900001' && !empty($zone_name) ) {
+            $db_door = $wpdb->get_row( $wpdb->prepare( "
+                SELECT d.door_number_on_controller, d.door_record_id
+                FROM ac_doors d
+                JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
+                WHERE c.uhppoted_device_id = '900001'
+                AND d.friendly_name = %s
+                LIMIT 1
+            ", $zone_name ) );
+
+            if ( $db_door ) {
+                $provided_door = absint($db_door->door_number_on_controller);
+            }
+        }
+
+
+        if ( empty($serial) || $provided_door == 0 ) {
             return new WP_Error( 'bad_request', 'Missing required event parameters.', array( 'status' => 400 ) );
         }
         $raw_card_number = absint($params['CardNumber'] ?? 0);
 
-	$log_data = [
-		'event_timestamp'       => $params['Timestamp'] ?? current_time('mysql'),
-		'controller_identifier' => strval($params['SerialNumber']),
-		'door_number'           => absint($params['Door']),
-                'rfid_id' => ($raw_card_number === 0) ? 
+	    $log_data = [
+		    'event_timestamp'       => $params['Timestamp'] ?? current_time('mysql'),
+		    'controller_identifier' => $serial,
+		    'door_number'           => $provided_door,
+            'rfid_id' => ($raw_card_number === 0) ? 
                      NULL : // If the number is 0 (the 'no card' indicator), set to NULL.
                      sprintf('%08d', $raw_card_number), // Otherwise, pad the number with leading zeros to 8 characters.
-		'event_type_code'       => absint($params['Reason']),
-                'event_description'     => isset($params['EventMessage']) ? sanitize_text_field($params['EventMessage']) : 'Unknown Event',
-		'access_granted'        => isset($params['Granted']) ? ($params['Granted'] ? 1 : 0) : null,
-                'amenity_name'          => NULL,
-	];
+		    'event_type_code'       => absint($params['Reason']),
+            'event_description'     => isset($params['EventMessage']) ? sanitize_text_field($params['EventMessage']) : 'Unknown Event',
+		    'access_granted'        => isset($params['Granted']) ? ($params['Granted'] ? 1 : 0) : null,
+            'amenity_name'          => NULL,
+	    ];
 
         // Process the event and write to the access log via the centralized service.
         $result = Fsbhoa_Access_Service::process_and_write_event( $log_data );

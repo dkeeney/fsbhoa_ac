@@ -58,7 +58,7 @@ class Fsbhoa_Verification_REST_API {
         
         // Query: Join Logs to Cardholders to find a valid swipe by this email
         $query = $wpdb->prepare("
-            SELECT log.event_timestamp, log.amenity_name, log.controller_identifier, log.door_number
+            SELECT log.event_timestamp, log.amenity_name, log.controller_identifier, log.door_number, ch.rfid_id
             FROM {$log_table} log
             INNER JOIN {$cardholders_table} ch ON log.cardholder_id = ch.id
             WHERE ch.email = %s
@@ -73,6 +73,7 @@ class Fsbhoa_Verification_REST_API {
         if ( $swipe ) {
             return new WP_REST_Response([
                 'isValid' => true,
+                'rfid_id' => $swipe->rfid_id,
                 'message' => 'Valid recent entry found.',
                 'details' => [
                     'time' => $swipe->event_timestamp,
