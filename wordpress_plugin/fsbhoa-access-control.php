@@ -61,8 +61,13 @@ function fsbhoa_force_login_redirect() {
         return;
     }
 
+    // 2. Check if we are already on the login page to avoid loops
+    if ( strpos($_SERVER['SCRIPT_NAME'], 'wp-login.php') !== false ) {
+        return;
+    }
+
     // For all other pages, redirect the logged-out user to the login page.
-    wp_redirect( wp_login_url() );
+    wp_safe_redirect( wp_login_url( home_url( $_SERVER['REQUEST_URI'] ) ) );
     exit;
 }
 add_action( 'template_redirect', 'fsbhoa_force_login_redirect' );
