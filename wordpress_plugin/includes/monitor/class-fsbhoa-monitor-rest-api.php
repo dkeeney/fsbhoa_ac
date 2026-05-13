@@ -234,6 +234,7 @@ class Fsbhoa_Monitor_REST_API {
             'gateName'       => $event['gate_name'] ?: ($event['controller_identifier'] === 'kiosk' ? get_option('fsbhoa_kiosk_name', 'Kiosk') : 'Unknown Gate'),
             'timestamp'      => date('g:i:s A', strtotime($event['event_timestamp'])),
             'eventMessage'   => $event['event_description'],
+            'controller_identifier' => $event['controller_identifier'],
             'cardNumber'     => (int)ltrim($event['rfid_id'], '0'),
             'doorRecordId'   => (int)$event['door_record_id'],
             'streetAddress'  => $event['street_address'] ?? 'N/A',
@@ -272,6 +273,7 @@ class Fsbhoa_Monitor_REST_API {
                 'timestamp'      => date('g:i:s A', strtotime($event['event_timestamp'])),
                 'eventMessage'   => $event['event_description'],
                 'cardNumber'     => (int)ltrim($event['rfid_id'], '0'),
+                'controller_identifier' => $event['controller_identifier'],
                 'doorRecordId'   => (int)$event['door_record_id'],
                 'streetAddress'  => $event['street_address'] ?? 'N/A',
             ];
