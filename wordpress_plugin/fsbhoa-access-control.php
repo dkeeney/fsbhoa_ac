@@ -61,8 +61,14 @@ function fsbhoa_force_login_redirect() {
         return;
     }
 
-    // 2. Check if we are already on the login page to avoid loops
-    if ( strpos($_SERVER['SCRIPT_NAME'], 'wp-login.php') !== false ) {
+    //  Do nothing if this is an AJAX, Cron, or CLI request
+    if ( (defined('DOING_AJAX') && DOING_AJAX) || (defined('DOING_CRON') && DOING_CRON) ) {
+        return;
+    }
+
+    // Check if we are already on the login page or trying to log in
+    // This prevents the "Too Many Redirects" error.
+    if ( $GLOBALS['pagenow'] === 'wp-login.php' || (isset($_REQUEST['action']) && $_REQUEST['action'] === 'login') ) {
         return;
     }
 

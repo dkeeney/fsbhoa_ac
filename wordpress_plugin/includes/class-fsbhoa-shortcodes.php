@@ -26,7 +26,9 @@ class Fsbhoa_Shortcodes {
 
     public function render_cardholder_management_shortcode( $atts ) {
         if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
-            return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
+            return '<div class="notice notice-error"><p>' .
+               esc_html__( 'Access Denied: This tool is for IT Committee use only.', 'fsbhoa-ac' ) .
+               ' <a href="' . home_url() . '">Return to Home Page</a></p></div>';
         }
 
         $current_view = 'cardholders';
