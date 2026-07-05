@@ -411,10 +411,15 @@ private function parse_cardholders_from_row($row)
 
         // Tenants
         if (!empty($tenant_names_str)) {
-            $tenant_names = array_map('trim', explode(',', $tenant_names_str));
-            $tenant_emails = !empty($tenant_emails_str) ? array_map('trim', explode(',', $tenant_emails_str)) : [];
+            // Split by comma, newline (\n or \r), or any variation of <br> tags
+            $split_pattern = '/(,|[\n\r]|<br\s*\/?>|<\/br>)/i';
+            $tenant_names = preg_split($split_pattern, $tenant_names_str, -1, PREG_SPLIT_NO_EMPTY);
+            $tenant_names = array_map('trim', $tenant_names);
+            $tenant_emails = preg_split($split_pattern, $tenant_emails_str, -1, PREG_SPLIT_NO_EMPTY);
+            $tenant_emails = array_map('trim', $tenant_emails);
             $tenant_phones_str_cleaned = str_replace(':', ',', $tenant_phones_str);
-            $tenant_phones = !empty($tenant_phones_str_cleaned) ? array_map('trim', explode(',', $tenant_phones_str_cleaned)) : [];
+            $tenant_phones = preg_split($split_pattern, $tenant_phones_str_cleaned, -1, PREG_SPLIT_NO_EMPTY);
+            $tenant_phones = array_map('trim', $tenant_phones);
 
             foreach ($tenant_names as $index => $name) {
                 $name_parts = array_filter(explode(' ', trim($name)));
