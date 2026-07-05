@@ -73,11 +73,11 @@ function fsbhoa_render_live_monitor_view() {
                             <p style="font-size: 10px; color: #999; line-height: 1.2; font-style: italic;">
                                 Note: Throbbing indicates the gate is currently following a resident access schedule.
                             </p>
+                            <div id="fsbhoa-schedule-indicator" class="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm hidden">
+                                <span class="font-bold text-blue-800 block mb-1">Active Schedule:</span>
+                                <span id="current-schedule-name" class="text-blue-900 font-medium">Loading...</span>
+                            </div>
                         </div>
-                    </div>
-                    </div> <div id="fsbhoa-schedule-indicator" class="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm hidden" style="width: 220px;">
-                        <span class="font-bold text-blue-800 block mb-1">Active Schedule</span>
-                        <span id="current-schedule-name" class="text-blue-900 font-medium">Loading...</span>
                     </div>
                 </div>
             </div>
