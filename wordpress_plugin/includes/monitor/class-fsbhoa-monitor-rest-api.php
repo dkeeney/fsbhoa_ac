@@ -65,6 +65,13 @@ class Fsbhoa_Monitor_REST_API {
             'permission_callback' => '__return_true', // Public read-only status
         ) );
 
+        // This route is called by the monitor page to get the current active schedule name
+        register_rest_route( $this->namespace, '/monitor/current-schedule', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'get_current_schedule_callback' ),
+            'permission_callback' => '__return_true', // Public read-only for the monitor
+        ) );
+
         register_rest_route( $this->namespace, '/monitor/set-door-state', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'set_door_state_callback' ),
@@ -407,6 +414,36 @@ class Fsbhoa_Monitor_REST_API {
     return rest_ensure_response($status_map);
 }
 
+/**
+     * Callback to get the name of the currently active schedule for the monitor UI.
+     */
+    public function get_current_schedule_callback( WP_REST_Request $request ) {
+        global $wpdb;
+
+        // Fetch the active ID using your existing helper function
+        $active_schedule_id = fsbhoa_get_active_schedule_id();
+
+        if ( ! $active_schedule_id ) {
+            return rest_ensure_response( array( 'schedule_name' => 'Unknown Schedule' ) );
+        }
+
+        // Query the schedule name.
+        // Note: Assuming your schedules are in 'ac_schedules' with 'schedule_name'.
+        // Adjust the table or column name below if your schema differs.
+        $schedule_table = 'ac_schedules';
+
+        $schedule_name = $wpdb->get_var( $wpdb->prepare(
+            "SELECT name FROM {$schedule_table} WHERE schedule_id = %d",
+            $active_schedule_id
+        ) );
+
+        // Fallback just in case the query fails or returns null
+        if ( empty( $schedule_name ) ) {
+            $schedule_name = 'Schedule ID: ' . $active_schedule_id;
+        }
+
+        return rest_ensure_response( array( 'schedule_name' => $schedule_name ) );
+    }
 
 } // end of class
 

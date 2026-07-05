@@ -6,11 +6,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // These variables are passed from WordPress via wp_localize_script
     const WS_URL = fsbhoa_monitor_vars.ws_url || ''; 
     const STATUS_API_URL = '/wp-json/fsbhoa/v1/monitor/group-status';
+    const SCHEDULE_API_URL = '/wp-json/fsbhoa/v1/monitor/current-schedule';
     let gateAccessStatus = {}; // Stores { doorId: true/false } from the API
     let gateHardwareStatus = {}; // Stores { doorId: 'locked'/'unlocked'/'intermediate' } from WebSocket
 
     // --- DOM Elements ---
     const eventList = document.getElementById('event-list');
+    const scheduleName = document.getElementById('current-schedule-name');
+    const scheduleIndicator = document.getElementById('fsbhoa-schedule-indicator');
     let logPlaceholder = document.getElementById('log-placeholder'); 
     const connectionStatus = document.getElementById('connection-status');
     const statusDot = connectionStatus ? connectionStatus.querySelector('div') : null;
@@ -470,6 +473,22 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    async function updateCurrentSchedule() {
+        if (!scheduleName || !scheduleIndicator) return;
+        try {
+            const response = await fetch(SCHEDULE_API_URL);
+            if (!response.ok) return; // Silent fail
+            const data = await response.json();
+
+            if (data && data.schedule_name) {
+                scheduleName.textContent = data.schedule_name;
+                scheduleIndicator.classList.remove('hidden'); // Reveal once data is loaded
+            }
+        } catch (e) {
+            console.warn("Could not fetch current schedule", e);
+        }
+    }
+
     // Initialize the toggle button functionality
     setupMapViewToggle();
 
@@ -481,9 +500,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // Run all initialization tasks, then connect the WebSocket.
     Promise.all([
         initializeMap(),
-        updateAccessStatus()
+        updateAccessStatus(),
+        updateCurrentSchedule()
     ]).then(() => {
         connect();
         setInterval(updateAccessStatus, 60000); // Poll every 60 seconds
+        setInterval(updateCurrentSchedule, 60000);
     });
 });
