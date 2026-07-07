@@ -39,7 +39,7 @@ function fsbhoa_render_schedule_groups_list( $schedule_id ) {
                         <?php
                             $edit_url = add_query_arg(['action' => 'edit_group_schedule', 'group_id' => $group->group_id, 'schedule_id' => $schedule_id], $schedules_page_url);
                             
-                            if ($schedule_id == 1) { // Only show Toggle and Delete on the Default schedule
+                            if ($schedule_id == 1) { // Only show Toggle and Delete on the Normal schedule
                                 $toggle_action = 'fsbhoa_schedule_toggle_group_' . $group->group_id;
                                 $toggle_url = wp_nonce_url(admin_url('admin-post.php?action=fsbhoa_schedule_toggle_group&group_id=' . $group->group_id), $toggle_action);
                                 $delete_action = 'fsbhoa_schedule_delete_group_' . $group->group_id;

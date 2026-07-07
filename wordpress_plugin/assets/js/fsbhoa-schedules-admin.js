@@ -79,8 +79,6 @@ jQuery(document).ready(function($) {
         if (!confirm('This will replace all permissions and tasks for the current schedule. Are you sure?')) {
             return;
         }
-        alert('Delete X clicked!');
-
         const button = $(this);
         const form = button.closest('form');
         const originalText = button.text();

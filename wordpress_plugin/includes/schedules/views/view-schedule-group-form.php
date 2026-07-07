@@ -9,7 +9,7 @@ global $wpdb;
 $group = null;
 $permissions = [];
 $is_new = ($group_id === 0);
-$is_default_schedule = ($schedule_id == 1);
+$is_normal_schedule = ($schedule_id == 1);
 
 if (!$is_new) {
     $group = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_groups WHERE group_id = %d", $group_id));
@@ -40,9 +40,9 @@ $all_controllers = $wpdb->get_results("
 $has_all_access = isset($group->has_all_access) && $group->has_all_access;
 ?>
 
-<?php if (!$is_default_schedule) : ?>
+<?php if (!$is_normal_schedule) : ?>
     <div class="notice notice-info inline">
-        <p>You are editing rules for a specific holiday. Global group settings (like name and access type) are read-only here. To edit them, please return to the "Default" schedule and edit the group there.</p>
+        <p>You are editing rules for a specific holiday. Global group settings (like name and access type) are read-only here. To edit them, please return to the "Normal" schedule and edit the group there.</p>
     </div>
 <?php endif; ?>
 
@@ -56,31 +56,31 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
     <div class="form-single-line-container">
         <div class="form-field-group">
             <label for="group_name"><?php _e('Group Name', 'fsbhoa-ac'); ?></label>
-            <input type="text" id="group_name" name="group_name" style="width: 200px;" value="<?php echo esc_attr($group->group_name ?? ''); ?>" required <?php disabled(!$is_default_schedule); ?>>
+            <input type="text" id="group_name" name="group_name" style="width: 200px;" value="<?php echo esc_attr($group->group_name ?? ''); ?>" required <?php disabled(!$is_normal_schedule); ?>>
         </div>
         <div class="form-field-group is-flexible">
             <label for="group_description"><?php _e('Description (Notes)', 'fsbhoa-ac'); ?></label>
-    <textarea id="group_description" name="group_description" rows="1" style="width: 100%; min-height: 30px; vertical-align: middle;" <?php disabled(!$is_default_schedule); ?>><?php echo esc_textarea($group->group_description ?? ''); ?></textarea>
+    <textarea id="group_description" name="group_description" rows="1" style="width: 100%; min-height: 30px; vertical-align: middle;" <?php disabled(!$is_normal_schedule); ?>><?php echo esc_textarea($group->group_description ?? ''); ?></textarea>
         </div>
     </div>
 
     <hr>
 
     <div class="permissions-header">
-        <h2><?php echo $is_default_schedule ? 'Default ' : ''; ?>Permission Rules</h2>
+        <h2><?php echo $is_normal_schedule ? 'Normal ' : ''; ?>Permission Rules</h2>
         <div class="all-access-toggle">
             <?php 
             // Show the Unrestricted Access checkbox/label only if:
-            // 1. We are on the default schedule (so it can be edited).
+            // 1. We are on the normal schedule (so it can be edited).
             // OR
             // 2. The group already HAS unrestricted access (to show the checked flag).
-            if ($is_default_schedule || $has_all_access) : ?>
+            if ($is_normal_schedule || $has_all_access) : ?>
                 <label>
-                    <input type="checkbox" id="has_all_access" name="has_all_access" value="1" <?php checked($has_all_access); ?> <?php disabled(!$is_default_schedule); ?>> 
+                    <input type="checkbox" id="has_all_access" name="has_all_access" value="1" <?php checked($has_all_access); ?> <?php disabled(!$is_normal_schedule); ?>> 
                     <?php _e('Unrestricted access', 'fsbhoa-ac'); ?>
                 </label>
             <?php endif; ?>
-            <?php if ($is_default_schedule) : // Only show the default checkbox on the Default schedule ?>
+            <?php if ($is_normal_schedule) : // Only show the default checkbox on the Normal schedule ?>
                 <label><input type="checkbox" name="is_default" value="1" <?php checked($group->is_default ?? 0, 1); ?>> <?php _e('Default Group', 'fsbhoa-ac'); ?></label>
             <?php endif; ?>
         </div>

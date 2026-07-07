@@ -145,9 +145,9 @@ class Fsbhoa_Schedules_Actions {
 
         $schedule_id = isset($_POST['schedule_id']) ? absint($_POST['schedule_id']) : 0;
         
-        // Critical safety check: Do not allow deleting the Default schedule.
+        // Critical safety check: Do not allow deleting the Normal schedule.
         if ($schedule_id <= 1) {
-            wp_send_json_error('The Default schedule cannot be deleted.');
+            wp_send_json_error('The Normal schedule cannot be deleted.');
         }
 
         global $wpdb;

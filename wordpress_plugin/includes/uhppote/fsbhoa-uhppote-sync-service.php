@@ -4,6 +4,7 @@
 if (!defined('WPINC')) { die; }
 
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-permission-compiler.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/uhppote/fsbhoa-uhppote-bulk-sync.php';
 
 add_action('fsbhoa_run_background_sync', 'fsbhoa_perform_delta_sync');
 add_action('fsbhoa_run_nightly_rebuild', 'fsbhoa_perform_nightly_rebuild_sync');
@@ -20,54 +21,24 @@ function fsbhoa_perform_delta_sync() {
     error_log("DELTA SYNC: Manual process started.");
     if ($is_dry_run) { error_log("DELTA SYNC: --- DRY RUN MODE ENABLED ---"); }
 
-    set_time_limit(300);
+    set_time_limit(30);
     set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => 'Starting delta sync...'], MINUTE_IN_SECONDS * 10);
 
-    // 1. Identify the SCOPE of the sync
     $wipe_memory   = false;
     $active_schedule_id = fsbhoa_get_active_schedule_id();
+    $permission_data = fsbhoa_get_all_permission_data($active_schedule_id);
 
     $cardholders_to_sync = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status IN ('active', 'disabled')");
 
-    // 2. Get the cards specifically marked for deletion.
-    $cardholders_to_delete = [];
-    $pending_changes = $wpdb->get_results("
-        SELECT record_id, change_data 
-        FROM ac_pending_changes 
-        WHERE change_type = 'cardholder'
-        ");
-    foreach ($pending_changes as $change) {
-        // look for rfid_id's that are no longer valid id's.
-        // Usually it is a delete but not necessarily.  But we do need to capture the rfid.
-        // (This handles the 'Overwrite' case where the cardholder has a new card and the 
-        //  old RFID must die, but the cardholder is still in the system with a new RFID).
-        if (!empty($change->change_data)) {
-            $data = json_decode($change->change_data, true);
-            if (isset($data['rfid_id']) && !empty($data['rfid_id'])) {
-                $rfid = $data['rfid_id'];
-                $exists = $wpdb->get_var($wpdb->prepare("
-                    SELECT COUNT(*) 
-                    FROM ac_cardholders 
-                    WHERE rfid_id = %s AND card_status IN ('active', 'disabled')
-                    ", $rfid ));
-                if (!$exists) {
-                    // This is a deleted card. We need the RFID to tell the controller to kill it.
-                    $cardholders_to_delete[] =  $rfid;
-                }
-            }
-        }
-    }
 
-
-    // 3. Get the controllers
+    // Get the controllers
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers WHERE type = 'UHPPOTE'");
 
-    // 4. Execute the Logic
+    //  Execute the Logic
     fsbhoa_execute_sync_logic(
         $controllers, 
-        null, 
+        $permission_data,
         $cardholders_to_sync, 
-        $cardholders_to_delete, 
         $is_dry_run, 
         $wipe_memory,
         $active_schedule_id
@@ -83,7 +54,7 @@ function fsbhoa_perform_delta_sync() {
 function fsbhoa_perform_nightly_rebuild_sync( $wipe_memory = true ) {
     error_log('[' . current_time('Y-m-d H:i:s T') . "] NIGHTLY REBUILD: Process started. Wipe Mode: " . ($wipe_memory ? 'ON' : 'OFF'));
     
-    set_time_limit(600);
+    set_time_limit(60);
     global $wpdb;
 
     $is_dry_run = (get_option('fsbhoa_ac_sync_dry_run') === 'on');
@@ -91,7 +62,6 @@ function fsbhoa_perform_nightly_rebuild_sync( $wipe_memory = true ) {
 
     $active_schedule_id = fsbhoa_get_active_schedule_id();
     error_log("NIGHTLY REBUILD: Determined active schedule ID is: " . $active_schedule_id);
-
     $permission_data = fsbhoa_get_all_permission_data($active_schedule_id);
     $cardholders_to_sync = $wpdb->get_results("SELECT * FROM ac_cardholders WHERE card_status IN ('active', 'disabled')");
     $controllers = $wpdb->get_results("SELECT * FROM ac_controllers WHERE type = 'UHPPOTE'");
@@ -100,7 +70,6 @@ function fsbhoa_perform_nightly_rebuild_sync( $wipe_memory = true ) {
         $controllers, 
         $permission_data, 
         $cardholders_to_sync, 
-        [], 
         $is_dry_run, 
         $wipe_memory, 
         $active_schedule_id);
@@ -116,7 +85,7 @@ function fsbhoa_perform_nightly_rebuild_sync( $wipe_memory = true ) {
  *    $wipe_memory  - means tell controller to wipe before sync and also wipe persistent maps.
  *    $active_schedule_id  - which schedule to use.
  */
-function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $cardholders_to_delete, $is_dry_run, $wipe_memory, $active_schedule_id) {
+function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_to_sync, $is_dry_run, $wipe_memory, $active_schedule_id) {
     global $wpdb;
     $retry_attempts = 3;
     $retry_wait = 250000;
@@ -146,7 +115,6 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
 
         $device_id = $controller->uhppoted_device_id;
         $friendly_name = $controller->friendly_name;
-        $controller_id = $controller->controller_record_id;
 
         error_log("SYNC SERVICE: Controller '$friendly_name' ($device_id) is syncing.");
 
@@ -169,7 +137,7 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
             error_log("SYNC SERVICE: Wiping card & profile memory on $friendly_name...");
             if (!$is_dry_run) {
                 shell_exec(sprintf('uhppote-cli clear-time-profiles %s 2>&1', $device_id));
-                shell_exec(sprintf('uhppote-cli delete-cards %s 2>&1', $device_id));
+                shell_exec(sprintf('uhppote-cli delete-all %s 2>&1', $device_id));
                 $wpdb->delete('ac_sync_hashes', ['device_id' => $device_id]);   // clear only one controller.
                 sleep(1);
             } else {
@@ -212,90 +180,20 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
             if (!$is_dry_run) usleep(500000); 
         }
 
-        // --- STEP 5: DELETE CARDS ---
-        if (!empty($cardholders_to_delete)) {
-            foreach ($cardholders_to_delete as $rfid_id) {
-                $cmd = sprintf('uhppote-cli delete-card %s %s', $device_id, $rfid_id);
-                if ($is_dry_run) {
-                    error_log("DRY RUN: " . $cmd);
-                } else {
-                    shell_exec($cmd . " 2>&1");
-
-                    $wpdb->delete( "ac_sync_hashes",
-                        array(
-                            'device_id' => $device_id,
-                            'rfid' => $rfid_id,
-                        ),
-                        array('%s', '%s')
-                    );
-                    error_log("SYNC SERVICE: Deleted card [$rfid_id] and cleared its sync hash.");
-                }
-            }
-        }
-
         // --- STEP 6: UPLOAD/UPDATE CARDS ---
-        // A. Pre-fetch all existing hashes for THIS controller to save DB hits
-        $existing_hashes = $wpdb->get_results($wpdb->prepare(
-           "SELECT rfid, hash FROM ac_sync_hashes WHERE device_id = %s", 
-           $device_id), OBJECT_K);
+        $bulk_sync = new Fsbhoa_Uhppote_Bulk_Sync();
+        $bulk_success = $bulk_sync->execute_bulk_load(
+            $device_id,
+            $controller->controller_record_id,
+            $cardholders_to_sync,
+            $global_card_perms,
+            $is_dry_run
+        );
 
-        $puts_sent = 0;
-        foreach ($cardholders_to_sync as $cardholder) {
-            $rfid = $cardholder->rfid_id;
-            if (empty($rfid)) continue;
-
-            $perm_string = $global_card_perms[$rfid][$device_id] ?? '';
-
-            $put_card_command = sprintf('uhppote-cli put-card %s %s %s %s %s',
-                $device_id, $rfid, 
-                $cardholder->card_issue_date ?? '2000-01-01', 
-                $cardholder->card_expiry_date ?? '2099-12-31', 
-                $perm_string
-            );
-
-            // SMART SKIP: Only push if the permission string changes.
-            $current_hash = md5($put_card_command);
-            if (!$wipe_memory && isset($existing_hashes[$rfid])) {
-                if ($existing_hashes[$rfid]->hash === $current_hash) {
-                    continue; // Skip: Hardware already matches DB
-                }
-            }
-            error_log("SYNC SERVICE: Updating card [$rfid] (id:{$cardholder->id}) perms:[$perm_string]");
-
-            if ($is_dry_run) {
-                error_log("DRY RUN (PUT CARD): " . $put_card_command);
-            } else {
-                $success = false;
-                for ($i = 0; $i < $retry_attempts; $i++) {
-                    $output = shell_exec($put_card_command . " 2>&1");
-                    if (strpos($output, 'false') === false && strpos($output, 'ERROR') === false) {
-                        $success = true; break;
-                    }
-                    usleep($retry_wait);
-                }
-                if (!$success) {
-                    error_log("SYNC FAILED (CARD $rfid) for $friendly_name: $output");
-                    $global_sync_failed = true;
-                } else {
-                    // UPDATE SCOPED CACHE: Primary Key ensures we only update this specific pair
-                    $wpdb->replace('ac_sync_hashes', [
-                        'device_id'     => $device_id,
-                        'rfid'          => $rfid,
-                        'hash'          => $current_hash,
-                        'last_synced'   => current_time('mysql')
-                    ]);
-                }
-                usleep(20000);
-            }
-            $puts_sent++;
+        if (!$bulk_success) {
+            $global_sync_failed = true;
         }
-        if (FSBHOA_DEBUG_MODE) {
-            if ($is_dry_run) {
-                error_log(sprintf("SYNC STATS '$friendly_name': Would have Sent: %d", $puts_sent));
-            } else {
-                error_log(sprintf("SYNC STATS '$friendly_name': Card Updates Sent: %d", $puts_sent));
-            }
-        }
+
 
         // --- STEP 7: SYNC TASKS ---
         fsbhoa_execute_task_sync($device_id, $controller->controller_record_id, $active_schedule_id, $is_dry_run, $retry_attempts);
@@ -384,12 +282,11 @@ function fsbhoa_execute_task_sync($device_id, $controller_id, $active_schedule_i
                 if ($is_dry_run) {
                     error_log("DRY RUN (TASK): " . $add_task_command);
                 } else {
-                    $success = false;
                     for ($i = 0; $i < $retry_attempts; $i++) {
                         $output = shell_exec($add_task_command . " 2>&1");
                         if (strpos($output, 'false') === false && strpos($output, 'ERROR') === false) {
                             error_log("SYNC Updated Task: " . $add_task_command);
-                            $success = true; break;
+                            break;
                         }
                         usleep($retry_wait);
                     }
@@ -408,7 +305,7 @@ function fsbhoa_execute_task_sync($device_id, $controller_id, $active_schedule_i
              error_log("SYNC Refresh Tasks: " . $refresh_task_list_command);
         }
     } else {
-        error_log("DRY RUN (REFRESH TASKS) for $device_id: $output_refresh_tasks");
+        error_log("DRY RUN: Would execute: " . $refresh_task_list_command);
     }
 }
 

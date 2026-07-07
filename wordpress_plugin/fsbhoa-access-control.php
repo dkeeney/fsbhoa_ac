@@ -103,21 +103,18 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/cardholder/class-fsbhoa-cardholder
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/property/class-fsbhoa-property-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/property/class-fsbhoa-property-actions.php';
 
-// --- Archived Cardholder Module (Moved) ---
+// --- Archived Cardholder Module ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/archived/class-fsbhoa-archived-cardholder-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/archived/class-fsbhoa-archived-cardholder-actions.php';
 
-// --- Controller Management (Moved) ---
+// --- Controller Management ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/class-fsbhoa-controller-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/class-fsbhoa-controller-actions.php';
-// Note: We moved the view, but usually views are included by the class, not required here.
-// However, preserving existing logic just in case:
-if (file_exists(FSBHOA_AC_PLUGIN_DIR . 'includes/controller/views/view-discovery-results.php')) {
-    require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/views/view-discovery-results.php';
-}
 
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-discovery.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-uhppote-sync-service.php';
+// --- UHPPOTE controller related modules --
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/uhppote/fsbhoa-uhppote-discovery.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/uhppote/fsbhoa-uhppote-sync-service.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/uhppote/fsbhoa-uhppote-bulk-sync.php';
 
 // --- Schedules ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedules-actions.php';

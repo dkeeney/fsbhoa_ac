@@ -14,7 +14,7 @@ class Fsbhoa_Schedule_AJAX_Handler {
         $group_id = isset($_POST['group_id']) ? absint($_POST['group_id']) : 0;
         $schedule_id = isset($_POST['schedule_id']) ? absint($_POST['schedule_id']) : 1;
 
-        // 1. Save Group Details (Only if Default Schedule)
+        // 1. Save Group Details (Only if Normal Schedule)
         //    If it is a holiday schedule, the group data cannot be modified.
         if ($schedule_id == 1) {
             $group_name = sanitize_text_field($_POST['group_name'] ?? '');

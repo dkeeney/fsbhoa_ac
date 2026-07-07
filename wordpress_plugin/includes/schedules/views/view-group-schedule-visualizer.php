@@ -67,7 +67,7 @@ $all_doors_display = $wpdb->get_results("
 <div id="fsbhoa-visualizer-wrapper">
     <div id="fsbhoa-visualizer-container" class="schedule-visualizer">
         <h2>Schedule Preview</h2>
-        <p class="description">This shows the final, calculated schedule for this group after applying specificity rules for the selected schedule (<?php echo esc_html($schedule_id == 1 ? 'Default' : 'Holiday'); ?>).</p>
+        <p class="description">This shows the final, calculated schedule for this group after applying specificity rules for the selected schedule (<?php echo esc_html($schedule_id == 1 ? 'Normal' : 'Holiday'); ?>).</p>
     
         <div class="timeline-ruler-wrapper">
             <div class="ruler-spacer"></div>
