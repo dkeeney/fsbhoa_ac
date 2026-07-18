@@ -21,7 +21,7 @@ function fsbhoa_perform_delta_sync() {
     error_log("DELTA SYNC: Manual process started.");
     if ($is_dry_run) { error_log("DELTA SYNC: --- DRY RUN MODE ENABLED ---"); }
 
-    set_time_limit(30);
+    set_time_limit(300);
     set_transient('fsbhoa_sync_status', ['status' => 'in_progress', 'message' => 'Starting delta sync...'], MINUTE_IN_SECONDS * 10);
 
     $wipe_memory   = false;
@@ -54,7 +54,7 @@ function fsbhoa_perform_delta_sync() {
 function fsbhoa_perform_nightly_rebuild_sync( $wipe_memory = true ) {
     error_log('[' . current_time('Y-m-d H:i:s T') . "] NIGHTLY REBUILD: Process started. Wipe Mode: " . ($wipe_memory ? 'ON' : 'OFF'));
     
-    set_time_limit(60);
+    set_time_limit(300);
     global $wpdb;
 
     $is_dry_run = (get_option('fsbhoa_ac_sync_dry_run') === 'on');
@@ -176,8 +176,8 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
                         $global_sync_failed = true;
                     }
                 }
+                if (!$is_dry_run) usleep(200000); 
             }
-            if (!$is_dry_run) usleep(500000); 
         }
 
         // --- STEP 6: UPLOAD/UPDATE CARDS ---
