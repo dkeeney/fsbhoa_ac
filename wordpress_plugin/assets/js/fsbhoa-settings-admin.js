@@ -110,6 +110,17 @@ console.log('Data to send:', dataToSend);
         );
     });
 
+    // --- Pool Alarm Saver ---
+    $('#fsbhoa-save-pool-alarm-settings-button').on('click', function(e) {
+        e.preventDefault();
+        handleAjaxSave(
+            '#fsbhoa-save-pool-alarm-settings-button',
+            '#tab-pool-alarm',
+            'fsbhoa_save_pool_alarm',
+            fsbhoa_settings_vars.pool_alarm_nonce
+        );
+    });
+
     // --- Media Uploader for Kiosk Page Logo ---
     $('#fsbhoa_kiosk_logo_url-button').on('click', function(e) {
         e.preventDefault();

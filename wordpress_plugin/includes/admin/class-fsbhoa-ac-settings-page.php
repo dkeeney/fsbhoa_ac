@@ -32,6 +32,8 @@ class Fsbhoa_Ac_Settings_Page {
 	add_action( 'wp_ajax_fsbhoa_save_print_settings', array( $this, 'ajax_save_print_settings' ) );
         add_action( 'wp_ajax_fsbhoa_save_kiosk_settings', array( $this, 'ajax_save_kiosk_settings' ) );
         add_action( 'wp_ajax_fsbhoa_generate_api_key', array( $this, 'ajax_generate_api_key' ) );
+        add_action('wp_ajax_fsbhoa_save_pool_alarm', [$this, 'ajax_save_pool_alarm']);
+        add_action('wp_ajax_fsbhoa_trigger_pool_alarm', [$this, 'ajax_trigger_pool_alarm']);
         add_action('update_option', array($this, 'trigger_config_update_on_save'), 10, 3);
     }
 
@@ -42,6 +44,14 @@ class Fsbhoa_Ac_Settings_Page {
         add_submenu_page($this->parent_slug, 'Print Service Config', 'Print Service', 'manage_options', 'fsbhoa_print_service_settings', array( $this, 'render_print_service_page' ));
         add_submenu_page($this->parent_slug, 'Live Monitor Settings', 'Monitor Settings', 'manage_options', 'fsbhoa_monitor_settings', array( $this, 'render_monitor_settings_page' ));
         add_submenu_page($this->parent_slug, 'Kiosk Settings', 'Kiosk', 'manage_options', 'fsbhoa_kiosk_settings', array( $this, 'render_kiosk_settings_page' ));
+        add_submenu_page(
+            $this->parent_slug,
+            'Pool Intrusion Alarm',
+            'Pool Alarm',
+            'manage_options',
+            'fsbhoa-ac-pool-alarm',
+            [$this, 'render_pool_alarm_page']
+        );
     }
 
     /**
@@ -71,6 +81,11 @@ class Fsbhoa_Ac_Settings_Page {
         $test_stub        = get_option('fsbhoa_ac_test_stub', 'on');
         $kiosk_port       = get_option('fsbhoa_kiosk_port', 8080);
 
+        $pool_alarm_enabled     = get_option('fsbhoa_pool_alarm_enabled', '0');
+        $pool_alarm_enable_url  = get_option('fsbhoa_pool_alarm_enable_url', '');
+        $pool_alarm_disable_url = get_option('fsbhoa_pool_alarm_disable_url', '');
+        $pool_alarm_gates       = get_option('fsbhoa_pool_alarm_gates', []);
+
         // --- Build and write monitor_service.json ---
         $monitor_config = [
             'listen_addr'       => ':' . absint($monitor_port),
@@ -98,6 +113,12 @@ class Fsbhoa_Ac_Settings_Page {
             'debug'             => ($debug_mode === 'on'),
             'enableTestStub'    => ($test_stub === 'on'),
             'monitorServiceURL' => sprintf('%s://%s:%d', $protocol, $wp_host, absint($monitor_port)),
+            'pool_alarm'        => [
+                'enabled'       => ($pool_alarm_enabled === '1'),
+                'enable_url'    => $pool_alarm_enable_url,
+                'disable_url'   => $pool_alarm_disable_url,
+                'trigger_gates' => array_map('intval', (array) $pool_alarm_gates)
+            ]
         ];
         $this->write_config_file($this->event_service_config_path, $event_config);
 
@@ -111,18 +132,18 @@ class Fsbhoa_Ac_Settings_Page {
         $this->write_config_file($this->print_service_config_path, $print_config);
 
         // --- Build and write kiosk.json ---
-	$kiosk_config = [
-		'wordpress_api_base_url' => get_site_url(),
-                'api_key'                => get_option('fsbhoa_ac_kiosk_api_key', ''),
-		'ssl_cert_path'          => sanitize_text_field($tls_cert_path),
-		'ssl_key_path'           => sanitize_text_field($tls_key_path),
-		'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
-		'log_file'               => sanitize_text_field(get_option('fsbhoa_kiosk_log_file', '/var/log/fsbhoa/kiosk.log')),
-                'max_guests'             => (int) get_option('fsbhoa_kiosk_max_guests', 8),
-                'monitor_service_url'    => sprintf('%s://%s:%d', $protocol, $wp_host, absint($monitor_port)),
-                'event_service_url'      => sprintf('%s://%s:%d', ($protocol === 'https' ? 'wss' : 'ws'), $wp_host, absint($websocket_port)),
-	];
-	$this->write_config_file($this->kiosk_config_path, $kiosk_config);
+	    $kiosk_config = [
+		    'wordpress_api_base_url' => get_site_url(),
+            'api_key'                => get_option('fsbhoa_ac_kiosk_api_key', ''),
+		    'ssl_cert_path'          => sanitize_text_field($tls_cert_path),
+		    'ssl_key_path'           => sanitize_text_field($tls_key_path),
+		    'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
+		    'log_file'               => sanitize_text_field(get_option('fsbhoa_kiosk_log_file', '/var/log/fsbhoa/kiosk.log')),
+            'max_guests'             => (int) get_option('fsbhoa_kiosk_max_guests', 8),
+            'monitor_service_url'    => sprintf('%s://%s:%d', $protocol, $wp_host, absint($monitor_port)),
+            'event_service_url'      => sprintf('%s://%s:%d', ($protocol === 'https' ? 'wss' : 'ws'), $wp_host, absint($websocket_port)),
+	    ];
+	    $this->write_config_file($this->kiosk_config_path, $kiosk_config);
 
         // NOTE: Future config files (e.g., for print_service) can be added here.
     }
@@ -605,7 +626,8 @@ class Fsbhoa_Ac_Settings_Page {
             'toplevel_page_fsbhoa_ac_main_menu',
             'fsbhoa-ac_page_fsbhoa_event_service_settings',
             'fsbhoa-ac_page_fsbhoa_print_service_settings',
-            'fsbhoa-ac_page_fsbhoa_kiosk_settings'
+            'fsbhoa-ac_page_fsbhoa_kiosk_settings',
+            'fsbhoa-ac_page_fsbhoa-ac-pool-alarm'
         ];
 
         if (in_array($hook, $settings_pages)) {
@@ -622,6 +644,7 @@ class Fsbhoa_Ac_Settings_Page {
                     'event_nonce'   => wp_create_nonce('fsbhoa_event_settings_nonce'),
                     'print_nonce'   => wp_create_nonce('fsbhoa_print_settings_nonce'),
                     'kiosk_nonce'   => wp_create_nonce('fsbhoa_kiosk_settings_nonce'),
+                    'pool_alarm_nonce' => wp_create_nonce('fsbhoa_pool_alarm_nonce'),
                     'generate_api_key_nonce' => wp_create_nonce('fsbhoa_generate_api_key_nonce'),
                 )
             );
@@ -907,6 +930,182 @@ class Fsbhoa_Ac_Settings_Page {
                     ]
                 );
             }
+        }
+    }
+
+    public function render_pool_alarm_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        ?>
+        <div class="wrap">
+            <h1>Pool Intrusion Alarm Settings</h1>
+
+            <!-- Manual Trigger Buttons Section -->
+            <div style="background: #fff; padding: 15px; border: 1px solid #ccd0d4; margin-bottom: 20px;">
+                <h2>Manual Controls</h2>
+                <p>Use these buttons to manually test or trigger the pool intrusion alarm endpoints without physically swiping a gate.</p>
+                <button type="button" id="btn-enable-pool-alarm" class="button button-primary" style="margin-right: 10px;">Test Enable Alarm</button>
+                <button type="button" id="btn-disable-pool-alarm" class="button">Test Disable Alarm</button>
+                <span id="pool-alarm-action-feedback" style="margin-left: 10px; font-weight: bold;"></span>
+            </div>
+
+            <div id="tab-pool-alarm">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="pool_alarm_enabled">Integration Enabled</label></th>
+                        <td>
+                            <input type="checkbox" id="pool_alarm_enabled" name="pool_alarm_enabled" value="1" <?php checked(get_option('fsbhoa_pool_alarm_enabled', '0'), '1'); ?> />
+                            <p class="description">Check to enable automatic triggers via the Event Service.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="pool_alarm_enable_url">Enable URL</label></th>
+                        <td>
+                            <?php $enable_url = get_option('fsbhoa_pool_alarm_enable_url', ''); ?>
+                            <input type="url" id="pool_alarm_enable_url" name="pool_alarm_enable_url" value="<?php echo esc_attr($enable_url); ?>" class="regular-text" placeholder="http://192.168.x.x/api/enable">
+                            <p class="description">The URL that will be triggered to ENABLE the pool alarm.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="pool_alarm_disable_url">Disable URL</label></th>
+                        <td>
+                            <?php $disable_url = get_option('fsbhoa_pool_alarm_disable_url', ''); ?>
+                            <input type="url" id="pool_alarm_disable_url" name="pool_alarm_disable_url" value="<?php echo esc_attr($disable_url); ?>" class="regular-text" placeholder="http://192.168.x.x/api/disable">
+                            <p class="description">The URL that will be triggered to DISABLE the pool alarm.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="pool_alarm_trigger_gates">Trigger Gates</label></th>
+                        <td>
+                            <?php
+                            global $wpdb;
+                            // Dropped the WP prefix and updated the primary key column
+                            $gates = $wpdb->get_results("SELECT door_record_id, friendly_name FROM ac_doors ORDER BY friendly_name ASC");
+                            $saved_gates = get_option('fsbhoa_pool_alarm_gates', []);
+                            if (!is_array($saved_gates)) $saved_gates = [];
+                            ?>
+                            <select id="pool_alarm_trigger_gates" name="pool_alarm_trigger_gates[]" multiple="multiple" style="min-width: 300px; height: 150px;">
+                                <?php if ($gates): ?>
+                                    <?php foreach ($gates as $gate) : ?>
+                                        <option value="<?php echo esc_attr($gate->door_record_id); ?>" <?php echo in_array($gate->door_record_id, $saved_gates) ? 'selected' : ''; ?>>
+                                            <?php echo esc_html($gate->friendly_name); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <option value="" disabled>No gates found in database</option>
+                                <?php endif; ?>
+                            </select>
+                            <p class="description">Select the gates that will trigger the disable URL. Hold CTRL (or CMD) to select multiple.</p>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <button type="button" id="fsbhoa-save-pool-alarm-settings-button" class="button button-primary">Save Pool Alarm Settings</button>
+                    <span id="fsbhoa-save-feedback" style="display:none; margin-left:10px;"></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Inline script to handle the newly added Action Buttons instantly -->
+        <script>
+        jQuery(document).ready(function($) {
+            $('#btn-enable-pool-alarm, #btn-disable-pool-alarm').on('click', function() {
+                var action = $(this).attr('id') === 'btn-enable-pool-alarm' ? 'enable' : 'disable';
+                var feedback = $('#pool-alarm-action-feedback');
+                var btn = $(this);
+
+                btn.prop('disabled', true);
+                feedback.text('Sending request...').css('color', '#000');
+
+                $.post(ajaxurl, {
+                    action: 'fsbhoa_trigger_pool_alarm',
+                    nonce: '<?php echo wp_create_nonce("fsbhoa_pool_alarm_nonce"); ?>',
+                    alarm_action: action
+                }, function(response) {
+                    btn.prop('disabled', false);
+                    if (response.success) {
+                        feedback.text(response.data).css('color', 'green');
+                    } else {
+                        feedback.text('Error: ' + response.data).css('color', 'red');
+                    }
+                    setTimeout(function() { feedback.text(''); }, 5000);
+                }).fail(function() {
+                    btn.prop('disabled', false);
+                    feedback.text('AJAX request failed.').css('color', 'red');
+                    setTimeout(function() { feedback.text(''); }, 5000);
+                });
+            });
+        });
+        </script>
+        <?php
+    }
+    public function ajax_save_pool_alarm() {
+        // Verify against the newly matched nonce hook
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fsbhoa_pool_alarm_nonce')) {
+            wp_send_json_error('Permission denied.');
+        }
+
+        $options = isset($_POST['options']) ? $_POST['options'] : [];
+        $trigger_gates = [];
+        $disable_url = '';
+        $enable_url = '';
+        $enabled = '0'; // Default to 0 unless the checkbox is detected
+
+        foreach ($options as $opt) {
+            if ($opt['name'] === 'pool_alarm_disable_url') {
+                $disable_url = esc_url_raw($opt['value']);
+            } elseif ($opt['name'] === 'pool_alarm_enable_url') {
+                $enable_url = esc_url_raw($opt['value']);
+            } elseif ($opt['name'] === 'pool_alarm_enabled') {
+                $enabled = '1';
+            } elseif ($opt['name'] === 'pool_alarm_trigger_gates[]') {
+                $trigger_gates[] = intval($opt['value']);
+            }
+        }
+
+        update_option('fsbhoa_pool_alarm_enabled', $enabled);
+        update_option('fsbhoa_pool_alarm_enable_url', $enable_url);
+        update_option('fsbhoa_pool_alarm_disable_url', $disable_url);
+        update_option('fsbhoa_pool_alarm_gates', array_unique($trigger_gates));
+
+        // Rebuild the JSON files
+        $this->update_all_service_configs();
+
+        wp_send_json_success('Pool Alarm settings saved.');
+    }
+
+    public function ajax_trigger_pool_alarm() {
+        check_ajax_referer('fsbhoa_pool_alarm_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied.', 403);
+        }
+
+        $action = isset($_POST['alarm_action']) ? sanitize_text_field($_POST['alarm_action']) : '';
+        $url = '';
+
+        if ($action === 'enable') {
+            $url = get_option('fsbhoa_pool_alarm_enable_url', '');
+        } elseif ($action === 'disable') {
+            $url = get_option('fsbhoa_pool_alarm_disable_url', '');
+        }
+
+        if (empty($url)) {
+            wp_send_json_error('The ' . esc_html($action) . ' URL is not configured.');
+        }
+
+        // Fire off the HTTP request
+        $response = wp_remote_get($url, ['timeout' => 5]);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error('Failed to trigger URL: ' . $response->get_error_message());
+        }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code >= 200 && $status_code < 300) {
+            wp_send_json_success('Successfully triggered ' . esc_html($action) . ' command (Status: ' . $status_code . ')');
+        } else {
+            wp_send_json_error('Received HTTP ' . $status_code . ' from alarm system.');
         }
     }
 }
