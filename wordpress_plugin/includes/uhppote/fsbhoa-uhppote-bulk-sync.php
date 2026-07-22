@@ -120,29 +120,42 @@ class Fsbhoa_Uhppote_Bulk_Sync {
             escapeshellarg($tsv_path)
         );
         
-        $success = true;
+        $success = false;
         if ($is_dry_run) {
             error_log("DRY RUN (BULK ACL): Would execute: " . $bulk_command);
-            error_log("DRY RUN (BULK ACL): TSV saved at {$tsv_path} for inspection.");
-            // In dry run, we don't delete the TSV so you can look at it to verify it generated correctly.
         } else {
             error_log("SYNC SERVICE: Running bulk load-acl for {$device_id}...");
-            $output = shell_exec($bulk_command);
-            
-            if (strpos($output, 'ERROR') !== false 
-                || preg_match('/failed:[1-9]/', $output) 
-                || preg_match('/errors:[1-9]/', $output)) {
-                error_log("SYNC FAILED (BULK ACL) for {$device_id}: " . $output);
-                $success = false;
-            } else {
-                // Clean up the multi-line CLI output into a single string for the log
-                $clean_output = trim(preg_replace('/\s+/', ' ', $output));
-                error_log("SYNC SUCCESS: Bulk ACL - {$clean_output}");
+
+            // The Self-Healing Retry Loop (Attempts up to 3 times)
+            for ($attempt = 1; $attempt <= 3; $attempt++) {
+                $output = shell_exec($bulk_command);
+
+                if (strpos($output, 'ERROR') !== false
+                    || preg_match('/failed:[1-9]/', $output)
+                    || preg_match('/errors:[1-9]/', $output)) {
+
+                    $clean_output = trim(preg_replace('/\s+/', ' ', $output));
+                    error_log("SYNC WARNING: Bulk ACL attempt $attempt for {$device_id} had dropped packets: {$clean_output}");
+
+                    if ($attempt < 3) {
+                        error_log("SYNC SERVICE: Retrying Delta push for {$device_id} in 3 seconds...");
+                        sleep(3); // Wait for the network to clear its throat
+                        continue; // Loop back and try again
+                    } else {
+                        error_log("SYNC FATAL (BULK ACL): Failed after 3 attempts for {$device_id}.");
+                        $success = false;
+                        break;
+                    }
+                } else {
+                    $clean_output = trim(preg_replace('/\s+/', ' ', $output));
+                    error_log("SYNC SUCCESS: Bulk ACL for {$device_id} - {$clean_output}");
+                    $success = true;
+                    break; // Succeeded! Break out of the retry loop.
+                }
             }
-            
-            // Clean up files in live mode
-            //unlink($conf_path);
-            //unlink($tsv_path);
+
+            unlink($conf_path);
+            unlink($tsv_path);
         }
 
         return $success;

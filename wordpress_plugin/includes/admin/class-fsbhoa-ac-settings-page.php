@@ -963,7 +963,7 @@ class Fsbhoa_Ac_Settings_Page {
                         <th scope="row"><label for="pool_alarm_enable_url">Enable URL</label></th>
                         <td>
                             <?php $enable_url = get_option('fsbhoa_pool_alarm_enable_url', ''); ?>
-                            <input type="url" id="pool_alarm_enable_url" name="pool_alarm_enable_url" value="<?php echo esc_attr($enable_url); ?>" class="regular-text" placeholder="http://192.168.x.x/api/enable">
+                            <input type="url" id="pool_alarm_enable_url" name="pool_alarm_enable_url" value="<?php echo esc_attr($enable_url); ?>" class="regular-text" placeholder="http://testbed.fsbhoa.com:8090/resume">
                             <p class="description">The URL that will be triggered to ENABLE the pool alarm.</p>
                         </td>
                     </tr>
@@ -971,7 +971,7 @@ class Fsbhoa_Ac_Settings_Page {
                         <th scope="row"><label for="pool_alarm_disable_url">Disable URL</label></th>
                         <td>
                             <?php $disable_url = get_option('fsbhoa_pool_alarm_disable_url', ''); ?>
-                            <input type="url" id="pool_alarm_disable_url" name="pool_alarm_disable_url" value="<?php echo esc_attr($disable_url); ?>" class="regular-text" placeholder="http://192.168.x.x/api/disable">
+                            <input type="url" id="pool_alarm_disable_url" name="pool_alarm_disable_url" value="<?php echo esc_attr($disable_url); ?>" class="regular-text" placeholder="https://testbed.fsbhoa.com:8090/override">
                             <p class="description">The URL that will be triggered to DISABLE the pool alarm.</p>
                         </td>
                     </tr>
@@ -1050,7 +1050,7 @@ class Fsbhoa_Ac_Settings_Page {
         $trigger_gates = [];
         $disable_url = '';
         $enable_url = '';
-        $enabled = '0'; // Default to 0 unless the checkbox is detected
+        $enabled = '0';
 
         foreach ($options as $opt) {
             if ($opt['name'] === 'pool_alarm_disable_url') {
@@ -1058,9 +1058,18 @@ class Fsbhoa_Ac_Settings_Page {
             } elseif ($opt['name'] === 'pool_alarm_enable_url') {
                 $enable_url = esc_url_raw($opt['value']);
             } elseif ($opt['name'] === 'pool_alarm_enabled') {
-                $enabled = '1';
+                // FIX 1: Actually check the payload value
+                $enabled = ($opt['value'] === 'on') ? '1' : '0';
             } elseif ($opt['name'] === 'pool_alarm_trigger_gates[]') {
-                $trigger_gates[] = intval($opt['value']);
+                // FIX 2: Handle the array correctly
+                if (is_array($opt['value'])) {
+                    foreach ($opt['value'] as $gate_id) {
+                        $trigger_gates[] = intval($gate_id);
+                    }
+                } else {
+                    // Fallback in case only a single string gets passed somehow
+                    $trigger_gates[] = intval($opt['value']);
+                }
             }
         }
 
