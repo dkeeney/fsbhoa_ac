@@ -179,6 +179,43 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
                 if (!$is_dry_run) usleep(200000); 
             }
         }
+        // --- STEP 5: SYNC DOOR DELAYS (NIGHTLY REBUILD ONLY) ---
+        error_log("SYNC SERVICE: Setting door unlock durations for $friendly_name...");
+            
+        $doors_query = $wpdb->prepare(
+            "SELECT door_number_on_controller, door_delay 
+             FROM ac_doors 
+             WHERE controller_record_id = %d",
+            $controller->controller_record_id
+        );
+        $doors = $wpdb->get_results($doors_query);
+
+        if ($doors) {
+            foreach ($doors as $door) {
+                $door_num = $door->door_number_on_controller;
+                // Ensure delay is valid (default to 3 if missing or out of bounds)
+                $delay = (isset($door->door_delay) && $door->door_delay > 0 && $door->door_delay <= 60) ? intval($door->door_delay) : 3;
+
+                $delay_cmd = sprintf(
+                    "uhppote-cli set-door-delay %s %d %d 2>&1",
+                    escapeshellarg($device_id),
+                    $door_num,
+                    $delay
+                );
+
+                if ($is_dry_run) {
+                    error_log("DRY RUN (DELAY): " . $delay_cmd);
+                } else {
+                    $output = shell_exec($delay_cmd);
+                    if (strpos($output, 'ERROR') !== false) {
+                        error_log("SYNC FAILED (DELAY) for Door $door_num on $device_id: " . trim($output));
+                    } else {
+                        error_log("SYNC SERVICE (DELAY): Door $door_num set to $delay seconds.");
+                    }
+                    usleep(100000); // 100ms hardware safety buffer
+                }
+            }
+        }
 
         // --- STEP 6: UPLOAD/UPDATE CARDS ---
         $bulk_sync = new Fsbhoa_Uhppote_Bulk_Sync();
@@ -218,6 +255,7 @@ function fsbhoa_execute_sync_logic($controllers, $permission_data, $cardholders_
             fsbhoa_rebuild_monitor_status_cache();
         }
     } else {
+        set_transient('fsbhoa_sync_status', ['status' => 'complete', 'message' => 'Dry run complete. No hardware updated.'], MINUTE_IN_SECONDS * 5);
         error_log("SYNC EXECUTE: Dry Run complete. No changes made to DB or Hardware.");
     }
 }

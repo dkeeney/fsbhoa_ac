@@ -76,17 +76,21 @@ class Fsbhoa_Controller_Actions {
 				$notes = sanitize_textarea_field($gate_data['notes']);
 
 				if (!empty($friendly_name)) {
-                                    // Process the amenity list: convert array of IDs (from multi-select) to comma-separated string
-                                    $amenity_id_array = isset($gate_data['amenity_id']) ? (array) $gate_data['amenity_id'] : [];
-                                    $amenity_id_string = implode(',', array_map('absint', $amenity_id_array));
+                    // Process the amenity list: convert array of IDs (from multi-select) to comma-separated string
+                    $amenity_id_array = isset($gate_data['amenity_id']) ? (array) $gate_data['amenity_id'] : [];
+                    $amenity_id_string = implode(',', array_map('absint', $amenity_id_array));
+                    // Add the delay, defaulting to 3 if missing or invalid
+                    $door_delay = isset($gate_data['door_delay']) ? absint($gate_data['door_delay']) : 3;
+
 					// This is an INSERT or UPDATE
-			    		$data_to_save = [
+			    	$data_to_save = [
 						'controller_record_id' => $item_id,
 						'door_number_on_controller' => absint($slot_number),
 						'friendly_name' => $friendly_name,
 						'notes' => $notes,
-                                                'door_role' => sanitize_text_field($gate_data['door_role']), 
-                                                'amenity_id' => $amenity_id_string,
+                        'door_role' => sanitize_text_field($gate_data['door_role']), 
+                        'amenity_id' => $amenity_id_string,
+                        'door_delay' => $door_delay,
 					];
 					if ($door_record_id > 0) {
 						// Update existing gate

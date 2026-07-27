@@ -94,6 +94,9 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                         <div class="form-field gate-name-field">
                             <strong>Gate Name</strong>
                         </div>
+                        <div class="form-field gate-delay-field">
+                            <strong>Unlock Duration (s)</strong>
+                        </div>
                         <div class="form-field gate-role-field">
                             <strong>Door Role</strong>
                         </div>
@@ -113,6 +116,7 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                         $current_amenity_id_string = $door_data['amenity_id'] ?? '';
                         $selected_amenity_ids = array_map('trim', explode(',', $current_amenity_id_string));
                         $name_placeholder = '(Unused)';
+                        $current_door_delay = $door_data['door_delay'] ?? 3;
                         if ($is_virtual_controller && $i == $loop_limit) {
                             $name_placeholder = 'Enter new gate name...';
                         }
@@ -127,7 +131,10 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
                                 <label for="gate_name_<?php echo $i; ?>">Gate Name</label>
                                 <input type="text" id="gate_name_<?php echo $i; ?>" name="gates[<?php echo $i; ?>][friendly_name]" value="<?php echo esc_attr($door_name); ?>" placeholder="<?php echo esc_attr($name_placeholder); ?>">
                             </div>
-                            
+                            <div class="form-field gate-delay-field">
+                                <label for="gate_delay_<?php echo $i; ?>">Unlock Duration</label>
+                                <input type="number" id="gate_delay_<?php echo $i; ?>" name="gates[<?php echo $i; ?>][door_delay]" value="<?php echo esc_attr($current_door_delay); ?>" min="1" max="60" placeholder="3">
+                            </div>
                             <div class="form-field gate-role-field">
                                 <label for="gate_door_role_<?php echo $i; ?>">Door Role</label>
                                 <select name="gates[<?php echo $i; ?>][door_role]" id="gate_door_role_<?php echo $i; ?>" class="door-role-select">
@@ -221,6 +228,7 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
         .gate-name-field {
             flex: 1 1 20%; /* Grow and shrink, base size 30% */
         }
+        .gate-delay-field { flex: 0 0 110px; }
         .gate-role-field {
             flex: 1 1 30%; /* Give the amenity dropdown some space */
         }
@@ -251,6 +259,7 @@ function fsbhoa_render_controller_form( $form_data, $is_edit_mode, $errors = [],
 
         /* Ensure the text itself is aligned correctly */
         .gate-header-row .gate-name-field strong,
+        .gate-header-row .gate-delay-field strong,
         .gate-header-row .gate-role-field strong,
         .gate-header-row .gate-notes-field strong {
             display: block; /* Treat the <strong> tag as a block for correct positioning */
