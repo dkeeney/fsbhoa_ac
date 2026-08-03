@@ -520,7 +520,7 @@ jQuery(function($) {
                 this.vars.issueDateHidden.val(today);
                 this.vars.statusToggleContainer.show();
                 this.vars.statusUiToggleCheckbox.prop('checked', true);
-                this.vars.toggleLabelSpan.text('Card is Active (Click to Disable)');
+                this.vars.toggleLabelSpan.text('Click to disable)');
                 if (this.vars.residentTypeInput.val() === 'Contractor') {
                     this.vars.contractorExpiryContainer.show();
                 }
@@ -617,7 +617,7 @@ jQuery(function($) {
             if (isChecked) {
                 this.vars.submittedStatusHidden.val('active');
                 this.vars.statusDisplaySpan.text('Active');
-                this.vars.toggleLabelSpan.text('(Click to Disable)');
+                this.vars.toggleLabelSpan.text('(Click to disable)');
                 if (wasPreviouslyDisabled) {
                     this.vars.issueDateDisplay.text(today);
                     this.vars.issueDateHidden.val(today);
@@ -625,7 +625,7 @@ jQuery(function($) {
             } else {
                 this.vars.submittedStatusHidden.val('disabled');
                 this.vars.statusDisplaySpan.text('Disabled');
-                this.vars.toggleLabelSpan.text('(Click to Activate)');
+                this.vars.toggleLabelSpan.text('(Click to enable)');
             }
         },
 

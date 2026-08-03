@@ -53,10 +53,18 @@ function fsbhoa_render_rfid_section( $form_data, $is_edit_mode ) {
                 <label><?php esc_html_e( 'Status', 'fsbhoa-ac' ); ?></label>
                 <div class="fsbhoa-status-control-group">
                     <span id="fsbhoa_card_status_display"><?php echo esc_html(ucwords( !empty($form_data['card_status']) ? $form_data['card_status'] : 'inactive' )); ?></span>
-                    <label id="fsbhoa_card_status_toggle_container" style="<?php if (empty($form_data['rfid_id'])) echo 'display:none;'; ?>">
-                        <input type="checkbox" id="fsbhoa_card_status_ui_toggle" value="active" <?php checked(isset($form_data['card_status']) && $form_data['card_status'] === 'active'); ?>>
-                        <span id="fsbhoa_card_status_toggle_ui_label"><?php echo (isset($form_data['card_status']) && $form_data['card_status'] === 'active') ? esc_html__('Active', 'fsbhoa-ac') : esc_html__('Disabled', 'fsbhoa-ac'); ?></span>
-                    </label>
+                    
+                    <?php 
+                    // Only render the toggle if an RFID actually exists in the database
+                    if ( ! empty($form_data['rfid_id']) ) : 
+                    ?>
+                        <label id="fsbhoa_card_status_toggle_container" style="margin-left: 15px;">
+                            <input type="checkbox" id="fsbhoa_card_status_ui_toggle" value="active" <?php checked(isset($form_data['card_status']) && $form_data['card_status'] === 'active'); ?>>
+                            <span id="fsbhoa_card_status_toggle_ui_label">
+                                <?php echo (isset($form_data['card_status']) && $form_data['card_status'] === 'active') ? esc_html__('Click to disable', 'fsbhoa-ac') : esc_html__('Click to enable', 'fsbhoa-ac'); ?>
+                            </span>
+                        </label>
+                    <?php endif; ?>
                 </div>
             </div>
             
