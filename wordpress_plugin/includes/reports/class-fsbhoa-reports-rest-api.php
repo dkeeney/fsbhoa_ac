@@ -74,7 +74,7 @@ class Fsbhoa_Reports_REST_API {
         $columns = [ 'l.event_timestamp', 'l.event_timestamp', "CONCAT(ch.first_name, ' ', ch.last_name)", 'ch.resident_type', 'p.street_address', 'd.friendly_name', 'l.access_granted', 'l.event_description' ];
         $order_by_col = $columns[$order_col_index] ?? $columns[0];
 
-        $data_query = " SELECT l.log_id, l.controller_identifier, ch.photo, l.event_timestamp, CONCAT(ch.first_name, ' ', ch.last_name) as cardholder, ch.resident_type, p.street_address as property, d.friendly_name as gate_name, l.access_granted, l.event_description {$base_query} {$where_sql} ORDER BY {$order_by_col} {$order_dir} LIMIT %d OFFSET %d ";
+        $data_query = " SELECT l.log_id, l.controller_identifier, ch.id AS cardholder_id, ch.photo, l.event_timestamp, CONCAT(ch.first_name, ' ', ch.last_name) as cardholder, ch.resident_type, p.street_address as property, d.friendly_name as gate_name, l.access_granted, l.event_description {$base_query} {$where_sql} ORDER BY {$order_by_col} {$order_dir} LIMIT %d OFFSET %d ";
         $results = $wpdb->get_results( $wpdb->prepare( $data_query, $length, $start ), ARRAY_A );
         if ( $wpdb->last_error ) { return new WP_Error( 'db_error', 'Database error fetching report data.', array( 'status' => 500, 'db_error' => $wpdb->last_error ) ); }
         

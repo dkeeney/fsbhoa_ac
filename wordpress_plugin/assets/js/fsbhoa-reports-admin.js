@@ -18,7 +18,15 @@ jQuery(document).ready(function($) {
             { "data": null, "defaultContent": "", "className": "select-checkbox", "orderable": false },
             { "data": "event_timestamp" },
             { "data": "photo", "orderable": false, "className": "photo-column", "render": function(data, type, row) { if (data) { return '<img src="data:image/jpeg;base64,' + data + '" alt="photo">'; } return ''; } },
-            { "data": "cardholder" },
+            { "data": "cardholder", 
+              "render": function(data, type, row) {
+                    // Only render a link if there is a valid cardholder ID attached to the event
+                    if (row.cardholder_id) {
+                        return '<a href="/cardholder/?action=edit_cardholder&cardholder_id=' + row.cardholder_id + '" style="font-weight:bold; text-decoration:underline; color:#2271b1;">' + data + '</a>';
+                    }
+                    return data;
+              }
+            },
             { "data": "resident_type", "className": "type-column" },
             { "data": "property" },
             { "data": "gate_name" },
