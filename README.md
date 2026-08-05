@@ -1,4 +1,4 @@
-# FSBHOA Access Control System
+# FSBHOA Access Control System 
 
 An open-source, self-hosted access control system designed for Homeowners Associations (HOAs). This project replaces proprietary hardware systems and their recurring subscription fees with a powerful, flexible, and cost-effective platform built on a modern, decoupled architecture.
 
