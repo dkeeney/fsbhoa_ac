@@ -354,6 +354,11 @@ class Fsbhoa_Access_Service {
         unset($insert_data['door_info']);   
         unset($insert_data['resident_type']);
 
+        // Change cardholder_id to NULL for bad cards so it will not break Foreign Key constraints
+        if ( isset( $insert_data['cardholder_id'] ) && $insert_data['cardholder_id'] === 0 ) {
+            $insert_data['cardholder_id'] = null;
+        }
+
         // Explicitly define formats for insert (using placeholders for safety)
         $formats = array_fill(0, count($insert_data), '%s'); 
 

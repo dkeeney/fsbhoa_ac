@@ -160,6 +160,13 @@ class Fsbhoa_Cardholder_Actions {
                     $sync_needed = true;
                 }
 
+                // Did the email change? If so, trigger the 5-second web sync
+                if ( (string)$data_to_save['email'] !== (string)$existing_data['email'] ) {
+                    if ( ! wp_next_scheduled( 'fsbhoa_instant_web_sync_event' ) ) {
+                        wp_schedule_single_event( time() + 5, 'fsbhoa_instant_web_sync_event' );
+                    }
+                }
+
                 $result = $wpdb->update( $table_name, $data_to_save, array('id' => $item_id) );
                 if ($result === false) {
                     $errors['db_error'] = 'A database error occurred while updating. Please try again. Error: ' . $wpdb->last_error;
@@ -173,6 +180,12 @@ class Fsbhoa_Cardholder_Actions {
                     error_log('FSBHOA DB Insert Error: ' . $wpdb->last_error);
                 } else {
                     $item_id = $wpdb->insert_id;
+                    //  If a new user was added AND they have an email, trigger the 5-second web sync
+                    if ( ! empty( $data_to_save['email'] ) ) {
+                        if ( ! wp_next_scheduled( 'fsbhoa_instant_web_sync_event' ) ) {
+                            wp_schedule_single_event( time() + 5, 'fsbhoa_instant_web_sync_event' );
+                        }
+                    }
                 }
                 if (isset($data_to_save['rfid_id']) && !empty($data_to_save['rfid_id'])) {
                     $sync_needed = true;
