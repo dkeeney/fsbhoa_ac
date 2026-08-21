@@ -50,18 +50,16 @@ class Fsbhoa_Archived_Cardholder_Actions {
 
         $groups_csv = $source_record->groups_csv;
 
-        $rfid_is_present = !empty($source_record->rfid_id);
-        $new_status = $rfid_is_present ? 'active' : 'inactive';
-
-        // --- CANARY #2: Log the decision-making process ---
-        //error_log('RESTORE DEBUG: Value of rfid_id: ' . var_export($source_record->rfid_id, true));
-        //error_log('RESTORE DEBUG: Result of !empty() check: ' . ($rfid_is_present ? 'TRUE' : 'FALSE'));
-        //error_log('RESTORE DEBUG: Final chosen status: ' . $new_status);
+        $has_credential = $wpdb->get_var($wpdb->prepare(
+            "SELECT credential_id FROM ac_credentials WHERE cardholder_id = %d LIMIT 1",
+            $cardholder_id
+        ));
+        $new_status = $has_credential ? 'active' : 'inactive';
 
         $result = $wpdb->update(
             $table_cardholders,
             [
-                'card_status' => $new_status,
+                'cardholder_status' => $new_status,
                 'deleted_at'  => null,
                 'groups_csv'  => null
             ],
@@ -99,6 +97,8 @@ class Fsbhoa_Archived_Cardholder_Actions {
                 }
             }
         }
+        // --- Reactivate all credentials upon restore ---
+        $wpdb->update('ac_credentials', ['status' => 'active'], ['cardholder_id' => $cardholder_id], ['%s'], ['%d']);
         
         // --- COMMIT TRANSACTION ---
         $wpdb->query( 'COMMIT' );
@@ -124,7 +124,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
 
         $result = $wpdb->update(
             'ac_cardholders',
-            [ 'card_status' => 'purged' ],
+            [ 'cardholder_status' => 'purged' ],
             [ 'id' => $cardholder_id ],
             [ '%s' ],
             [ '%d' ]
@@ -169,7 +169,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
         $table_access_log = 'ac_access_log';
         $table_properties = 'ac_property';
 
-        $source_record = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table_cardholders} WHERE id = %d AND card_status = 'archived' FOR UPDATE", $source_id ), ARRAY_A );
+        $source_record = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table_cardholders} WHERE id = %d AND cardholder_status = 'archived' FOR UPDATE", $source_id ), ARRAY_A );
         if ( ! $source_record ) {
             error_log("[MERGE ACTION ERROR] Could not find or lock source record ID: {$source_id}. Rolling back.");
             $wpdb->query( 'ROLLBACK' );
@@ -184,16 +184,45 @@ class Fsbhoa_Archived_Cardholder_Actions {
             wp_die( 'Could not find or lock the destination record to merge into.', 'Error', ['back_link' => true] );
         }
 
-        // --- LOGIC: Prioritize Destination for RFID and Photo ---
-        // If Destination has an RFID, keep it. Otherwise, take the one from Source.
-        $final_rfid = !empty($dest_record['rfid_id']) ? $dest_record['rfid_id'] : $source_record['rfid_id'];
+        // --- LOGIC: Move credentials from source to destination ---
+        // Grab the credential_value as well so we can check for exact duplicates
+        $source_creds = $wpdb->get_results($wpdb->prepare("SELECT credential_id, credential_type, credential_value FROM ac_credentials WHERE cardholder_id = %d", $source_id));
+
+        foreach ($source_creds as $cred) {
+            // Does the Destination already have this EXACT credential?
+            $dest_has_exact_cred = $wpdb->get_var($wpdb->prepare(
+                "SELECT credential_id FROM ac_credentials WHERE cardholder_id = %d AND credential_type = %s AND credential_value = %s LIMIT 1",
+                $destination_id, $cred->credential_type, $cred->credential_value
+            ));
+
+            if (!$dest_has_exact_cred) {
+                // Safely move AND activate this specific credential for the Destination
+                $wpdb->update(
+                    'ac_credentials',
+                    ['cardholder_id' => $destination_id, 'status' => 'active'],
+                    ['credential_id' => $cred->credential_id],
+                    ['%d', '%s'],
+                    ['%d']
+                );
+            }
+        }
+
+        // If Destination has a Photo, keep it. Otherwise, take the one from Source.
+        $final_photo = !empty($dest_record['photo']) ? $dest_record['photo'] : $source_record['photo'];
+
+        // --- LOGIC: Auto-Activate ---
+        $has_any_cred = $wpdb->get_var($wpdb->prepare("SELECT credential_id FROM ac_credentials WHERE cardholder_id = %d LIMIT 1", $destination_id));
+        $new_status = $has_any_cred ? 'active' : 'inactive';
+
+        error_log("[MERGE LOGIC] Resulting Status: $new_status");
     
         // If Destination has a Photo, keep it. Otherwise, take the one from Source.
         $final_photo = !empty($dest_record['photo']) ? $dest_record['photo'] : $source_record['photo'];
 
         // --- LOGIC: Auto-Activate ---
-        // If the resulting record has an RFID, it should be 'active'.
-        $new_status = !empty($final_rfid) ? 'active' : 'inactive';
+        // Auto-activate if the destination now has a credential
+        $has_cred = $wpdb->get_var($wpdb->prepare("SELECT credential_id FROM ac_credentials WHERE cardholder_id = %d LIMIT 1", $destination_id));
+        $new_status = $has_cred ? 'active' : 'inactive';
 
         error_log("[MERGE LOGIC] Resulting RFID: $final_rfid | Resulting Status: $new_status");
 
@@ -207,12 +236,11 @@ class Fsbhoa_Archived_Cardholder_Actions {
         $new_status = 
         $text_sql = $wpdb->prepare(
             "UPDATE {$table_cardholders} SET
-                rfid_id = %s, first_name = %s, last_name = %s, title = %s,
+                first_name = %s, last_name = %s, title = %s,
                 email = %s, email_used = %d, phone = %s, phone_type = %s,
-                card_status = %s, notes = %s, card_issue_date = %s,
+                cardholder_status = %s, notes = %s, card_issue_date = %s,
                 card_expiry_date = %s, resident_type = %s
             WHERE id = %d",
-            $final_rfid, 
             $source_record['first_name'], 
             $source_record['last_name'], 
             $source_record['title'],
@@ -261,7 +289,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
         error_log("[MERGE ACTION DB] Step 3: Relinked access logs. Rows affected: " . $relinked);
 
         // --- STEP 4: Purge the now-merged source record. ---
-        $purged = $wpdb->update( $table_cardholders, ['card_status' => 'purged'], ['id' => $source_id], ['%s'], ['%d'] );
+        $purged = $wpdb->update( $table_cardholders, ['cardholder_status' => 'purged'], ['id' => $source_id], ['%s'], ['%d'] );
         if ( false === $purged ) {
             error_log("[MERGE ACTION ERROR] DB error purging source record: " . $wpdb->last_error . ". Rolling back.");
             $wpdb->query( 'ROLLBACK' );

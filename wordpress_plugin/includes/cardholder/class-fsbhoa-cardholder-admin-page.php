@@ -32,7 +32,7 @@ class Fsbhoa_Cardholder_Admin_Page {
             'first_name' => '', 'last_name' => '', 'title' => '', 'email' => '', 'phone' => '', 'phone_type' => '',
             'import_first_name' => '', 'import_last_name' => '', 'email_used' => 0,
             'resident_type' => '', 'property_id' => '', 'property_address_display' => '', 'photo' => null,
-            'rfid_id' => '', 'notes' => '', 'card_status' => 'inactive',
+            'rfid_id' => '', 'notes' => '', 'cardholder_status' => 'inactive',
             'card_issue_date' => date('Y-m-d', strtotime('-1 day')),
             'card_expiry_date' => '2099-12-31',  'origin' => 'manual', 'photo_base64' => '',
         );
@@ -124,8 +124,8 @@ class Fsbhoa_Cardholder_Admin_Page {
                 require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-address-section.php';
                 fsbhoa_render_address_section( $form_data );
 
-                require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-rfid-section.php';
-                fsbhoa_render_rfid_section( $form_data, $is_edit_mode );
+                // Ask hardware plugins to draw their credential fields (RFID, PIN, etc.)
+                do_action('fsbhoa_render_credential_fields', $form_data, $is_edit_mode);
 
                 require_once plugin_dir_path( __FILE__ ) . 'views/view-cardholder-photo-section.php';
                 fsbhoa_render_photo_section( $form_data, $is_edit_mode, !empty($errors) );
@@ -174,12 +174,12 @@ class Fsbhoa_Cardholder_Admin_Page {
         $sql = "SELECT c.*, p.house_number, p.street_name
                 FROM {$cardholders_table} c
                 LEFT JOIN {$properties_table} p ON c.property_id = p.property_id
-                WHERE c.card_status NOT IN ('archived', 'purged')";
+                WHERE c.cardholder_status NOT IN ('archived', 'purged')";
 
         $orderby = isset( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'full_name';
         $order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( $_REQUEST['order'] ) ) : 'ASC';
 
-        $allowed_orderby = array('last_name', 'first_name', 'street_address', 'resident_type', 'email', 'full_name', 'card_status');
+        $allowed_orderby = array('last_name', 'first_name', 'street_address', 'resident_type', 'email', 'full_name', 'cardholder_status');
 
         $orderby_sql = '';
         if ( $orderby === 'full_name') {

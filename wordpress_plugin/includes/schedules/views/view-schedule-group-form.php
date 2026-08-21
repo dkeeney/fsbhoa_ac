@@ -20,22 +20,6 @@ if (!$is_new) {
 }
 
 $all_groups = $wpdb->get_results( $is_new ? "SELECT group_id, group_name FROM ac_groups ORDER BY group_name ASC" : $wpdb->prepare("SELECT group_id, group_name FROM ac_groups WHERE group_id != %d ORDER BY group_name ASC", $group_id) );
-// 1. Get only doors attached to non-kiosk controllers
-$all_doors = $wpdb->get_results("
-    SELECT d.door_record_id, d.friendly_name
-    FROM ac_doors d
-    JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
-    WHERE c.type != 'VIRTUAL_KIOSK'
-    ORDER BY d.friendly_name ASC
-");
-
-// 2. Get only controllers that are not virtual kiosks
-$all_controllers = $wpdb->get_results("
-    SELECT controller_record_id, friendly_name
-    FROM ac_controllers
-    WHERE type != 'VIRTUAL_KIOSK'
-    ORDER BY friendly_name ASC
-");
 
 $has_all_access = isset($group->has_all_access) && $group->has_all_access;
 ?>
@@ -86,33 +70,8 @@ $has_all_access = isset($group->has_all_access) && $group->has_all_access;
         </div>
     </div>
 
-    <div id="permissions-details-wrapper" style="<?php if ($has_all_access) echo 'display: none;'; ?>">
-        <table class="wp-list-table widefat striped" id="group-permissions-table">
-            <thead>
-                <tr>
-                    <th class="column-actions" style="width: 80px;">Actions</th>
-                    <th><?php _e('Gate', 'fsbhoa-ac'); ?></th>
-                    <th style="width: 10%;"><?php _e('Start Time', 'fsbhoa-ac'); ?></th>
-                    <th style="width: 10%;"><?php _e('End Time', 'fsbhoa-ac'); ?></th>
-                    <th><?php _e('Days', 'fsbhoa-ac'); ?></th>
-                </tr>
-            </thead>
-            <tbody id="permissions-container">
-                <?php
-                if (!empty($permissions)) {
-                    foreach ($permissions as $index => $perm) {
-                        include FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-permission-row.php';
-                    }
-                }
-                ?>
-            </tbody>
-        </table>
-        <p style="margin-top: 1em;">
-            <button type="button" class="button" id="add-permission-rule" <?php disabled($has_all_access); ?>>
-                <?php _e('Add Permission Rule', 'fsbhoa-ac'); ?>
-            </button>
-        </p>
-    </div>
+    <!-- ===  UI INJECTION HOOK === -->
+    <?php do_action('fsbhoa_group_hardware_settings_ui', $group_id, $schedule_id, $has_all_access, $is_new); ?>
 
     <div class="form-actions-bar">
     <a href="<?php echo esc_url(remove_query_arg(['action', 'group_id'])); ?>" class="button button-primary" id="exit-editor-btn">

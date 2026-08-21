@@ -48,14 +48,6 @@ sudo mkdir -p "$INSTALL_ASSETS/zebra/templates"
 sudo cp -r templates/* "$INSTALL_ASSETS/zebra/templates/"
 cd ..
 
-# 4. EVENT SERVICE
-echo "[4/5] Building Event Service..."
-cd event_service
-go build -o fsbhoa_events main.go config.go hub.go status_poller.go event_handler.go types.go
-sudo systemctl stop fsbhoa_events
-sudo cp fsbhoa_events "$INSTALL_BIN/"
-sudo chmod +x "$INSTALL_BIN/fsbhoa_events"
-cd ..
 
 # 5. WORDPRESS PLUGIN
 echo "[5/5] Deploying WordPress Plugin..."
@@ -74,7 +66,6 @@ sudo systemctl daemon-reload
 sudo systemctl start fsbhoa_monitor
 sudo systemctl start fsbhoa_kiosk
 sudo systemctl start fsbhoa_printer
-sudo systemctl start fsbhoa_events
 
 echo "Deployment Complete."
 echo "Check status: sudo systemctl status fsbhoa_monitor"

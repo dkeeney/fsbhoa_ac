@@ -189,7 +189,7 @@ class Fsbhoa_Import_V2
             return ['type' => 'error', 'messages' => [__('Could not open the uploaded file.', 'fsbhoa-ac')]];
         }
 
-        $header_raw = fgetcsv($handle);
+        $header_raw = fgetcsv($handle, 0, ",", "\"", "\\");
         if ($header_raw === false) {
              return ['type' => 'error', 'messages' => [__('Could not read the header row from the CSV file.', 'fsbhoa-ac')]];
         }
@@ -201,7 +201,7 @@ class Fsbhoa_Import_V2
 
         $header = array_map('trim', array_map('strtolower', $header_raw));
 
-        while (($row_data = fgetcsv($handle)) !== false) {
+        while (($row_data = fgetcsv($handle, 0, ",", "\"", "\\")) !== false) {
             $stats['rows_processed']++;
             // Pad the row data with empty strings if it has fewer columns than the header
             $row_data = array_pad($row_data, count($header), '');
@@ -522,7 +522,7 @@ error_log("[IMPORT DEBUG] DID NOT FIND a property record. Will attempt to create
 
     private function get_cardholders_by_property($property_id) { 
         $query = $this->wpdb->prepare(
-            "SELECT * FROM {$this->table_cardholders} WHERE property_id = %d AND card_status NOT IN ('archived', 'purged')",
+            "SELECT * FROM {$this->table_cardholders} WHERE property_id = %d AND cardholder_status NOT IN ('archived', 'purged')",
             $property_id
         );
         return $this->wpdb->get_results($query);
@@ -536,12 +536,12 @@ error_log("[IMPORT DEBUG] DID NOT FIND a property record. Will attempt to create
             
             // Find existing records using the IMPORT names as the key
             $query = $this->wpdb->prepare(
-                "SELECT id, phone, email, resident_type, import_first_name, import_last_name, card_status
+                "SELECT id, phone, email, resident_type, import_first_name, import_last_name, cardholder_status
                     FROM {$this->table_cardholders} 
                     WHERE import_first_name = %s 
                       AND import_last_name = %s 
                       AND property_id = %d
-                      AND card_status NOT IN ('archived', 'purged')",
+                      AND cardholder_status NOT IN ('archived', 'purged')",
                 $cardholder_data['import_first_name'],
                 $cardholder_data['import_last_name'],
                 $property_id
@@ -555,7 +555,7 @@ error_log("[IMPORT DEBUG] DID NOT FIND a property record. Will attempt to create
             if ($existing_record) {
 
                 // Check for contact info mismatches, BUT only for active cardholders.
-                if ($existing_record->card_status === 'active') {
+                if ($existing_record->cardholder_status === 'active') {
                     $db_phone = trim($existing_record->phone);
                     $csv_phone = trim($cardholder_data['phone']);
                     $db_email = trim(strtolower($existing_record->email));

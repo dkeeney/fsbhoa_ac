@@ -49,34 +49,8 @@ class Fsbhoa_Schedule_AJAX_Handler {
             }
         }
 
-        // 2. Save Permissions (Matches your Actions class logic exactly)
-        $wpdb->delete("ac_group_permissions", ['group_id' => $group_id, 'schedule_id' => $schedule_id]);
-        $permissions = isset($_POST['permissions']) ? (array) $_POST['permissions'] : [];
-
-        foreach ($permissions as $perm) {
-            if (empty($perm['door_id']) || empty($perm['start_time']) || empty($perm['end_time'])) continue;
-            
-            $target_id = sanitize_text_field($perm['door_id']);
-            $data = [
-                'group_id' => $group_id, 'schedule_id' => $schedule_id,
-                'is_enabled' => (isset($perm['is_enabled']) && $perm['is_enabled'] == '1') ? 1 : 0,
-                'start_time' => sanitize_text_field($perm['start_time']),
-                'end_time' => sanitize_text_field($perm['end_time']),
-                'on_mon' => isset($perm['on_mon']) ? 1 : 0, 'on_tue' => isset($perm['on_tue']) ? 1 : 0,
-                'on_wed' => isset($perm['on_wed']) ? 1 : 0, 'on_thu' => isset($perm['on_thu']) ? 1 : 0,
-                'on_fri' => isset($perm['on_fri']) ? 1 : 0, 'on_sat' => isset($perm['on_sat']) ? 1 : 0,
-                'on_sun' => isset($perm['on_sun']) ? 1 : 0,
-            ];
-
-            if (strpos($target_id, 'controller-') === 0) {
-                $data['controller_id'] = absint(str_replace('controller-', '', $target_id));
-            } elseif ($target_id !== 'all') {
-                $data['door_id'] = absint(str_replace('gate-', '', $target_id));
-            }
-            $wpdb->insert("ac_group_permissions", $data);
-        }
-
-        fsbhoa_log_pending_change('group', $group_id);
+        // 2. Broadcast that the group was saved so hardware plugins can save their rules
+        do_action('fsbhoa_core_group_saved', $group_id, $schedule_id, wp_unslash($_POST));
 
         // 3. Render and return
         // No need to ob_start here since get_visualizer_html handles it
@@ -93,7 +67,7 @@ class Fsbhoa_Schedule_AJAX_Handler {
     private function get_visualizer_html($group_id, $schedule_id) {
         ob_start();
         // Ensure these variables are available to the included view
-        include FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-group-schedule-visualizer.php';
+        do_action('fsbhoa_render_schedule_visualizer', $group_id, $schedule_id);
         return ob_get_clean();
 }
 }

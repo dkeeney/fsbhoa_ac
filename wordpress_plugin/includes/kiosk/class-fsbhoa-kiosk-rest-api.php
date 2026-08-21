@@ -144,9 +144,9 @@ class Fsbhoa_Kiosk_REST_API {
         $rfid = sanitize_text_field($request['rfid']);
 
         $cardholder = $wpdb->get_row($wpdb->prepare(
-            "SELECT first_name, last_name, photo, card_status, card_expiry_date 
-             FROM ac_cardholders 
-             WHERE rfid_id = %s AND card_status = 'active'",
+            "SELECT first_name, last_name, photo, ch.cardholder_status, cred.status AS credential_status, card_expiry_date
+             FROM ac_cardholders ch JOIN ac_credentials cred ON ch.id = cred.cardholder_id
+             WHERE cred.credential_value = %s AND cred.credential_type = 'MIFARE_BADGE' AND cred.status = 'active' AND ch.cardholder_status = 'active'",
             $rfid
         ));
         if ($wpdb->last_error) { return new WP_Error('db_error', 'Database error validating card.', ['status' => 500]); }
@@ -157,7 +157,10 @@ class Fsbhoa_Kiosk_REST_API {
         if (!$cardholder) {
             $is_valid = false;
             $message = 'Card not found.';
-        } elseif ($cardholder->card_status !== 'active') {
+        } elseif ($cardholder->cardholder_status !== 'active' ) {
+            $is_valid = false;
+            $message = 'Cardholder is not active.';
+        } elseif ($cardholder->credential_status !== 'active') {
             $is_valid = false;
             $message = 'Card is not active.';
         } elseif (strtotime($cardholder->card_expiry_date) < time()) {
@@ -165,7 +168,7 @@ class Fsbhoa_Kiosk_REST_API {
             $message = 'Card has expired.';
         }
 
-        // CORRECTED LOGIC:
+        
         if ($is_valid) {
             // If the card is valid, send the cardholder data to the kiosk UI
             $cardholder_data = [
@@ -228,7 +231,11 @@ class Fsbhoa_Kiosk_REST_API {
     private function _log_kiosk_event($rfid, $description, $is_granted) {
         global $wpdb;
 
-        $cardholder_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM ac_cardholders WHERE rfid_id = %s", $rfid));
+        $cardholder_id = $wpdb->get_var($wpdb->prepare("
+            SELECT cardholder_id as id 
+            FROM ac_credentials 
+            WHERE credential_value = %s AND credential_type = 'MIFARE_BADGE'", 
+            $rfid));
 
         $log_data = [
             'event_timestamp'       => current_time('mysql'),
@@ -254,8 +261,10 @@ class Fsbhoa_Kiosk_REST_API {
         global $wpdb;
         $cardholder_id = absint($request['id']);
 
-        $cardholder = $wpdb->get_row($wpdb->prepare(
-            "SELECT rfid_id, first_name, last_name, photo, card_status, card_expiry_date FROM ac_cardholders WHERE id = %d",
+        $cardholder = $wpdb->get_row($wpdb->prepare("
+            SELECT cred.credential_value as rfid_id, ch.first_name, ch.last_name, ch.photo, ch.cardholder_status, cred.status AS credential_status, ch.card_expiry_date 
+            FROM ac_cardholders ch LEFT JOIN ac_credentials cred ON ch.id = cred.cardholder_id AND cred.credential_type = 'MIFARE_BADGE' 
+            WHERE ch.id = %d",
             $cardholder_id
         ));
 
@@ -266,9 +275,12 @@ class Fsbhoa_Kiosk_REST_API {
         $is_valid = true;
         $message = 'Cardholder is valid.';
 
-        if ($cardholder->card_status !== 'active') {
+        if ($cardholder->cardholder_status !== 'active') {
             $is_valid = false;
             $message = 'Cardholder is not active.';
+        } elseif ($cardholder->credential_status !== 'active') {
+            $is_valid = false;
+            $message = 'Card is not active.';
         } elseif (strtotime($cardholder->card_expiry_date) < time()) {
             $is_valid = false;
             $message = 'Card has expired.';

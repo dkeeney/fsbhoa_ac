@@ -19,13 +19,6 @@ cd "$BASE_DIR/kiosk" || exit
 go build -o fsbhoa_kiosk .
 if [ $? -eq 0 ]; then echo "   [OK] fsbhoa_kiosk built"; else echo "   [FAIL] Kiosk build failed"; exit 1; fi
 
-# --- 3. EVENT SERVICE ---
-echo "3. Building Event Service..."
-cd "$BASE_DIR/event_service" || exit
-go build -o fsbhoa_events .
-if [ $? -eq 0 ]; then echo "   [OK] fsbhoa_event built"; else echo "   [FAIL] Event build failed"; exit 1; fi
-# Note: Previous script check was missing here, added success msg
-echo "   [OK] fsbhoa_events built"
 
 # --- 4. PRINTER SERVICE ---
 echo "4. Building Printer Service..."
@@ -42,14 +35,12 @@ if [ "$1" == "install" ]; then
     echo "Stopping services..."
     sudo systemctl stop fsbhoa_monitor
     sudo systemctl stop fsbhoa_kiosk
-    sudo systemctl stop fsbhoa_events
     sudo systemctl stop fsbhoa_printer
     
     # 2. COPY new binaries
     echo "Copying binaries..."
     sudo cp "$BASE_DIR/monitor_service/fsbhoa_monitor" /usr/local/bin/
     sudo cp "$BASE_DIR/kiosk/fsbhoa_kiosk" /usr/local/bin/
-    sudo cp "$BASE_DIR/event_service/fsbhoa_events" /usr/local/bin/
     sudo cp "$BASE_DIR/zebra_print_service/fsbhoa_printer" /usr/local/bin/
     
     # 3. SET PERMISSIONS (Root ownership is safer for system binaries)
@@ -61,7 +52,6 @@ if [ "$1" == "install" ]; then
     echo "Starting Systemd Services..."
     sudo systemctl start fsbhoa_monitor
     sudo systemctl start fsbhoa_kiosk
-    sudo systemctl start fsbhoa_events
     sudo systemctl start fsbhoa_printer
     
     echo "--- Install Complete ---"

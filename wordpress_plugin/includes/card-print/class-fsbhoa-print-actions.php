@@ -174,18 +174,21 @@ class Fsbhoa_Print_Actions {
         $result = $wpdb->update(
             'ac_cardholders',
             [
-                'rfid_id'         => $rfid_id,
-                'card_status'     => 'active',
+                'cardholder_status'     => 'active',
                 'card_issue_date' => current_time('mysql'),
             ],
             ['id' => $cardholder_id],
-            ['%s', '%s', '%s'],
+            ['%s', '%s'],
             ['%d']
         );
 
         if ($result === false) {
             wp_send_json_error(['message' => 'Database error during card activation: ' . $wpdb->last_error], 500);
         } else {
+            // Let the hardware plugins save the credential payload
+            $payload = ['rfid_id' => $rfid_id, 'cardholder_status' => 'active'];
+            do_action('fsbhoa_core_cardholder_updated', $cardholder_id, $payload, []);
+
             fsbhoa_log_pending_change('cardholder', $cardholder_id);
             wp_send_json_success(['message' => 'Card activated successfully!']);
         }

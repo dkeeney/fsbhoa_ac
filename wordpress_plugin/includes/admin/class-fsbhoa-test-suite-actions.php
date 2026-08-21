@@ -39,49 +39,16 @@ class Fsbhoa_Test_Suite_Actions {
     }
 
     private function run_hardware_test() {
-        global $wpdb;
-        $controllers_table = 'ac_controllers';
+        // Broadcast the test intent to hardware plugins
+        $result = apply_filters('fsbhoa_simulate_hardware_event', false);
 
-        // Fetch the serial number of the first controller from the database
-        $serial_number = $wpdb->get_var("SELECT uhppoted_device_id FROM $controllers_table ORDER BY controller_record_id ASC LIMIT 1");
-
-        if (empty($serial_number)) {
-            wp_send_json_error('Test failed: No controllers found in the database.');
-            return;
+        if ( is_wp_error($result) ) {
+            wp_send_json_error('Test failed: ' . $result->get_error_message());
+        } elseif ($result !== false) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error('Test failed: No hardware plugin configured to run simulated events.');
         }
-
-        // This simulates a hardware event by calling the event_service
-        $websocket_port = get_option('fsbhoa_ac_websocket_port', 8083);
-        // Check if TLS certificates are configured in the settings
-        $tls_cert_path = get_option('fsbhoa_ac_tls_cert_path', '');
-        $tls_key_path  = get_option('fsbhoa_ac_tls_key_path', '');
-
-        // Choose the correct protocol
-        $protocol = (!empty($tls_cert_path) && !empty($tls_key_path)) ? 'https' : 'http';
-
-        // Build the URL using the dynamic protocol
-        $url = sprintf('%s://127.0.0.1:%d/test_event', $protocol, $websocket_port);
-
-        $body = [
-            'card_number'   => 11111111,
-            'serial_number' => (int) $serial_number, // Pass the dynamic serial number
-            'door_number'   => 254 // DOOR 254 (System Unit Test)
-        ];
-        $args = [
-            'method'    => 'POST',
-            'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
-            'body'      => json_encode($body),
-            'sslverify' => false,
-            'timeout'   => 5
-        ];
-
-        $response = wp_remote_post($url, $args);
-    
-        if (is_wp_error($response)) {
-            wp_send_json_error('Failed to contact event_service: ' . $response->get_error_message());
-        }
-        sleep(1);
-        wp_send_json_success("Test hardware event triggered for controller SN {$serial_number}.");
     }
 
     private function verify_database_event($rfid, $success_message) {

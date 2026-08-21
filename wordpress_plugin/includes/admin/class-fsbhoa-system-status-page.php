@@ -5,16 +5,22 @@ class Fsbhoa_System_Status_Page {
 
     private $parent_slug = 'fsbhoa_ac_main_menu';
     private $page_slug = 'fsbhoa_system_status';
-    public static $services = [
-        'fsbhoa_events'       => 'Event Service',
-        'fsbhoa_monitor'      => 'Monitor Service',
-        'fsbhoa_printer'      => 'Print Service',
-        'fsbhoa_kiosk'        => 'Kiosk Service',
-    ];
 
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
+    }
+
+    public static function get_services() {
+        // Core services only
+        $core_services = [
+            'fsbhoa_monitor'      => 'Monitor Service',
+            'fsbhoa_printer'      => 'Print Service',
+            'fsbhoa_kiosk'        => 'Kiosk Service',
+        ];
+
+        // Ask plugins for their services
+        return apply_filters('fsbhoa_system_services', $core_services);
     }
 
     /**
@@ -82,7 +88,7 @@ class Fsbhoa_System_Status_Page {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ( self::$services as $service_id => $service_name ) : ?>
+                    <?php foreach ( self::get_services() as $service_id => $service_name ) : ?>
                         <tr>
                             <td><strong><?php echo esc_html( $service_name ); ?></strong><br><small><?php echo esc_html( $service_id ); ?></small></td>
                             <td>

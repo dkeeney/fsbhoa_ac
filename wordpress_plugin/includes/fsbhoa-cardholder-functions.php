@@ -35,7 +35,7 @@ function fsbhoa_archive_and_delete_cardholder( $cardholder_id ) {
     $updated = $wpdb->update(
         $table_cardholders,
         [
-            'card_status' => 'archived',
+            'cardholder_status' => 'archived',
             'deleted_at'  => current_time( 'mysql', 1 ), // Use WordPress's timezone-aware timestamp
             'groups_csv'  => $groups_csv
         ],
@@ -47,6 +47,8 @@ function fsbhoa_archive_and_delete_cardholder( $cardholder_id ) {
     if ( false === $updated ) {
         return new WP_Error( 'db_error_update', 'Database error while archiving the cardholder. DB Error: ' . esc_html( $wpdb->last_error ) );
     }
+    // --- Deactivate all credentials belonging to this archived user ---
+    $wpdb->update('ac_credentials', ['status' => 'archived'], ['cardholder_id' => $cardholder_id], ['%s'], ['%d']);
 
     // 3. For security, remove all active group memberships to revoke permissions immediately.
     $deleted = $wpdb->delete( $table_memberships, [ 'cardholder_id' => $cardholder_id ], [ '%d' ] );

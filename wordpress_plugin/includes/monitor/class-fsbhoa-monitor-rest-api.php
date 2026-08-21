@@ -8,7 +8,6 @@ if ( ! defined( 'WPINC' ) ) {
     die;
 }
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-permission-compiler.php';
 
 class Fsbhoa_Monitor_REST_API {
 
@@ -139,22 +138,16 @@ class Fsbhoa_Monitor_REST_API {
         $provided_door = absint($params['Door'] ?? 0);
         $zone_name = sanitize_text_field($params['ZoneName'] ?? '');
 
-        // If this is our virtual lighting controller, QR scan. let's find the "Real" Door ID by name
-        // NOTE: For this to work, the Zone name must match the door name.
-        if ( $serial === '900001' && !empty($zone_name) ) {
-            $db_door = $wpdb->get_row( $wpdb->prepare( "
-                SELECT d.door_number_on_controller, d.door_record_id
-                FROM ac_doors d
-                JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id
-                WHERE c.uhppoted_device_id = '900001'
-                AND d.friendly_name = %s
-                LIMIT 1
-            ", $zone_name ) );
+        // Allow hardware plugins to intercept and modify the raw event data
+        // (e.g., mapping virtual zones to physical doors)
+        $mapped_data = apply_filters('fsbhoa_hardware_map_event_data', [
+            'serial' => $serial,
+            'door'   => $provided_door,
+            'zone'   => $zone_name
+        ], $params);
 
-            if ( $db_door ) {
-                $provided_door = absint($db_door->door_number_on_controller);
-            }
-        }
+        $serial = $mapped_data['serial'];
+        $provided_door = $mapped_data['door'];
 
 
         if ( empty($serial) || $provided_door == 0 ) {
@@ -210,11 +203,11 @@ class Fsbhoa_Monitor_REST_API {
         $controllers_table = 'ac_controllers';
         $property_table = 'ac_property';
 
-        $query = $wpdb->prepare(
-            "SELECT l.event_timestamp, l.access_granted, l.event_description, l.rfid_id, l.controller_identifier, ch.id as cardholder_id, ch.first_name, ch.last_name, ch.photo, d.friendly_name AS gate_name, d.door_record_id, p.street_address
+        $query = $wpdb->prepare("SELECT l.event_timestamp, l.access_granted, l.event_description, cred.credential_value AS rfid_id, l.controller_identifier, ch.id as cardholder_id, ch.first_name, ch.last_name, ch.photo, d.friendly_name AS gate_name, d.door_record_id, p.street_address
              FROM {$log_table} AS l
              LEFT JOIN {$cardholders_table} AS ch ON l.cardholder_id = ch.id
              LEFT JOIN {$controllers_table} AS c ON l.controller_identifier = c.uhppoted_device_id
+             LEFT JOIN ac_credentials AS cred ON ch.id = cred.cardholder_id AND cred.credential_type = 'MIFARE_BADGE'
              LEFT JOIN {$doors_table} AS d ON c.controller_record_id = d.controller_record_id AND l.door_number = d.door_number_on_controller
              LEFT JOIN {$property_table} AS p ON ch.property_id = p.property_id
              WHERE l.log_id = %d",
@@ -299,10 +292,10 @@ class Fsbhoa_Monitor_REST_API {
         $property_table = 'ac_property';
 
         // It uses the database's internal clock, to get records in the last 24 hrs.
-        $query = "
-            SELECT l.log_id, l.event_timestamp, l.access_granted, l.event_description, l.rfid_id, l.controller_identifier, ch.first_name, ch.last_name, ch.photo, d.friendly_name AS gate_name, d.door_record_id, p.street_address
+        $query = "SELECT l.log_id, l.event_timestamp, l.access_granted, l.event_description, cred.credential_value AS rfid_id, l.controller_identifier, ch.first_name, ch.last_name, ch.photo, d.friendly_name AS gate_name, d.door_record_id, p.street_address
             FROM {$log_table} AS l
             LEFT JOIN {$cardholders_table} AS ch ON l.cardholder_id = ch.id
+            LEFT JOIN ac_credentials AS cred ON ch.id = cred.cardholder_id AND cred.credential_type = 'MIFARE_BADGE'
             LEFT JOIN {$controllers_table} AS c ON l.controller_identifier = c.uhppoted_device_id
             LEFT JOIN {$doors_table} AS d ON c.controller_record_id = d.controller_record_id AND l.door_number = d.door_number_on_controller
             LEFT JOIN {$property_table} AS p ON ch.property_id = p.property_id
@@ -317,8 +310,6 @@ class Fsbhoa_Monitor_REST_API {
      *  Callback to manually set the control state of a single door.
      */
     public function set_door_state_callback( WP_REST_Request $request ) {
-        global $wpdb;
-
         $params = $request->get_json_params();
         $door_id = isset($params['door_id']) ? absint($params['door_id']) : 0;
         $state_code = isset($params['state']) ? absint($params['state']) : 0;
@@ -327,94 +318,37 @@ class Fsbhoa_Monitor_REST_API {
             return new WP_Error('bad_request', 'Invalid door ID or state provided.', ['status' => 400]);
         }
 
-        $state_map = [ 1 => 'controlled', 2 => 'normally open', 3 => 'normally closed' ];
-        $state_string = $state_map[$state_code];
+        // Instead of running CLI commands, broadcast the intent to the hardware plugins
+        // They will return true if they successfully handled it, or a WP_Error on failure
+        $result = apply_filters('fsbhoa_hardware_set_door_state', false, $door_id, $state_code);
 
-        $door_info = $wpdb->get_row($wpdb->prepare("SELECT c.uhppoted_device_id, d.door_number_on_controller FROM ac_doors d JOIN ac_controllers c ON d.controller_record_id = c.controller_record_id WHERE d.door_record_id = %d", $door_id));
-
-        if (!$door_info) {
-            return new WP_Error('not_found', 'Could not find door details in database.', ['status' => 404]);
-        }
-
-        $command = sprintf('uhppote-cli set-door-control %s %s %s', escapeshellarg($door_info->uhppoted_device_id), escapeshellarg($door_info->door_number_on_controller), escapeshellarg($state_string));
-        
-        // This still uses shell_exec as we decided not to change it yet.
-        $output = shell_exec($command . " 2>&1");
-
-        if (strpos($output, 'ERROR') === false) {
-            //  Nudge the original event_service on port 8083.
-            wp_remote_post('https://127.0.0.1:8083/trigger-poll', [
-                'timeout'   => 2,
-                'sslverify' => false
-            ]);
-            return new WP_REST_Response(['status' => 'success', 'message' => 'Command sent.'], 200);
+        if ( is_wp_error($result) ) {
+            return $result; // Pass the hardware plugin's specific error back to the UI
+        } elseif ( $result === true ) {
+            return new WP_REST_Response(['status' => 'success', 'message' => 'Command executed by hardware plugin.'], 200);
         } else {
-            error_log("set-door-control failed: " . $output);
-            return new WP_Error('command_failed', 'The command failed to execute.', ['status' => 500, 'output' => $output]);
+            return new WP_Error('no_handler', 'No hardware plugin is configured to handle this door.', ['status' => 501]);
         }
     }
     
-
+    /**
+     * Get the status of doors for the group that is being monitored.
+     * "Given the current time, would members of this group be able to swipe."
+     */
     public function get_group_status_callback(WP_REST_Request $request) {
-    // 1. Initialize
-    $target_group_id = get_option('fsbhoa_monitor_status_group_id', 0);
-    $active_schedule_id = fsbhoa_get_active_schedule_id();
-    $blob = get_option('fsbhoa_profile_persistent_maps', []);
-
-    // 2. Quick Exit: No target or map out of sync with hardware schedule
-    if (!$target_group_id || !isset($blob['schedule_id']) || (int)$blob['schedule_id'] !== $active_schedule_id) {
-        return rest_ensure_response([]); 
-    }
-
-    // 3. Prepare the Compiler (Loads translation maps into memory)
-    $compiler = new Fsbhoa_Permission_Compiler($active_schedule_id);
-    $preview = $compiler->get_preview_for_group($target_group_id);
-
-    $now = current_time('H:i');
-    $today = current_time('D');
-    $status_map = [];
-
-    // 4. Loop through the Map Blob (The "Hardware Truth")
-    foreach ($blob['maps'] as $serial => $mappings) {
-        foreach ($mappings as $key => $pid) {
-            // Key is "GroupID|DoorNum" (e.g., "3|1")
-            list($sig, $door_num) = explode('|', $key);
-
-            // We only process the group configured for the monitor
-            if ($sig != $target_group_id) continue;
-
-            // Translate hardware address to dot ID
-            $door_id = $compiler->get_door_id_from_hardware($serial, $door_num);
-            if (!$door_id) continue;
-
-            if ($pid === 1) {
-                // Hardcoded Profile 1 = All Access
-                $status_map[$door_id] = true;
-            } elseif ($pid > 1 && isset($preview[$door_id])) {
-                // Scheduled Profile logic
-                $is_open = false;
-                foreach ($preview[$door_id] as $days => $windows) {
-                    if (strpos($days, $today) !== false) {
-                        foreach ($windows as $window) {
-                            list($start, $end) = explode('-', $window);
-                            if ($now >= $start && $now <= $end) { 
-                                $is_open = true; 
-                                break 2; 
-                            }
-                        }
-                    }
-                }
-                $status_map[$door_id] = $is_open;
-            } else {
-                $status_map[$door_id] = false;
-            }
+        $target_group_id = get_option('fsbhoa_monitor_status_group_id', 0);
+        
+        if (!$target_group_id) {
+            return rest_ensure_response([]);
         }
+
+        // Ask hardware plugins to calculate the status of their doors for this group
+        $status_map = apply_filters('fsbhoa_hardware_group_status', [], $target_group_id);
+
+        return rest_ensure_response($status_map);
     }
 
-    return rest_ensure_response($status_map);
-}
-
-/**
+    /**
      * Callback to get the name of the currently active schedule for the monitor UI.
      */
     public function get_current_schedule_callback( WP_REST_Request $request ) {

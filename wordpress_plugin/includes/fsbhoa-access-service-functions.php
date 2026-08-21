@@ -54,9 +54,12 @@ class Fsbhoa_Access_Service {
 
         // 2. Lookup Cardholder using the rfid_id
         $cardholder = $wpdb->get_row( $wpdb->prepare( "
-            SELECT id, resident_type
-            FROM ac_cardholders
-            WHERE rfid_id = %s AND card_status = 'active' ", $rfid )
+            SELECT ch.id, ch.first_name, ch.last_name, ch.property_id, ch.resident_type
+            FROM ac_cardholders ch
+            JOIN ac_credentials cred ON ch.id = cred.cardholder_id
+            WHERE cred.credential_value = %s
+            AND cred.credential_type = 'MIFARE_BADGE'
+            AND cred.status = 'active' AND ch.cardholder_status = 'active' ", $rfid )
         );
 
         if ( $cardholder ) {

@@ -11,7 +11,6 @@ class Fsbhoa_Ac_Settings_Page {
     // Where to write the config files for the services
     private $event_service_config_path = '/var/lib/fsbhoa/event_service.json';
     private $monitor_service_config_path = '/var/lib/fsbhoa/monitor_service.json';
-    private $event_service_option_group = 'fsbhoa_event_service_options';
     private $monitor_settings_option_group = 'fsbhoa_monitor_options';
     private $print_service_config_path = '/var/lib/fsbhoa/zebra_print_service.json';
     private $kiosk_config_path           = '/var/lib/fsbhoa/kiosk.json';
@@ -28,8 +27,7 @@ class Fsbhoa_Ac_Settings_Page {
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
         add_action( 'wp_ajax_fsbhoa_save_monitor_settings', array( $this, 'ajax_save_monitor_settings' ) );
         add_action( 'wp_ajax_fsbhoa_save_general_settings', array( $this, 'ajax_save_general_settings' ) );
-        add_action( 'wp_ajax_fsbhoa_save_event_settings', array( $this, 'ajax_save_event_settings' ) );
-	add_action( 'wp_ajax_fsbhoa_save_print_settings', array( $this, 'ajax_save_print_settings' ) );
+	    add_action( 'wp_ajax_fsbhoa_save_print_settings', array( $this, 'ajax_save_print_settings' ) );
         add_action( 'wp_ajax_fsbhoa_save_kiosk_settings', array( $this, 'ajax_save_kiosk_settings' ) );
         add_action( 'wp_ajax_fsbhoa_generate_api_key', array( $this, 'ajax_generate_api_key' ) );
         add_action('wp_ajax_fsbhoa_save_pool_alarm', [$this, 'ajax_save_pool_alarm']);
@@ -40,7 +38,6 @@ class Fsbhoa_Ac_Settings_Page {
     public function add_plugin_admin_menu() {
         add_menu_page('FSBHOA General Settings', 'FSBHOA AC', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page' ), 'dashicons-id-alt', 25);
         add_submenu_page($this->parent_slug, 'General Settings', 'General Settings', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page' ));
-        add_submenu_page($this->parent_slug, 'Event Service Config', 'Event Service', 'manage_options', 'fsbhoa_event_service_settings', array( $this, 'render_event_service_page' ));
         add_submenu_page($this->parent_slug, 'Print Service Config', 'Print Service', 'manage_options', 'fsbhoa_print_service_settings', array( $this, 'render_print_service_page' ));
         add_submenu_page($this->parent_slug, 'Live Monitor Settings', 'Monitor Settings', 'manage_options', 'fsbhoa_monitor_settings', array( $this, 'render_monitor_settings_page' ));
         add_submenu_page($this->parent_slug, 'Kiosk Settings', 'Kiosk', 'manage_options', 'fsbhoa_kiosk_settings', array( $this, 'render_kiosk_settings_page' ));
@@ -68,10 +65,6 @@ class Fsbhoa_Ac_Settings_Page {
         $websocket_port   = get_option('fsbhoa_ac_websocket_port', 8083);
         $tls_cert_path    = get_option('fsbhoa_ac_tls_cert_path', '/etc/letsencrypt/live/nas.fsbhoa.com/fullchain.pem');
         $tls_key_path     = get_option('fsbhoa_ac_tls_key_path', '/etc/letsencrypt/live/nas.fsbhoa.com/privkey.pem');
-        $bind_addr        = get_option('fsbhoa_ac_bind_addr', '0.0.0.0:0');
-        $broadcast_addr   = get_option('fsbhoa_ac_broadcast_addr', '192.168.42.255:60000');
-        $listen_port      = get_option('fsbhoa_ac_listen_port', 60002);
-        $callback_host    = get_option('fsbhoa_ac_callback_host', '192.168.42.99');
         $wp_host          = get_option('fsbhoa_ac_wp_host', 'access.fsbhoa.com');
         // Determine the correct protocol based on whether TLS is configured.
         $protocol         = (!empty($tls_cert_path) && !empty($tls_key_path)) ? 'https' : 'http';
@@ -99,28 +92,7 @@ class Fsbhoa_Ac_Settings_Page {
         ];
         $this->write_config_file($this->monitor_service_config_path, $monitor_config);
 
-        // --- Build and write event_service.json ---
-        $event_config = [
-            'bindAddress'       => sanitize_text_field($bind_addr),
-            'broadcastAddress'  => sanitize_text_field($broadcast_addr),
-            'listenPort'        => absint($listen_port),
-            'callbackHost'      => sanitize_text_field($callback_host),
-            'webSocketPort'     => absint($websocket_port),
-            'wpURL'             => sprintf('%s://%s:%d',  $protocol, $wp_host, absint($wp_port)),
-            'tlsCert'           => sanitize_text_field($tls_cert_path),
-            'tlsKey'            => sanitize_text_field($tls_key_path),
-            'logFile'           => sanitize_text_field($event_log_path),
-            'debug'             => ($debug_mode === 'on'),
-            'enableTestStub'    => ($test_stub === 'on'),
-            'monitorServiceURL' => sprintf('%s://%s:%d', $protocol, $wp_host, absint($monitor_port)),
-            'pool_alarm'        => [
-                'enabled'       => ($pool_alarm_enabled === '1'),
-                'enable_url'    => $pool_alarm_enable_url,
-                'disable_url'   => $pool_alarm_disable_url,
-                'trigger_gates' => array_map('intval', (array) $pool_alarm_gates)
-            ]
-        ];
-        $this->write_config_file($this->event_service_config_path, $event_config);
+        
 
         $print_config = [
             'port'      => (int) get_option('fsbhoa_ac_print_port', 8081),
@@ -145,6 +117,7 @@ class Fsbhoa_Ac_Settings_Page {
 	    ];
 	    $this->write_config_file($this->kiosk_config_path, $kiosk_config);
 
+        do_action('fsbhoa_update_service_configs');
         // NOTE: Future config files (e.g., for print_service) can be added here.
     }
     
@@ -262,26 +235,6 @@ class Fsbhoa_Ac_Settings_Page {
         register_setting($general_option_group, 'fsbhoa_ac_rate_limit_minutes', 'absint');
         register_setting($general_option_group, 'fsbhoa_ac_amenity_clear_minutes', 'absint');
         register_setting($general_option_group, 'fsbhoa_ac_default_court_amenity_name', 'sanitize_text_field');
-
-        // ====================================================================
-        // --- EVENT SERVICE SETTINGS ---
-        // ====================================================================
-        add_settings_section('fsbhoa_event_service_section', null, null, $event_service_page_slug);
-        $event_fields = [
-            'fsbhoa_ac_bind_addr'        => ['label' => 'Bind Address', 'default' => '0.0.0.0:0'],
-            'fsbhoa_ac_broadcast_addr'   => ['label' => 'Broadcast Address', 'default' => '192.168.42.255:60000'],
-            'fsbhoa_ac_listen_port'      => ['label' => 'Event Listener Port', 'type' => 'number', 'default' => 60002],
-            'fsbhoa_ac_callback_host'    => ['label' => 'Event Callback Host IP', 'default' => '192.168.42.99'],
-            'fsbhoa_ac_websocket_port'   => ['label' => 'WebSocket Service Port', 'type' => 'number', 'default' => 8083],
-            'fsbhoa_ac_event_log_path'   => ['label' => 'Event Service Log Path', 'default' => '', 'desc' => 'Leave empty for console output.'],
-            'fsbhoa_ac_debug_mode'       => ['label' => 'Debug Mode', 'type' => 'checkbox', 'default' => 'on'],
-            'fsbhoa_ac_sync_dry_run'    => ['label' => 'Enable Sync Dry Run', 'type' => 'checkbox', 'desc' => 'Calculates all changes but does not send commands to controllers. Logs intended actions instead.'],
-            'fsbhoa_ac_test_stub'        => ['label' => 'Enable Test Stub', 'type' => 'checkbox', 'default' => 'on'],
-        ];
-        foreach ($event_fields as $id => $field) {
-            register_setting($event_service_option_group, $id, ['sanitize_callback' => 'sanitize_text_field']);
-            add_settings_field($id . '_field', $field['label'], array($this, 'render_field_callback'), $event_service_page_slug, 'fsbhoa_event_service_section', ['id' => $id] + $field);
-        }
 
 
         // ====================================================================
@@ -476,21 +429,6 @@ class Fsbhoa_Ac_Settings_Page {
         <?php
     }
 
-    public function render_event_service_page() {
-        ?>
-        <div class="wrap" id="fsbhoa-event-settings-page">
-            <h1>Event Service Configuration</h1>
-            <p>These settings control the `event_service` Go application. The configuration file will be automatically generated at <code><?php echo esc_html($this->event_service_config_path); ?></code> when you save changes.</p>
-            <?php
-                do_settings_sections('fsbhoa_event_service_settings');
-            ?>
-            <p class="submit">
-                <button type="button" id="fsbhoa-save-event-settings-button" class="button button-primary">Save Event Settings</button>
-                <span id="fsbhoa-save-feedback" style="display: none; margin-left: 10px; vertical-align: middle;"></span>
-            </p>
-        </div>
-        <?php
-    }
 
     public function render_print_service_page() {
         ?>
@@ -755,22 +693,6 @@ class Fsbhoa_Ac_Settings_Page {
         wp_send_json_success('General settings saved.');
     }
 
-    public function ajax_save_event_settings() {
-        check_ajax_referer('fsbhoa_event_settings_nonce', 'nonce');
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Permission denied.', 403);
-        }
-
-        $options = isset($_POST['options']) ? $_POST['options'] : [];
-        if (!empty($options)) {
-            foreach ($options as $option) {
-                update_option(sanitize_key($option['name']), sanitize_text_field($option['value']));
-            }
-        }
-
-        $this->update_all_service_configs();
-        wp_send_json_success('Event Service settings saved.');
-    }
 
     public function ajax_save_print_settings() {
         check_ajax_referer('fsbhoa_print_settings_nonce', 'nonce');
@@ -914,21 +836,32 @@ class Fsbhoa_Ac_Settings_Page {
 
         // --- Step 3: Loop Through and Create Missing Users ---
         foreach ($system_users as $user_data) {
-            $user_exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$cardholders_table} WHERE rfid_id = %s", $user_data['rfid_id']));
+            // 1. Check the new credentials table instead of the monolith
+            $user_exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ac_credentials WHERE credential_value = %s", $user_data['rfid_id']));
 
-            if ($user_exists == 0 && $system_property_id > 0) {
-                $wpdb->insert(
-                    $cardholders_table,
-                    [
-                        'rfid_id'           => $user_data['rfid_id'],
-                        'first_name'        => $user_data['first_name'],
-                        'last_name'         => $user_data['last_name'],
-                        'property_id'       => $system_property_id,
-                        'card_status'       => 'active',
-                        'resident_type'     => 'System',
-                        'origin'            => 'system'
-                    ]
-                );
+            if (!$user_exists) {
+                // 2. Extract the RFID before inserting the Human
+                $rfid_to_insert = $user_data['rfid_id'];
+                unset($user_data['rfid_id']);
+
+                // Ensure we use the new column name for the Human
+                $user_data['cardholder_status'] = 'active';
+                $user_data['origin'] = 'system';
+                $user_data['property_id'] = $system_property_id;
+
+                // 3. Insert the Human
+                $wpdb->insert($cardholders_table, $user_data);
+                $new_cardholder_id = $wpdb->insert_id;
+
+                // 4. Insert the Credential
+                if ($new_cardholder_id) {
+                    $wpdb->insert('ac_credentials', [
+                        'cardholder_id'    => $new_cardholder_id,
+                        'credential_type'  => 'MIFARE_BADGE',
+                        'credential_value' => $rfid_to_insert,
+                        'status'           => 'active'
+                    ]);
+                }
             }
         }
     }

@@ -24,7 +24,7 @@ function fsbhoa_render_cardholder_report_view() {
     $sort_column_map = [
         2 => "c.last_name {$order_dir}, c.first_name {$order_dir}",
         3 => "p.street_name {$order_dir}, CAST(p.house_number AS UNSIGNED) {$order_dir}",
-        4 => "c.card_status {$order_dir}",
+        4 => "c.cardholder_status {$order_dir}",
         5 => "c.resident_type {$order_dir}",
     ];
 

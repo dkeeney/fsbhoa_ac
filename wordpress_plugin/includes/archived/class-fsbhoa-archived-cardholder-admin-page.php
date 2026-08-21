@@ -80,7 +80,7 @@ class Fsbhoa_Archived_Cardholder_Admin_Page {
         if ( ! $cardholder_id ) { return; }
 
         // UPDATED QUERY: Select from the main table where status is 'archived'.
-        $cardholder = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM ac_cardholders WHERE id = %d AND card_status = 'archived'", $cardholder_id ), ARRAY_A );
+        $cardholder = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM ac_cardholders WHERE id = %d AND cardholder_status = 'archived'", $cardholder_id ), ARRAY_A );
         
         if ( ! $cardholder ) {
              echo '<div class="notice notice-warning"><p>' . esc_html__( 'The requested archived cardholder could not be found. It may have already been restored or purged.', 'fsbhoa-ac' ) . '</p></div>';
@@ -149,7 +149,12 @@ class Fsbhoa_Archived_Cardholder_Admin_Page {
                             <p><strong>Title:</strong> <?php echo esc_html($title); ?></p>
                         <?php endif; ?>
                         <p><strong>Address:</strong> <?php echo esc_html($property_address ?? 'N/A'); ?></p>
-                        <p><strong>RFID:</strong> <?php echo esc_html($cardholder['rfid_id'] ?: 'N/A'); ?></p>
+                        <?php
+    global $wpdb;
+    $creds = $wpdb->get_col($wpdb->prepare("SELECT CONCAT(credential_type, ': ', credential_value) FROM ac_credentials WHERE cardholder_id = %d", $cardholder['id']));
+    $cred_string = empty($creds) ? 'N/A' : implode(', ', $creds);
+?>
+                        <p><strong>Credentials:</strong> <?php echo esc_html($cred_string); ?></p>
                         <p><strong>Phone:</strong> <?php echo esc_html( !empty($cardholder['phone']) ? $cardholder['phone'] . ' (' . $cardholder['phone_type'] . ')' : 'N/A' ); ?></p>
                         <p><strong>Email:</strong> <?php echo esc_html($cardholder['email'] ?? 'N/A'); ?></p>
                         <p><strong>Resident Type:</strong> <?php echo esc_html($cardholder['resident_type'] ?? 'N/A'); ?></p>

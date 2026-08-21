@@ -21,7 +21,13 @@ function fsbhoa_log_pending_change($change_type = 'generic', $record_id = null, 
 
     if ($wpdb->last_error) {
         error_log('FSBHOA SYNC ERROR: Could not log a pending change. ' . $wpdb->last_error);
+    } else {
+        // === THE NEW HUB BROADCAST ===
+        // This fires an event like 'fsbhoa_pending_change_cardholder'
+        // or 'fsbhoa_pending_change_schedule' that other plugins can listen to.
+        do_action("fsbhoa_pending_change_{$change_type}", $record_id, $change_data);
     }
+
 }
 
 /**
@@ -173,8 +179,12 @@ if ( ! function_exists( 'fsbhoa_get_all_permission_data' ) ) {
 
         // 3. Active/Disabled Cards (We fetch disabled too so we can explicitly block them)
         $data['cards'] = $wpdb->get_results("
-            SELECT id, rfid_id, card_status FROM ac_cardholders 
-            WHERE card_status IN ('active', 'disabled') AND rfid_id != ''
+            SELECT ch.id, cred.credential_value AS rfid_id, cred.status AS card_status
+            FROM ac_cardholders ch
+            JOIN ac_credentials cred ON ch.id = cred.cardholder_id
+            WHERE cred.credential_type = 'MIFARE_BADGE'
+            AND cred.status IN ('active', 'disabled')
+            AND ch.cardholder_status NOT IN ('archived', 'purged')
         ");
 
         // 4. Cardholder-Group Links

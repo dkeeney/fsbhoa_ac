@@ -34,9 +34,8 @@ if ( ! defined( 'FSBHOA_AC_PLUGIN_VERSION' ) ) {
 
 // Activation / Deactivation Hooks
 function fsbhoa_ac_activate() {
-    // Activation code can go here later
-    // Example: require_once FSBHOA_AC_PLUGIN_DIR . 'includes/class-fsbhoa-activator.php';
-    // Fsbhoa_Ac_Activator::activate();
+    require_once plugin_dir_path( __FILE__ ) . 'includes/class-fsbhoa-core-repository.php';
+    Fsbhoa_Core_Repository::create_tables();
 }
 register_activation_hook( __FILE__, 'fsbhoa_ac_activate' );
 
@@ -107,18 +106,8 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/property/class-fsbhoa-property-act
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/archived/class-fsbhoa-archived-cardholder-admin-page.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/archived/class-fsbhoa-archived-cardholder-actions.php';
 
-// --- Controller Management ---
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/class-fsbhoa-controller-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/controller/class-fsbhoa-controller-actions.php';
-
-// --- UHPPOTE controller related modules --
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/uhppote/fsbhoa-uhppote-discovery.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/uhppote/fsbhoa-uhppote-sync-service.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/uhppote/fsbhoa-uhppote-bulk-sync.php';
 
 // --- Schedules ---
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedules-actions.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-tasks-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-groups-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-ajax-handler.php';
 
@@ -207,16 +196,6 @@ function run_fsbhoa_action_handlers() {
         new Fsbhoa_Archived_Cardholder_Actions();
     }
 
-
-    // Instantiate Controller Actions handler
-    if (class_exists('Fsbhoa_Controller_Actions')) {
-        new Fsbhoa_Controller_Actions();
-    }
-
-    // Instantiate Gate Actions handler
-    if (class_exists('Fsbhoa_Gate_Actions')) {
-        new Fsbhoa_Gate_Actions();
-    }
 
 
     // Instantiate System Actions handler for AJAX calls

@@ -89,10 +89,8 @@ class Fsbhoa_Test_Suite_Page {
     }
 
     public function handle_trigger_custom_event_ajax() {
-        // First, check the nonce for security
         check_ajax_referer('fsbhoa_test_suite_nonce', 'nonce');
 
-        // Get the JSON payload from the AJAX request
         $payload_json = stripslashes($_POST['payload']);
         $payload = json_decode($payload_json, true);
 
@@ -101,40 +99,17 @@ class Fsbhoa_Test_Suite_Page {
             return;
         }
 
-        // The URL for your Go service's test endpoint
-        $url = 'https://localhost:8083/test_event';
-    
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload_json);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+        // Ask hardware plugins to process the custom diagnostic event
+        $result = apply_filters('fsbhoa_trigger_custom_hardware_event', false, $payload, $payload_json);
 
-        // IMPORTANT: Skip SSL verification for localhost connection
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_error = curl_error($ch);
-        curl_close($ch);
-
-        if ($curl_error) {
-            wp_send_json_error('cURL Error: ' . $curl_error);
-            return;
+        if ( is_wp_error($result) ) {
+            wp_send_json_error($result->get_error_message());
+        } elseif ($result !== false) {
+            wp_send_json_success('Successfully received by PHP.');
+        } else {
+            wp_send_json_error('No hardware plugin handled the custom event.');
         }
-
-        if ($http_code !== 200) {
-            wp_send_json_error('Go service returned an error. HTTP Code: ' . $http_code . ' | Response: ' . $response);
-            return;
-        }
-
-        // Send a success response back to the JavaScript
-        wp_send_json_success('Successfully received by PHP.');
-
-        // Always end a WordPress AJAX handler with wp_die()
         wp_die();
     }
-
 
 }

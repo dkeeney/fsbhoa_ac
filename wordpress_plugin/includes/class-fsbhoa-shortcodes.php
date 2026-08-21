@@ -169,45 +169,9 @@ class Fsbhoa_Shortcodes {
             wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
             wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
 
-            // Specific styles and scripts for this page
-            wp_enqueue_style('fsbhoa-controller-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-controller-styles.css', ['fsbhoa-shared-styles'], FSBHOA_AC_PLUGIN_VERSION);
-
-            $handle = 'fsbhoa-hardware-admin'; // The handle is defined here
-            wp_enqueue_script($handle, FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-hardware-admin.js', ['jquery', 'datatables-script'], FSBHOA_AC_PLUGIN_VERSION, true);
-            wp_localize_script(
-                $handle,
-                'fsbhoa_hardware_vars',
-                array(
-                    'ajax_url'      => admin_url('admin-ajax.php'),
-                    'discovery_nonce' => wp_create_nonce('fsbhoa_discovery_nonce'), // For other functions in that file
-                    'reset_nonce'   => wp_create_nonce('fsbhoa_factory_reset_nonce'),   // For our new button
-                    'rebuild_nonce' => wp_create_nonce('fsbhoa_rebuild_nonce')  // For rebuild button
-                )
-            );
 
         }
 
-        // ASSETS FOR: [fsbhoa_task_list]
-        if ( has_shortcode( $post->post_content, 'fsbhoa_task_list' ) ) {
-            // This page uses DataTables for the list
-            wp_enqueue_style('datatables-style', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.dataTables.css', array(), '2.0.8');
-            wp_enqueue_script('datatables-script', FSBHOA_AC_PLUGIN_URL . 'assets/vendor/dataTables.js', array('jquery'), '2.0.8', true);
-
-            // Enqueue the new dedicated script for the task list
-            wp_enqueue_script(
-                'fsbhoa-task-list-script', // A new, unique handle
-                FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-task-list.js', // The new filename
-                ['jquery', 'datatables-script'], // Dependencies
-                FSBHOA_AC_PLUGIN_VERSION,
-                true // In footer
-            );
-            wp_enqueue_style(
-                'fsbhoa-task-list-styles', 
-                FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-task-list-styles.css', 
-                ['fsbhoa-shared-styles'], 
-                FSBHOA_AC_PLUGIN_VERSION,
-            );
-        }
 
         // ASSETS FOR: [fsbhoa_reports]
         if ( has_shortcode( $post->post_content, 'fsbhoa_reports' ) ) {
@@ -387,42 +351,17 @@ class Fsbhoa_Shortcodes {
             return '<p>' . esc_html__( 'You do not have sufficient permissions.', 'fsbhoa-ac' ) . '</p>';
         }
 
+        // 1. Determine the view (default to 'controllers')
+        $current_view = isset( $_GET['view'] ) ? sanitize_key( $_GET['view'] ) : 'controllers';
+
+        // 2. Allow hardware plugins to intercept special views like 'discovery-results'
         if ( isset( $_GET['discovery-results'] ) ) {
-            ob_start();
-            fsbhoa_render_discovery_results_view();
-            return ob_get_clean();
+            $current_view = 'discovery-results';
         }
 
-        $current_view = 'controllers';
-        if ( isset( $_GET['view'] ) ) {
-            $current_view = sanitize_key( $_GET['view'] );
-        } else {
-            $atts = shortcode_atts(
-                [ 'view' => 'controllers' ],
-                $atts,
-                'fsbhoa_hardware_management'
-            );
-            $current_view = sanitize_key( $atts['view'] );
-        }
-
+        // 3. Broadcast the view to the hardware plugins
         ob_start();
-
-        if ( $current_view === 'controllers' ) {
-            if ( class_exists('Fsbhoa_Controller_Admin_Page') ) {
-                $controller_page = new Fsbhoa_Controller_Admin_Page();
-                $controller_page->render_page();
-            } else {
-                echo '<p>' . esc_html__( 'Error: Controller management class not found.', 'fsbhoa-ac' ) . '</p>';
-            }
-        }
-        elseif ( $current_view === 'gates' ) {
-            if ( class_exists('Fsbhoa_Gate_Admin_Page') ) {
-                $gate_page = new Fsbhoa_Gate_Admin_Page();
-                $gate_page->render_page();
-            } else {
-                echo '<p>' . esc_html__( 'Error: Gate management class not found.', 'fsbhoa-ac' ) . '</p>';
-            }
-        }
+        do_action("fsbhoa_hardware_management_view_{$current_view}");
         return ob_get_clean();
     }
 

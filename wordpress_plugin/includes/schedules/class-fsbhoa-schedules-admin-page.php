@@ -26,15 +26,13 @@ class Fsbhoa_Schedules_Admin_Page {
                 echo $group_schedule_page->render_page();
                 break;
             
-            case 'add_task_schedule':
-            case 'edit_task_schedule':
-                require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-tasks-page.php';
-                $task_schedule_page = new Fsbhoa_Schedule_Tasks_Page();
-                $task_schedule_page->render_page();
-                break;
-            
             default:
-                $this->render_tabs_and_content();
+                // Allow hardware plugins to render their own task/schedule edit pages
+                if ( has_action( "fsbhoa_schedule_page_action_{$action}" ) ) {
+                    do_action( "fsbhoa_schedule_page_action_{$action}" );
+                } else {
+                    $this->render_tabs_and_content();
+                }
                 break;
         }
         ?>
@@ -83,16 +81,11 @@ class Fsbhoa_Schedules_Admin_Page {
             <?php
             require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-groups-list.php';
             fsbhoa_render_schedule_groups_list(1);
-            ?>
-            <div class="fsbhoa-section-header" style="margin-top: 40px;">
-                <h2>Automated Task Schedules</h2>
-                <a href="<?php echo esc_url($add_task_url); ?>" class="button button-primary">Add New Task</a>
-            </div>
-            <?php
-            require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-tasks-list.php';
-            fsbhoa_render_schedule_tasks_list(1);
 
-} else {
+            // Let hardware plugins inject their own task lists here
+            do_action('fsbhoa_render_hardware_task_lists', $this->active_schedule_id);
+
+        } else {
             // --- Renders the Holiday Tab Content ---
             global $wpdb;
             $schedule_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM ac_schedules WHERE schedule_id = %d", $this->active_schedule_id));
@@ -106,18 +99,8 @@ class Fsbhoa_Schedules_Admin_Page {
                 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-groups-list.php';
                 fsbhoa_render_schedule_groups_list($this->active_schedule_id);
 
-                ?>
-                <div class="fsbhoa-section-header" style="margin-top: 40px;">
-                    <h2><?php echo 'Automated Task Schedules for ' . esc_html($schedule_data->name); ?></h2>
-                    <?php
-                    $add_task_url = add_query_arg(['action' => 'add_task_schedule', 'schedule_id' => $this->active_schedule_id], $schedules_page_url);
-                    ?>
-                    <a href="<?php echo esc_url($add_task_url); ?>" class="button button-primary">Add New Task</a>
-                </div>
-                <?php 
-
-                require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/views/view-schedule-tasks-list.php';
-                fsbhoa_render_schedule_tasks_list($this->active_schedule_id);
+                // Let hardware plugins inject their own task lists here
+                do_action('fsbhoa_render_hardware_task_lists', $this->active_schedule_id);
                 
             } else {
                 echo '<div class="notice notice-error"><p>Error: Could not find schedule data.</p></div>';

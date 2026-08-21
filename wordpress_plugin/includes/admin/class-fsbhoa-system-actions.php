@@ -26,7 +26,7 @@ class Fsbhoa_System_Actions {
         $command = sanitize_text_field($_POST['command']);
 
         // Allowed Services
-        $allowed_services = array_keys(Fsbhoa_System_Status_Page::$services);
+        $allowed_services = array_keys(Fsbhoa_System_Status_Page::get_services());
         $allowed_commands = ['start', 'stop', 'restart', 'status'];
 
         if ( !in_array($service, $allowed_services) || !in_array($command, $allowed_commands) ) {

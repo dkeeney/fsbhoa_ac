@@ -50,6 +50,7 @@ class Fsbhoa_Cardholder_Actions {
         wp_send_json_success($results);
     }
 
+    // This is not really a delete, just archive.
     public function handle_delete_cardholder_action() {
         global $wpdb;
         if ( ! isset($_GET['cardholder_id']) || ! is_numeric($_GET['cardholder_id']) ) {
@@ -118,20 +119,15 @@ class Fsbhoa_Cardholder_Actions {
         require_once $view_path . 'view-cardholder-profile-section.php';
         require_once $view_path . 'view-cardholder-address-section.php';
         require_once $view_path . 'view-cardholder-photo-section.php';
-        require_once $view_path . 'view-cardholder-rfid-section.php';
 
         $profile_results = fsbhoa_validate_profile_data($_POST);
         $address_results = fsbhoa_validate_address_data($_POST);
         $photo_results   = fsbhoa_validate_photo_data($_POST, $_FILES);
-        $rfid_results    = fsbhoa_validate_rfid_data($_POST, $existing_data, $item_id, $is_update);
+        $credential_results = apply_filters('fsbhoa_validate_credentials', ['errors' => [], 'data' => []], $_POST, $existing_data, $item_id, $is_update);
 
-        $errors = array_merge($profile_results['errors'], $address_results['errors'], $photo_results['errors'], $rfid_results['errors']);
-        $data_to_save = array_merge($existing_data, $profile_results['data'], $address_results['data'], $photo_results['data'], $rfid_results['data']);
+        $errors = array_merge($profile_results['errors'], $address_results['errors'], $photo_results['errors'], $credential_results['errors']);
+        $data_to_save = array_merge($existing_data, $profile_results['data'], $address_results['data'], $photo_results['data'], $credential_results['data']);
 
-
-        // Unset the 'active_rfid' key before saving. We cannot explicitly set the
-        // value of a generated column, the database calculates it automatically.
-        unset($data_to_save['active_rfid']);
 
         $sync_needed = false;
         if ( empty($errors) ) {
@@ -143,18 +139,8 @@ class Fsbhoa_Cardholder_Actions {
 
             if ( $is_update ) {
                 // Update condition
-                // ---  RFID OVERWRITE DETECTION ---
-                $new_rfid = (string) $data_to_save['rfid_id'];
-                $old_rfid = (string) $existing_data['rfid_id'];
-
-                if ( ! empty($old_rfid) && $old_rfid !== $new_rfid ) {
-                    // Log the OLD RFID to be removed from the controller
-                    $old_data = json_encode(['rfid_id' => $old_rfid, 'action' => 'delete']);
-                    fsbhoa_log_pending_change('cardholder', $item_id, $old_data);
-                }
-                // Changes affect sync?  Compare strings for efficiency
-                if ($new_rfid !== $old_rfid || 
-                    $data_to_save['card_status'] !== $existing_data['card_status'] ||
+                // Do changes affect sync?
+                if ($data_to_save['cardholder_status'] !== $existing_data['cardholder_status'] ||
                     $data_to_save['groups_csv'] !== $existing_data['groups_csv'])
                 {
                     $sync_needed = true;
@@ -187,12 +173,16 @@ class Fsbhoa_Cardholder_Actions {
                         }
                     }
                 }
-                if (isset($data_to_save['rfid_id']) && !empty($data_to_save['rfid_id'])) {
-                    $sync_needed = true;
-                }
             }
             if (empty($errors)) {
                 $this->save_cardholder_groups($item_id, $submitted_groups);
+
+                // ===  HUB & SPOKE BROADCASTS ===
+                if ($is_update) {
+                    do_action('fsbhoa_core_cardholder_updated', $item_id, $data_to_save, $existing_data);
+                } else {
+                    do_action('fsbhoa_core_cardholder_created', $item_id, $data_to_save);
+                }
             }
         }
 
@@ -243,6 +233,8 @@ class Fsbhoa_Cardholder_Actions {
             }
         }
     }
+
+
 
     public function handle_export_selected() {
         if ( empty( $_POST['cardholder'] ) ) { return; }
@@ -346,7 +338,7 @@ class Fsbhoa_Cardholder_Actions {
                 OR c.last_name LIKE %s
                 OR p.house_number LIKE %s
                 OR p.street_name LIKE %s)
-               AND c.card_status NOT IN ('archived', 'purged')
+               AND c.cardholder_status NOT IN ('archived', 'purged')
              LIMIT 10",
             $wildcard_term,
             $wildcard_term,

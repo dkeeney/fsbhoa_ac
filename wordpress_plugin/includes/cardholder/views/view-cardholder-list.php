@@ -106,7 +106,7 @@ function fsbhoa_render_cardholder_list_view() {
                             $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_cardholder', 'cardholder_id' => absint($cardholder['id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
                             $print_page_url = get_permalink(get_page_by_path('print-photo-id'));
                             $print_url = add_query_arg(array('action' => 'print_card', 'cardholder_id' => absint($cardholder['id'])), $print_page_url);
-                            if ( ! empty( $cardholder['rfid_id'] ) && $cardholder['card_status'] === 'active' ) {
+                            if ( ! empty( $cardholder['rfid_id'] ) && $cardholder['cardholder_status'] === 'active' ) {
                                 // If active and RFID exists, generate the clickable link HTML
                                 $kiosk_link = sprintf(
                                     '<a href="#" class="fsbhoa-action-icon fsbhoa-kiosk-signin-link" data-id="%d" title="%s"><span class="dashicons dashicons-external"></span></a>',
@@ -155,7 +155,7 @@ function fsbhoa_render_cardholder_list_view() {
                         <td data-order="<?php echo esc_attr($sort_address); ?>">
                             <?php echo !empty($address_display) ? esc_html($address_display) : '<em>N/A</em>'; ?>
                         </td>
-                        <td class="fsbhoa-status-column"><?php echo esc_html( ucwords($cardholder['card_status']) ); ?></td>
+                        <td class="fsbhoa-status-column"><?php echo esc_html( ucwords($cardholder['cardholder_status']) ); ?></td>
                         <td class="fsbhoa-type-column">
                             <?php echo esc_html( $cardholder['resident_type'] ?? '' ); ?>
                         </td>
