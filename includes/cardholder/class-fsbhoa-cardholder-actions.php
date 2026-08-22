@@ -65,7 +65,8 @@ class Fsbhoa_Cardholder_Actions {
             wp_die( esc_html__( 'Security check failed. Could not archive cardholder.', 'fsbhoa-ac' ), esc_html__( 'Error', 'fsbhoa-ac' ), array( 'response' => 403, 'back_link' => true ) );
         }
 
-        $rfid_id = $wpdb->get_var($wpdb->prepare("SELECT rfid_id FROM ac_cardholders WHERE id = %d", $item_id_to_delete));
+        $creds = $wpdb->get_col($wpdb->prepare("SELECT credential_value FROM ac_credentials WHERE cardholder_id = %d", $item_id_to_delete));
+        $rfid_id = empty($creds) ? '' : implode(',', $creds);
 
         $result = fsbhoa_archive_and_delete_cardholder( $item_id_to_delete );
 
@@ -331,15 +332,20 @@ class Fsbhoa_Cardholder_Actions {
         // UPDATED QUERY: Added a WHERE clause to ensure we only search for active,
         // inactive, or disabled users, excluding archived and purged ones.
         $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT c.id, c.first_name, c.last_name, c.rfid_id, p.street_address
+            "SELECT c.id, c.first_name, c.last_name, p.street_address,
+                    GROUP_CONCAT(cred.credential_value SEPARATOR ', ') as all_credentials
              FROM {$cardholders_table} c
              LEFT JOIN {$properties_table} p ON c.property_id = p.property_id
+             LEFT JOIN ac_credentials cred ON c.id = cred.cardholder_id
              WHERE (c.first_name LIKE %s
                 OR c.last_name LIKE %s
                 OR p.house_number LIKE %s
-                OR p.street_name LIKE %s)
+                OR p.street_name LIKE %s
+                OR cred.credential_value LIKE %s)
                AND c.cardholder_status NOT IN ('archived', 'purged')
+             GROUP BY c.id
              LIMIT 10",
+            $wildcard_term,
             $wildcard_term,
             $wildcard_term,
             $wildcard_term,

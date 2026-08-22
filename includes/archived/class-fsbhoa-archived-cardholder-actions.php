@@ -238,8 +238,7 @@ class Fsbhoa_Archived_Cardholder_Actions {
             "UPDATE {$table_cardholders} SET
                 first_name = %s, last_name = %s, title = %s,
                 email = %s, email_used = %d, phone = %s, phone_type = %s,
-                cardholder_status = %s, notes = %s, card_issue_date = %s,
-                card_expiry_date = %s, resident_type = %s
+                cardholder_status = %s, notes = %s, resident_type = %s
             WHERE id = %d",
             $source_record['first_name'], 
             $source_record['last_name'], 
@@ -250,8 +249,6 @@ class Fsbhoa_Archived_Cardholder_Actions {
             $source_record['phone_type'],
             $new_status,
             $source_record['notes'], 
-            $source_record['card_issue_date'],
-            $source_record['card_expiry_date'], 
             $source_record['resident_type'],
             $destination_id
         );

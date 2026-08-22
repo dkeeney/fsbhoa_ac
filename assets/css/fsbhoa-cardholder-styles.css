@@ -159,7 +159,7 @@ tr.fsbhoa-manual-record td {
 /* A slightly different hover color for the highlighted rows */
 tr.fsbhoa-manual-record:hover td {
     background-color: #FDFDCC !important; /* Slightly darker yellow on hover */
-
+}
 
 
 

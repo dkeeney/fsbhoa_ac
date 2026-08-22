@@ -144,7 +144,8 @@ class Fsbhoa_Kiosk_REST_API {
         $rfid = sanitize_text_field($request['rfid']);
 
         $cardholder = $wpdb->get_row($wpdb->prepare(
-            "SELECT first_name, last_name, photo, ch.cardholder_status, cred.status AS credential_status, card_expiry_date
+            "SELECT first_name, last_name, photo, ch.cardholder_status, cred.status AS credential_status, 
+               cred.expiration_date AS card_expiry_date 
              FROM ac_cardholders ch JOIN ac_credentials cred ON ch.id = cred.cardholder_id
              WHERE cred.credential_value = %s AND cred.credential_type = 'MIFARE_BADGE' AND cred.status = 'active' AND ch.cardholder_status = 'active'",
             $rfid
@@ -262,7 +263,8 @@ class Fsbhoa_Kiosk_REST_API {
         $cardholder_id = absint($request['id']);
 
         $cardholder = $wpdb->get_row($wpdb->prepare("
-            SELECT cred.credential_value as rfid_id, ch.first_name, ch.last_name, ch.photo, ch.cardholder_status, cred.status AS credential_status, ch.card_expiry_date 
+            SELECT cred.credential_value as rfid_id, ch.first_name, ch.last_name, ch.photo, 
+             ch.cardholder_status, cred.status AS credential_status, cred.card_expiry_date AS card_expiry_date
             FROM ac_cardholders ch LEFT JOIN ac_credentials cred ON ch.id = cred.cardholder_id AND cred.credential_type = 'MIFARE_BADGE' 
             WHERE ch.id = %d",
             $cardholder_id

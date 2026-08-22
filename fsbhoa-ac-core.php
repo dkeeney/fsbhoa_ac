@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name:       FSBHOA Access Control
- * Plugin URI:        https://github.com/dkeeney/fsbhoa_ac
+ * Plugin Name:       FSBHOA Access Control Core
+ * Plugin URI:        https://github.com/dkeeney/fsbhoa_ac_core
  * Description:       Manages HOA resident photo IDs, access control, and card printing for FSBHOA.
  * Version:           0.1.0
  * Requires at least: 5.2

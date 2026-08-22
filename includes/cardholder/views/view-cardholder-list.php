@@ -94,6 +94,9 @@ function fsbhoa_render_cardholder_list_view() {
                         if (isset($cardholder['origin']) && $cardholder['origin'] === 'manual') {
                             $row_classes = 'fsbhoa-manual-record';
                         }
+                        global $wpdb;
+                        $active_cred_count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ac_credentials WHERE cardholder_id = %d AND status = 'active'", $cardholder['id']));
+                        $all_creds = $wpdb->get_col($wpdb->prepare("SELECT credential_value FROM ac_credentials WHERE cardholder_id = %d", $cardholder['id']));
                     ?>
                     <tr class="<?php echo esc_attr($row_classes); ?>" data-cardholder-id="<?php echo esc_attr($cardholder['id']); ?>">
 
@@ -106,7 +109,8 @@ function fsbhoa_render_cardholder_list_view() {
                             $delete_url = add_query_arg(array('action'=> 'fsbhoa_delete_cardholder', 'cardholder_id' => absint($cardholder['id']), '_wpnonce'=> $delete_nonce), admin_url('admin-post.php'));
                             $print_page_url = get_permalink(get_page_by_path('print-photo-id'));
                             $print_url = add_query_arg(array('action' => 'print_card', 'cardholder_id' => absint($cardholder['id'])), $print_page_url);
-                            if ( ! empty( $cardholder['rfid_id'] ) && $cardholder['cardholder_status'] === 'active' ) {
+                            if ( $active_cred_count > 0 && $cardholder['cardholder_status'] === 'active' ) {
+                            
                                 // If active and RFID exists, generate the clickable link HTML
                                 $kiosk_link = sprintf(
                                     '<a href="#" class="fsbhoa-action-icon fsbhoa-kiosk-signin-link" data-id="%d" title="%s"><span class="dashicons dashicons-external"></span></a>',
@@ -115,7 +119,7 @@ function fsbhoa_render_cardholder_list_view() {
                                 );
                             } else {
                                 // If inactive or no RFID, generate the disabled/grayed-out span HTML
-                                $kiosk_disabled_reason = empty( $cardholder['rfid_id'] ) ? __('Card not assigned', 'fsbhoa-ac') : __('Card not active', 'fsbhoa-ac');
+                                $kiosk_disabled_reason = ($active_cred_count == 0) ? __('No active keys', 'fsbhoa-ac') : __('Account not active', 'fsbhoa-ac');
                                 $kiosk_link = sprintf( // Assign to the same variable
                                     '<span class="dashicons dashicons-external fsbhoa-action-disabled" title="%s"></span>',
                                     esc_attr__('Kiosk Sign-in', 'fsbhoa-ac') . ' (' . esc_html($kiosk_disabled_reason) . ')'
@@ -141,11 +145,9 @@ function fsbhoa_render_cardholder_list_view() {
                         ?>
                         <td data-order="<?php echo esc_attr($sort_name); ?>">
                             <strong><?php echo esc_html($display_name); ?></strong>
-                            <?php if (!empty($cardholder['rfid_id'])) : ?>
-                               <span class="fsbhoa-visually-hidden">
-                                   RFID: <?php echo esc_html($cardholder['rfid_id']); ?>
-                               </span>
-                           <?php endif; ?>
+                            <?php if (!empty($all_creds)) : ?>
+                                <br><span class="fsbhoa-meta-info">Keys: <?php echo esc_html(implode(', ', $all_creds)); ?></span>
+                            <?php endif; ?>
                         </td>
                         <?php
                             $address_display = trim( ($cardholder['house_number'] ?? '') . ' ' . ($cardholder['street_name'] ?? '') );
