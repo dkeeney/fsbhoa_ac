@@ -290,7 +290,7 @@ class Fsbhoa_Import_V2
 
         foreach ($existing_db_cardholders as $db_cardholder) {
             // Compare based on the formal import name stored in the database
-            $existing_full_name = strtolower(trim($db_cardholder->import_first_name)) . ' ' . strtolower(trim($db_cardholder->import_last_name));
+            $existing_full_name = strtolower(trim($db_cardholder->import_first_name)??'') . ' ' . strtolower(trim($db_cardholder->import_last_name));
             
             // If an existing person from an import is NOT in the new import file, delete them.
             if (!in_array($existing_full_name, $new_full_names)) {

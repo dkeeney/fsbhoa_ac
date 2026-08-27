@@ -7,6 +7,31 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 class Fsbhoa_Amenity_Admin_Page {
+    public function __construct() {
+        // Hook into WordPress to load our CSS and JS when this page loads
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
+    }
+
+    public function enqueue_assets($hook) {
+        // Only load these assets on the Amenity page
+        if (isset($_GET['page']) && $_GET['page'] === 'fsbhoa-ac-amenities') {
+
+            // Enable the WordPress Media Uploader for the image fields
+            wp_enqueue_media();
+
+            // Load the CSS you just found
+            wp_enqueue_style('fsbhoa-amenity-styles', FSBHOA_AC_PLUGIN_URL . 'assets/css/fsbhoa-amenity-styles.css', array(), FSBHOA_AC_VERSION);
+
+            // Load the JS for the edit buttons and AJAX saving
+            wp_enqueue_script('fsbhoa-amenity-script', FSBHOA_AC_PLUGIN_URL . 'assets/js/fsbhoa-amenity-admin.js', array('jquery'), FSBHOA_AC_VERSION, true);
+
+            // Pass the AJAX URL and security nonce to the Javascript file
+            wp_localize_script('fsbhoa-amenity-script', 'fsbhoa_amenity_data', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('fsbhoa_amenity_nonce')
+            ));
+        }
+    }
 
     public function render_page() {
         // Check for our custom error message in the URL

@@ -341,8 +341,11 @@ class Fsbhoa_Shortcodes {
         }
 
         ob_start();
-        require_once FSBHOA_AC_PLUGIN_DIR . 'includes/card-print/views/view-print-card.php';
-        fsbhoa_render_printable_card_view();
+        if ( function_exists('fsbhoa_render_printable_card_view') ) {
+            fsbhoa_render_printable_card_view();
+        } else {
+            echo '<div class="notice notice-error"><p>The Zebra Printer module is not active. Please enable it in Plugins.</p></div>';
+        }
         return ob_get_clean();
     }
 

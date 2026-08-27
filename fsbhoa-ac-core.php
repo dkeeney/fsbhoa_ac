@@ -115,10 +115,6 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/schedules/class-fsbhoa-schedule-aj
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/csv-import-module.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/import/class-fsbhoa-import-rest-api.php';
 
-// --- Card Printing (Renamed to card-print) ---
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/card-print/class-fsbhoa-print-actions.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/card-print/class-fsbhoa-print-rest-api.php';
-
 // --- Live Monitor ---
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-access-service-functions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/monitor/class-fsbhoa-monitor-rest-api.php';
@@ -133,10 +129,10 @@ require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-rest-
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-reports-actions.php';
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/reports/class-fsbhoa-analytics-admin-page.php';
 
-// --- Kiosk Management ---
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-admin-page.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-amenity-actions.php';
-require_once FSBHOA_AC_PLUGIN_DIR . 'includes/kiosk/class-fsbhoa-kiosk-rest-api.php';
+// --- Amenities ---
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-amenity-admin-page.php';
+require_once FSBHOA_AC_PLUGIN_DIR . 'includes/admin/class-fsbhoa-amenity-actions.php';
+
 
 // --- Load Admin Dependencies for WP_List_Table ---
 // These files must be loaded BEFORE our custom list table classes that extend WP_List_Table.
@@ -264,11 +260,6 @@ function fsbhoa_ac_api_init() {
     if (class_exists('Fsbhoa_Reports_REST_API')) {
         $reports_api = new Fsbhoa_Reports_REST_API();
         $reports_api->register_routes();
-    }
-    // Instantiate the Kiosk REST API handler
-    if (class_exists('Fsbhoa_Kiosk_REST_API')) {
-        $kiosk_api = new Fsbhoa_Kiosk_REST_API();
-        $kiosk_api->register_routes();
     }
     // Instantiate the Print REST API handler
     if (class_exists('Fsbhoa_Print_REST_API')) {

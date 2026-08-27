@@ -146,7 +146,7 @@ function fsbhoa_render_cardholder_list_view() {
                         <td data-order="<?php echo esc_attr($sort_name); ?>">
                             <strong><?php echo esc_html($display_name); ?></strong>
                             <?php if (!empty($all_creds)) : ?>
-                                <br><span class="fsbhoa-meta-info">Keys: <?php echo esc_html(implode(', ', $all_creds)); ?></span>
+                                <span class="fsbhoa-visually-hidden">Keys: <?php echo esc_html(implode(' ', $all_creds)); ?></span>
                             <?php endif; ?>
                         </td>
                         <?php

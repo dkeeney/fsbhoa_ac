@@ -15,8 +15,6 @@ class Fsbhoa_System_Status_Page {
         // Core services only
         $core_services = [
             'fsbhoa_monitor'      => 'Monitor Service',
-            'fsbhoa_printer'      => 'Print Service',
-            'fsbhoa_kiosk'        => 'Kiosk Service',
         ];
 
         // Ask plugins for their services
@@ -100,11 +98,53 @@ class Fsbhoa_System_Status_Page {
                                 <button class="button service-command-btn" data-service="<?php echo esc_attr( $service_id ); ?>" data-command="start">Start</button>
                                 <button class="button service-command-btn" data-service="<?php echo esc_attr( $service_id ); ?>" data-command="stop">Stop</button>
                                 <button class="button button-primary service-command-btn" data-service="<?php echo esc_attr( $service_id ); ?>" data-command="restart">Restart</button>
+                                <button class="button service-log-btn" data-service="<?php echo esc_attr( $service_id ); ?>" style="margin-left: 10px;">View Log</button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
+
+            <!-- Log Viewer UI -->
+            <div id="service-log-container" style="display:none; margin-top: 20px; background: #fff; border: 1px solid #ccd0d4; padding: 15px;">
+                <h2 style="margin-top: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>Service Log: <code id="log-service-name"></code></span>
+                    <button type="button" class="button" onclick="jQuery('#service-log-container').hide();">Close Log</button>
+                </h2>
+                <pre id="service-log-output" style="background: #1e1e1e; color: #00ff00; padding: 15px; height: 400px; overflow-y: scroll; font-family: monospace; white-space: pre-wrap; word-wrap: break-word;"></pre>
+            </div>
+
+            <!-- Inline Script for the Log Button -->
+            <script>
+            jQuery(document).ready(function($) {
+                $('.service-log-btn').on('click', function(e) {
+                    e.preventDefault();
+                    var btn = $(this);
+                    var service = btn.data('service');
+                    var outputArea = $('#service-log-output');
+
+                    $('#log-service-name').text(service);
+                    $('#service-log-container').show();
+                    outputArea.text('Fetching logs for ' + service + '...');
+
+                    $.post(fsbhoa_admin.ajax_url, {
+                        action: 'fsbhoa_get_service_log',
+                        nonce: fsbhoa_admin.service_nonce,
+                        service: service
+                    }, function(response) {
+                        if (response.success) {
+                            outputArea.text(response.data.log);
+                            // Auto-scroll to the bottom for the newest entries
+                            outputArea.scrollTop(outputArea[0].scrollHeight);
+                        } else {
+                            outputArea.text('Error: ' + response.data);
+                        }
+                    }).fail(function() {
+                        outputArea.text('AJAX request failed.');
+                    });
+                });
+            });
+            </script>
             <div class="card" style="margin-top: 20px; border-left: 4px solid #dc3232; padding: 20px;">
                  <h2 style="margin-top: 0;">⚠️ Server Power Controls</h2>
                  <p>These actions affect the physical server. Reboot will restart the computer immediately and be available after about 2 min.. Shutdown will happen after 60 seconds and then must be manually restarted.</p>

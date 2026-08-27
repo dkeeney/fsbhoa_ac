@@ -4,7 +4,6 @@ if ( ! defined( 'WPINC' ) ) { die; }
 require_once FSBHOA_AC_PLUGIN_DIR . 'includes/fsbhoa-sync-functions.php';
 
 class Fsbhoa_Ac_Settings_Page {
-    private const DEFAULT_PRINT_API_TOKEN = 'eZdaPzde/0JGMirn6DV4VPSErRerexAiqZBCQj/T3Vg=';
 
     private $parent_slug = 'fsbhoa_ac_main_menu';
 
@@ -12,42 +11,34 @@ class Fsbhoa_Ac_Settings_Page {
     private $event_service_config_path = '/var/lib/fsbhoa/event_service.json';
     private $monitor_service_config_path = '/var/lib/fsbhoa/monitor_service.json';
     private $monitor_settings_option_group = 'fsbhoa_monitor_options';
-    private $print_service_config_path = '/var/lib/fsbhoa/zebra_print_service.json';
-    private $kiosk_config_path           = '/var/lib/fsbhoa/kiosk.json';
 
     public function __construct() {
         $this->ensure_system_users_exist();
 
         // Automatically set the default API token if it doesn't exist
-        if (!get_option('fsbhoa_ac_print_api_token')) {
-            update_option('fsbhoa_ac_print_api_token', self::DEFAULT_PRINT_API_TOKEN);
-        }
         add_action( 'admin_menu', array( $this, 'add_plugin_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'settings_api_init' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
         add_action( 'wp_ajax_fsbhoa_save_monitor_settings', array( $this, 'ajax_save_monitor_settings' ) );
         add_action( 'wp_ajax_fsbhoa_save_general_settings', array( $this, 'ajax_save_general_settings' ) );
-	    add_action( 'wp_ajax_fsbhoa_save_print_settings', array( $this, 'ajax_save_print_settings' ) );
-        add_action( 'wp_ajax_fsbhoa_save_kiosk_settings', array( $this, 'ajax_save_kiosk_settings' ) );
         add_action( 'wp_ajax_fsbhoa_generate_api_key', array( $this, 'ajax_generate_api_key' ) );
         add_action('wp_ajax_fsbhoa_save_pool_alarm', [$this, 'ajax_save_pool_alarm']);
         add_action('wp_ajax_fsbhoa_trigger_pool_alarm', [$this, 'ajax_trigger_pool_alarm']);
-        add_action('update_option', array($this, 'trigger_config_update_on_save'), 10, 3);
     }
 
     public function add_plugin_admin_menu() {
         add_menu_page('FSBHOA General Settings', 'FSBHOA AC', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page' ), 'dashicons-id-alt', 25);
-        add_submenu_page($this->parent_slug, 'General Settings', 'General Settings', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page' ));
-        add_submenu_page($this->parent_slug, 'Print Service Config', 'Print Service', 'manage_options', 'fsbhoa_print_service_settings', array( $this, 'render_print_service_page' ));
-        add_submenu_page($this->parent_slug, 'Live Monitor Settings', 'Monitor Settings', 'manage_options', 'fsbhoa_monitor_settings', array( $this, 'render_monitor_settings_page' ));
-        add_submenu_page($this->parent_slug, 'Kiosk Settings', 'Kiosk', 'manage_options', 'fsbhoa_kiosk_settings', array( $this, 'render_kiosk_settings_page' ));
+        add_submenu_page($this->parent_slug, 'General Settings', 'General Settings', 'manage_options', $this->parent_slug, array( $this, 'render_general_settings_page'), 13 );
+        add_submenu_page($this->parent_slug, 'Live Monitor Settings', 'Monitor Settings', 'manage_options', 'fsbhoa_monitor_settings', array( $this, 'render_monitor_settings_page'),14 );
+        add_submenu_page($this->parent_slug, 'Amenities', 'Amenities', 'manage_options', 'fsbhoa-ac-amenities', [new Fsbhoa_Amenity_Admin_Page(), 'render_page'], 15);
         add_submenu_page(
             $this->parent_slug,
             'Pool Intrusion Alarm',
             'Pool Alarm',
             'manage_options',
             'fsbhoa-ac-pool-alarm',
-            [$this, 'render_pool_alarm_page']
+            [$this, 'render_pool_alarm_page'],
+            17
         );
     }
 
@@ -93,32 +84,8 @@ class Fsbhoa_Ac_Settings_Page {
         $this->write_config_file($this->monitor_service_config_path, $monitor_config);
 
         
-
-        $print_config = [
-            'port'      => (int) get_option('fsbhoa_ac_print_port', 8081),
-            'api_url'   => get_site_url() . '/wp-json/fsbhoa/v1/print_log_update',
-            'api_token' => get_option('fsbhoa_ac_print_api_token', ''),
-            'printer_name' => get_option('fsbhoa_ac_printer_name', 'Zebra-ZC300'),
-            'debug_mode'   => (get_option('fsbhoa_ac_print_debug_mode', 'off') === 'on'),
-        ];
-        $this->write_config_file($this->print_service_config_path, $print_config);
-
-        // --- Build and write kiosk.json ---
-	    $kiosk_config = [
-		    'wordpress_api_base_url' => get_site_url(),
-            'api_key'                => get_option('fsbhoa_ac_kiosk_api_key', ''),
-		    'ssl_cert_path'          => sanitize_text_field($tls_cert_path),
-		    'ssl_key_path'           => sanitize_text_field($tls_key_path),
-		    'port'                   => ':' . absint(get_option('fsbhoa_kiosk_port', 8080)),
-		    'log_file'               => sanitize_text_field(get_option('fsbhoa_kiosk_log_file', '/var/log/fsbhoa/kiosk.log')),
-            'max_guests'             => (int) get_option('fsbhoa_kiosk_max_guests', 8),
-            'monitor_service_url'    => sprintf('%s://%s:%d', $protocol, $wp_host, absint($monitor_port)),
-            'event_service_url'      => sprintf('%s://%s:%d', ($protocol === 'https' ? 'wss' : 'ws'), $wp_host, absint($websocket_port)),
-	    ];
-	    $this->write_config_file($this->kiosk_config_path, $kiosk_config);
-
         do_action('fsbhoa_update_service_configs');
-        // NOTE: Future config files (e.g., for print_service) can be added here.
+        // NOTE: Future config files can be added here.
     }
     
     // Helper function to write JSON config files
@@ -137,15 +104,11 @@ class Fsbhoa_Ac_Settings_Page {
         // --- Option Groups ---
         $general_option_group = 'fsbhoa_general_options';
         $event_service_option_group = 'fsbhoa_event_service_options';
-        $print_service_option_group = 'fsbhoa_print_service_options';
         $monitor_settings_option_group = 'fsbhoa_monitor_options';
-        $kiosk_option_group = 'fsbhoa_kiosk_options';
 
         // --- Page Slugs ---
         $general_page_slug = $this->parent_slug;
         $event_service_page_slug = 'fsbhoa_event_service_settings';
-        $print_service_page_slug = 'fsbhoa_print_service_settings';
-        $kiosk_page_slug = 'fsbhoa_kiosk_settings';
 
         // ====================================================================
         // --- GENERAL SETTINGS ---
@@ -237,23 +200,6 @@ class Fsbhoa_Ac_Settings_Page {
         register_setting($general_option_group, 'fsbhoa_ac_default_court_amenity_name', 'sanitize_text_field');
 
 
-        // ====================================================================
-        // --- PRINT SERVICE SETTINGS ---
-        // ====================================================================
-        add_settings_section('fsbhoa_print_service_section', 'Print Service Settings', null, $print_service_page_slug);
-        add_settings_field('fsbhoa_ac_print_port_field', 'Zebra Print Service Port', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_port', 'type' => 'number', 'default' => 8081]);
-        add_settings_field('fsbhoa_ac_printer_name_field', 'CUPS Printer Name', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_printer_name', 'type' => 'text', 'default' => 'Zebra-ZC300', 'desc' => 'The exact name of the printer queue in CUPS.']);
-        add_settings_field('fsbhoa_ac_print_debug_mode_field', 'Debug Mode (Dry Run)', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_debug_mode', 'type' => 'checkbox', 'desc' => 'If checked, the service will only generate the image file in /var/tmp and will NOT send it to the printer.']);
-        add_settings_field('fsbhoa_ac_card_back_url_field', 'Card Back Logo', array($this, 'render_media_uploader_field'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_card_back_url', 'desc' => 'Select an image from the Media Library for the back of the card.']);
-        add_settings_field('fsbhoa_ac_print_template_path_field', 'Print Template JSON Path', array($this, 'render_field_callback'), $print_service_page_slug, 'fsbhoa_print_service_section', ['id' => 'fsbhoa_ac_print_template_path', 'type' => 'text', 'desc' => 'Full server path to the print template JSON file.']);
-
-        register_setting($print_service_option_group, 'fsbhoa_ac_print_port', 'absint');
-        register_setting($print_service_option_group, 'fsbhoa_ac_printer_name', 'sanitize_text_field');
-        register_setting($print_service_option_group, 'fsbhoa_ac_print_debug_mode', 'sanitize_text_field');
-        register_setting($print_service_option_group, 'fsbhoa_ac_card_back_url', 'esc_url_raw');
-        register_setting($print_service_option_group, 'fsbhoa_ac_print_template_path', 'sanitize_text_field');
-	register_setting($print_service_option_group, 'fsbhoa_ac_print_api_token', 'sanitize_text_field');
-
 
         // ====================================================================
         // --- MONITOR SETTINGS ---
@@ -262,137 +208,6 @@ class Fsbhoa_Ac_Settings_Page {
         register_setting($this->monitor_settings_option_group, 'fsbhoa_monitor_map_url', 'esc_url_raw');
         register_setting($this->monitor_settings_option_group, 'fsbhoa_ac_monitor_port', 'absint');
         register_setting($this->monitor_settings_option_group, 'fsbhoa_ac_monitor_photo_limit', 'absint');
-
-
-        // ====================================================================
-        // --- KIOSK SETTINGS ---
-        // ====================================================================
-        $kiosk_option_group = 'fsbhoa_kiosk_options';
-        $kiosk_page_slug = 'fsbhoa_kiosk_settings';
-
-        add_settings_section(
-            'fsbhoa_ac_kiosk_logo_section',
-            'Display Settings',
-            null,
-            $kiosk_page_slug
-        );
-
-        add_settings_field(
-            'fsbhoa_kiosk_logo_url_field',
-            'Kiosk Logo URL',
-            array($this, 'render_media_uploader_field'),
-            $kiosk_page_slug,
-            'fsbhoa_ac_kiosk_logo_section',
-            [
-                'id' => 'fsbhoa_kiosk_logo_url',
-                'type' => 'url',
-                'desc' => 'URL for the logo displayed in heading of the kiosk idle screen.'
-            ]
-        );
-        register_setting(
-            $kiosk_option_group,
-            'fsbhoa_kiosk_logo_url',
-            'esc_url_raw'
-        );
-
-        add_settings_field(
-            'fsbhoa_kiosk_splash_url_field',
-            'Kiosk Splash Image',
-            array($this, 'render_media_uploader_field'),
-            $kiosk_page_slug,
-            'fsbhoa_ac_kiosk_logo_section',
-            [
-                'id' => 'fsbhoa_kiosk_splash_url',
-                'type' => 'url',
-                'desc' => 'Image displayed for 2 seconds after a resident makes a selection. If blank, display selected icon instead.'
-            ]
-        );
-        register_setting(
-            $kiosk_option_group,
-            'fsbhoa_kiosk_splash_url',
-            'esc_url_raw'
-        );
-
-        add_settings_field(
-            'fsbhoa_kiosk_name_field',                  // Field ID
-            'Kiosk Display Name',                       // Field Title
-            array($this, 'render_field_callback'),      // Re-use your existing render function
-            $kiosk_page_slug,                           // Page slug
-            'fsbhoa_ac_kiosk_logo_section',             // Section to display in
-            [                                           // Arguments
-                'id' => 'fsbhoa_kiosk_name', 
-                'type' => 'text', 
-                'default' => 'Front Desk Kiosk',
-                'desc' => 'The name displayed for kiosk events on the Real-time Display.'
-            ]
-        );
-
-        register_setting(
-            $kiosk_option_group,
-            'fsbhoa_kiosk_name',
-            'sanitize_text_field'
-        );
-
-        // Add Port setting
-	add_settings_field(
-		'fsbhoa_kiosk_port_field',
-		'Kiosk Service Port',
-		array($this, 'render_field_callback'),
-		$kiosk_page_slug,
-		'fsbhoa_ac_kiosk_logo_section',
-		[
-			'id'      => 'fsbhoa_kiosk_port',
-			'type'    => 'number',
-			'default' => 8080,
-			'desc'    => 'The port the kiosk service listens on for secure HTTPS connections.'
-		]
-	);
-	register_setting($kiosk_option_group, 'fsbhoa_kiosk_port', 'absint');
-
-        // Add API Key
-        add_settings_field(
-            'fsbhoa_ac_kiosk_api_key_field',
-            'Kiosk API Key',
-            array($this, 'render_api_key_field'),
-            $kiosk_page_slug,
-            'fsbhoa_ac_kiosk_logo_section',
-            [
-                'id' => 'fsbhoa_ac_kiosk_api_key',
-                'desc' => 'Secret key used by the Kiosk service to authorize with WordPress.'
-            ]
-        );
-        register_setting($kiosk_option_group, 'fsbhoa_ac_kiosk_api_key', 'sanitize_text_field');
-
-	// Add Log File setting
-	add_settings_field(
-		'fsbhoa_kiosk_log_file_field',
-		'Kiosk Log File Path',
-		array($this, 'render_field_callback'),
-		$kiosk_page_slug,
-		'fsbhoa_ac_kiosk_logo_section',
-		[
-			'id'      => 'fsbhoa_kiosk_log_file',
-			'type'    => 'text',
-			'default' => '/var/log/fsbhoa/kiosk.log',
-			'desc'    => 'Full server path to the kiosk service log file.'
-		]
-	);
-	register_setting($kiosk_option_group, 'fsbhoa_kiosk_log_file', 'sanitize_text_field');
-
-        add_settings_field(
-            'fsbhoa_kiosk_max_guests_field',
-            'Max Guests',
-            array($this, 'render_field_callback'),
-            $kiosk_page_slug,
-            'fsbhoa_ac_kiosk_logo_section',
-            [
-                'id'      => 'fsbhoa_kiosk_max_guests',
-                'type'    => 'number',
-                'default' => 8,
-                'desc'    => 'The maximum number of guests a resident can sign in (e.g., 8 creates buttons for 0-8 guests).'
-            ]
-        );
-        register_setting($kiosk_option_group, 'fsbhoa_kiosk_max_guests', 'absint');
     }
 
 
@@ -430,20 +245,6 @@ class Fsbhoa_Ac_Settings_Page {
     }
 
 
-    public function render_print_service_page() {
-        ?>
-        <div class="wrap" id="fsbhoa-print-settings-page">
-            <h1>Print Service Configuration</h1>
-             <?php
-                do_settings_sections('fsbhoa_print_service_settings');
-            ?>
-            <p class="submit">
-                <button type="button" id="fsbhoa-save-print-settings-button" class="button button-primary">Save Print Settings</button>
-                <span id="fsbhoa-save-feedback" style="display: none; margin-left: 10px; vertical-align: middle;"></span>
-            </p>
-        </div>
-        <?php
-    }
 
     public function render_monitor_settings_page() {
         ?>
@@ -542,29 +343,12 @@ class Fsbhoa_Ac_Settings_Page {
     }
 
 
-    public function render_kiosk_settings_page() {
-        ?>
-        <div class="wrap" id="fsbhoa-kiosk-settings-page">
-            <h1>Kiosk Settings</h1>
-            <?php
-                // We manually render the sections and fields without a <form> tag
-                do_settings_sections('fsbhoa_kiosk_settings');
-            ?>
-            <p class="submit">
-                <button type="button" id="fsbhoa-save-kiosk-settings-button" class="button button-primary">Save Kiosk Settings</button>
-                <span id="fsbhoa-save-feedback" style="display: none; margin-left: 10px; vertical-align: middle;"></span>
-            </p>
-        </div>
-        <?php
-    }
 
     public function enqueue_admin_assets($hook) {
         // For General, Event, & Print Settings Pages
         $settings_pages = [
             'toplevel_page_fsbhoa_ac_main_menu',
             'fsbhoa-ac_page_fsbhoa_event_service_settings',
-            'fsbhoa-ac_page_fsbhoa_print_service_settings',
-            'fsbhoa-ac_page_fsbhoa_kiosk_settings',
             'fsbhoa-ac_page_fsbhoa-ac-pool-alarm'
         ];
 
@@ -580,8 +364,6 @@ class Fsbhoa_Ac_Settings_Page {
                     'ajax_url'      => admin_url('admin-ajax.php'),
                     'general_nonce' => wp_create_nonce('fsbhoa_general_settings_nonce'),
                     'event_nonce'   => wp_create_nonce('fsbhoa_event_settings_nonce'),
-                    'print_nonce'   => wp_create_nonce('fsbhoa_print_settings_nonce'),
-                    'kiosk_nonce'   => wp_create_nonce('fsbhoa_kiosk_settings_nonce'),
                     'pool_alarm_nonce' => wp_create_nonce('fsbhoa_pool_alarm_nonce'),
                     'generate_api_key_nonce' => wp_create_nonce('fsbhoa_generate_api_key_nonce'),
                 )
@@ -694,66 +476,6 @@ class Fsbhoa_Ac_Settings_Page {
     }
 
 
-    public function ajax_save_print_settings() {
-        check_ajax_referer('fsbhoa_print_settings_nonce', 'nonce');
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Permission denied.', 403);
-        }
-
-        $options = isset($_POST['options']) ? $_POST['options'] : [];
-        if (!empty($options)) {
-            foreach ($options as $option) {
-                update_option(sanitize_key($option['name']), sanitize_text_field($option['value']));
-            }
-        }
-        
-	$this->update_all_service_configs();
-        wp_send_json_success('Print Service settings saved.');
-    }
-
-    public function ajax_save_kiosk_settings() {
-        check_ajax_referer('fsbhoa_kiosk_settings_nonce', 'nonce');
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Permission denied.', 403);
-        }
-
-        $options = isset($_POST['options']) ? $_POST['options'] : [];
-        if (!empty($options)) {
-            foreach ($options as $option) {
-                // Manually save each registered setting for the kiosk page
-                if (in_array($option['name'], 
-                   ['fsbhoa_kiosk_logo_url', 
-                    'fsbhoa_kiosk_splash_url',
-                    'fsbhoa_kiosk_name', 
-                    'fsbhoa_kiosk_port', 
-                    'fsbhoa_kiosk_log_file',
-                    'fsbhoa_kiosk_max_guests',
-                    'fsbhoa_ac_kiosk_api_key',
-                   ])) {
-                    update_option(sanitize_key($option['name']), sanitize_text_field($option['value']));
-                }
-            }
-        }
-
-        $this->update_all_service_configs();
-        wp_send_json_success('Kiosk settings saved.');
-    }
-
-
-    // For kiosk
-    public function trigger_config_update_on_save($option_name, $old_value, $new_value) {
-        // A list of options that should trigger a config file rewrite
-        $kiosk_options = [
-            'fsbhoa_kiosk_logo_url',
-            'fsbhoa_kiosk_name',
-            'fsbhoa_kiosk_port',
-            'fsbhoa_kiosk_log_file'
-        ];
-
-        if (in_array($option_name, $kiosk_options)) {
-            $this->update_all_service_configs();
-        }
-    }
 
     /**
      * Renders the special read-only field for the API key with a generate button.

@@ -10,6 +10,7 @@ class Fsbhoa_System_Actions {
         // NEW: System Power Actions
         add_action('wp_ajax_fsbhoa_system_reboot', array($this, 'handle_system_reboot'));
         add_action('wp_ajax_fsbhoa_system_shutdown', array($this, 'handle_system_shutdown'));
+        add_action('wp_ajax_fsbhoa_get_service_log', [ $this, 'ajax_get_service_log' ]);
     }
 
     /**
@@ -68,6 +69,34 @@ class Fsbhoa_System_Actions {
     }
 
     /**
+     * Retrieves the last 100 lines of the systemd journal for the requested service.
+     */
+    public function ajax_get_service_log() {
+        check_ajax_referer('fsbhoa_system_status_nonce', 'nonce');
+
+        if ( ! current_user_can('manage_options') ) {
+            wp_send_json_error('Permission denied.');
+        }
+
+        $service = sanitize_text_field($_POST['service']);
+        $allowed_services = array_keys(Fsbhoa_System_Status_Page::get_services());
+
+        if ( !in_array($service, $allowed_services) ) {
+            wp_send_json_error('Invalid service specified.');
+        }
+
+        // Query the system journal for this specific service
+        $exec_command = sprintf('/usr/bin/sudo /bin/journalctl -u %s -n 100 --no-pager', escapeshellarg($service));
+        $output = (string) shell_exec($exec_command . " 2>&1");
+
+        if (empty(trim($output))) {
+            $output = "No logs found. The service may not have been started recently, or systemd isn't capturing its standard output.";
+        }
+
+        wp_send_json_success(['log' => $output]);
+    }
+
+    /**
      *  Reboot Logic
      */
     public function handle_system_reboot() {
@@ -110,4 +139,6 @@ class Fsbhoa_System_Actions {
             wp_send_json_success('Shutdown scheduled in one minute. Goodbye.');
         }
     }
+
+
 }
