@@ -17,7 +17,21 @@ jQuery(document).ready(function($) {
         "columns": [
             { "data": null, "defaultContent": "", "className": "select-checkbox", "orderable": false },
             { "data": "event_timestamp" },
-            { "data": "photo", "orderable": false, "className": "photo-column", "render": function(data, type, row) { if (data) { return '<img src="data:image/jpeg;base64,' + data + '" alt="photo">'; } return ''; } },
+            {
+              "data": "photo",
+              "orderable": false,
+              "className": "photo-column",
+              "render": function(data, type, row) {
+                  const fallbackSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaaaaa'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+
+                  if (data) {
+                      return '<img src="data:image/jpeg;base64,' + data + '" alt="photo" style="width: 48px; height: 48px; object-fit: cover; border-radius: 4px;">';
+                  }
+
+                  // Return the SVG silhouette with a light grey background
+                  return '<img src="' + fallbackSvg + '" alt="no photo" style="width: 48px; height: 48px; object-fit: cover; border-radius: 4px; padding: 4px; background-color: #f0f0f1;">';
+              }
+            },
             { "data": "cardholder", 
               "render": function(data, type, row) {
                     // Only render a link if there is a valid cardholder ID attached to the event

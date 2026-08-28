@@ -195,4 +195,55 @@ class Fsbhoa_Test_Suite_Actions {
             wp_send_json_error('Verification failed: The dry run response was not in the expected format.');
         }
     }
+
+
+    private function ensure_regression_controller() {
+        global $wpdb;
+
+        $controllers_table = 'ac_controllers';
+        $doors_table = 'ac_doors';
+
+        // 1. Check if the Regression Test controller already exists specifically by type
+        $controller_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT controller_record_id FROM {$controllers_table} WHERE type = %s LIMIT 1",
+            'REGRESSION_TEST'
+        ) );
+
+        // If not, create it with the REGRESSION_TEST type
+        if ( ! $controller_id ) {
+            $inserted = $wpdb->insert( $controllers_table, [
+                'uhppoted_device_id' => 88888888,
+                'friendly_name'      => 'Regression Test Controller',
+                'type'               => 'REGRESSION_TEST',
+            ] );
+
+            if ( false === $inserted ) {
+                error_log("FSBHOA DEBUG: Failed to insert regression controller: " . $wpdb->last_error);
+                return;
+            }
+            $controller_id = $wpdb->insert_id;
+            error_log("FSBHOA DEBUG: Created regression controller with ID: " . $controller_id);
+        }
+
+        // 2. Ensure a default door/gate exists for this specific controller record
+        $door_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT door_record_id FROM {$doors_table} WHERE controller_record_id = %d LIMIT 1",
+            $controller_id
+        ) );
+
+        if ( ! $door_id ) {
+            $inserted_door = $wpdb->insert( $doors_table, [
+                'controller_record_id'      => $controller_id,
+                'door_number_on_controller' => 1,
+                'friendly_name'             => 'Regression Test Gate',
+                'door_role'                 => 'KIOSK',
+            ] );
+
+            if ( false === $inserted_door ) {
+                error_log("FSBHOA DEBUG: Failed to insert regression door: " . $wpdb->last_error);
+            } else {
+                error_log("FSBHOA DEBUG: Created regression door for controller ID: " . $controller_id);
+            }
+        }
+    }
 }

@@ -40,6 +40,8 @@ class Fsbhoa_Ac_Settings_Page {
             [$this, 'render_pool_alarm_page'],
             17
         );
+        // Let secondary plugins hook their submenus right here dynamically
+        do_action('fsbhoa_register_admin_submenus', $this->parent_slug);
     }
 
     /**

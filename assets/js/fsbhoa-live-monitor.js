@@ -212,8 +212,20 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             const isGranted = eventData.eventType === 'accessGranted';
             li.className = `p-4 flex items-start space-x-4 border-l-4 ${isGranted ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} is-expanded`;
+
+            // Apply the inline SVG fallback if no photo URL is provided
+            const fallbackSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaaaaa'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+
+            let photoSrc = eventData.photoURL;
+            let photoClasses = "w-16 h-16 rounded-lg object-cover";
+            // Just in case the backend DOES send an empty string
+            if (!photoSrc) {
+                photoSrc = fallbackSvg;
+                photoClasses += " p-2 bg-gray-200";
+            }
+
             li.innerHTML = `
-                <img class="w-16 rounded-lg" src="${eventData.photoURL}" alt="${eventData.cardholderName}" onerror="this.onerror=null;this.src='https://placehold.co/128x128/ccc/ffffff?text=Error';">
+                <img class="${photoClasses}" src="${photoSrc}" alt="${eventData.cardholderName}">
                 <div class="flex-1 event-text-content">
                     <p class="text-lg font-semibold text-gray-900">${eventData.cardholderName}</p>
                     <p class="text-gray-500">${eventData.streetAddress}</p>
@@ -221,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <p class="text-yellow-700 font-bold event-amenity">${eventData.amenity ? `Amenity: ${eventData.amenity}` : ''}</p>
                     <p class="text-sm ${isGranted ? 'text-green-700' : 'text-red-700'} font-medium mt-1">${eventData.eventMessage}</p>
                 </div>
+
                 <time class="text-sm text-gray-500">${eventData.timestamp}</time>
             `;
         } else {
